@@ -1,6 +1,6 @@
 using System;
 
-namespace netki
+namespace Netki
 {
 	public delegate void PacketLaneOutput(Bitstream.Buffer send);
 

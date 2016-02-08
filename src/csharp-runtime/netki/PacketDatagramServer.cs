@@ -3,7 +3,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Collections.Generic;
 
-namespace netki
+namespace Netki
 {
 	public delegate void OnDatagramDelegate(byte[] data, uint length, ulong EndPoint);
 

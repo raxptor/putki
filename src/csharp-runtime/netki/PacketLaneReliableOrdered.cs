@@ -1,6 +1,6 @@
 using System;
 
-namespace netki
+namespace Netki
 {
 	public class PacketLaneReliableOrdered : PacketLane
 	{
@@ -108,7 +108,7 @@ namespace netki
 			}
 		}
 
-		public netki.Bitstream.Buffer Update(float dt, PacketLaneOutput outputFn)
+		public Bitstream.Buffer Update(float dt, PacketLaneOutput outputFn)
 		{
 			// dequeue in order.
 			if (_recv[_recvPos].buf != null)
