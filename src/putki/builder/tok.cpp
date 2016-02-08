@@ -63,7 +63,7 @@ namespace putki
 			}
 		}
 		
-		int size(data *d)
+		size_t size(data *d)
 		{
 			return d->ptrs.size();
 		}

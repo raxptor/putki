@@ -67,7 +67,7 @@ namespace putki
 
 			// parse
 			std::string asset_name(name);
-			int p = asset_name.find_last_of('.');
+			size_t p = asset_name.find_last_of('.');
 			if (p == std::string::npos)
 			{
 				return;

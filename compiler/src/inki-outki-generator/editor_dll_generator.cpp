@@ -63,12 +63,12 @@ namespace putki
 			out.line() << "{";
 			out.indent(1);
 			out.line() << "// get info";
-			out.line() << "const char *name() { return \"" << s->name << "\"; }";
+			out.line() << "const char *name() { return \"" << s->fields[j].name << "\"; }";
 			out.line() << "bool is_array() { return " << s->fields[j].is_array << "; }";
 
 			if (s->fields[j].is_array)
 			{
-				std::string vec_ref = "((inki::" + s_name + " *)((putki::mem_instance_real*)obj)->inst)->" + s_name + ".";
+				std::string vec_ref = "((inki::" + s_name + " *)((putki::mem_instance_real*)obj)->inst)->" + f_name + ".";
 				out.line() << "int _idx;";
 				out.line() << "void set_array_index(int i) { _idx = i; }";
 				out.line() << "int get_array_size(putki::mem_instance *obj) { return " << vec_ref << "size(); }";

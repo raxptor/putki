@@ -42,7 +42,7 @@ namespace putki
 			jsmntok_t *token;
 
 			char *value;
-			int length;
+			size_t length;
 			bool decoded;
 			
 			objmap_t object;
@@ -51,7 +51,7 @@ namespace putki
 			int children_left;
 		};
 
-		node *get_array_item(node *arr, unsigned int i)
+		node *get_array_item(node *arr, size_t i)
 		{
 			if (!arr) {
 				return 0;
@@ -189,7 +189,7 @@ namespace putki
 			}
 
 			char *tmp = new char[size+1];
-			int rd = ::fread(tmp, 1, size, fp);
+			size_t rd = ::fread(tmp, 1, size, fp);
 			::fclose(fp);
 
 			PARSE_DEBUG("Read " << rd << "bytes.." << std::endl);
@@ -201,7 +201,7 @@ namespace putki
 		}
 			
 		
-		data * parse_json(char *json, int size)
+		data * parse_json(char *json, size_t size)
 		{
 			jsmn_parser p;
 

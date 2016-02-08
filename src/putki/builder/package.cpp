@@ -168,7 +168,7 @@ namespace putki
 					if (slot)
 					{
 						line.erase(0, 2);
-						int split = line.find_first_of(':');
+						size_t split = line.find_first_of(':');
 						slot->deps.push_back(
 							atoi(
 								line.substr(0, split).c_str()
@@ -184,7 +184,7 @@ namespace putki
 				{
 					manifest_slot tmp;
 					
-					int split = line.find_first_of(':');
+					size_t split = line.find_first_of(':');
 					std::string slotnum = line.substr(1, split - 1);
 					int slotidx = atoi(slotnum.c_str());
 					if (slotidx != pkg->slots.size())

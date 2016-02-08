@@ -14,7 +14,7 @@ namespace putki
 		
 		void tokenize_newlines(data *d);
 		
-		int size(data *d);
+		size_t size(data *d);
 		const char *get(data *d, unsigned int index);
 	}
 }

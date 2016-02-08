@@ -127,7 +127,7 @@ namespace putki
 	struct sstream
 	{
 		char _static[256];
-		unsigned int _len; // buffer length
+		size_t _len; // buffer length
 		char *_buf, *_writeptr;
 		
 		sstream()
@@ -145,9 +145,9 @@ namespace putki
 			}
 		}
 		
-		inline void need_x_more(unsigned int more, unsigned int allocmult=4, unsigned int allocadd=256)
+		inline void need_x_more(size_t more, unsigned int allocmult=4, unsigned int allocadd=256)
 		{
-			const unsigned int need = (_writeptr - _buf) + more;
+			const size_t need = (_writeptr - _buf) + more;
 			if (need > _len)
 			{
 				_len = _len * allocmult;
@@ -210,7 +210,7 @@ namespace putki
 		
 		inline sstream & operator<<(const char *txt)
 		{
-			const unsigned int len = strlen(txt);
+			size_t len = strlen(txt);
 			need_x_more(len);
 			memcpy(_writeptr, txt, len);
 			_writeptr += len;
