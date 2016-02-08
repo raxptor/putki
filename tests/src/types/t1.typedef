@@ -1,10 +1,23 @@
 
-test_struct_types
+TestStructTypes
 {
-	string v_string
-	int v_int
-	s32 v_s32
-	u32 v_u32
-	byte v_byte
-	float v_float
+	string TestString
+	int TestInt
+	s32 TestS32
+	u32 TestU32
+	byte TestByte
+	float TestFloat
 }
+
+RootStruct rtti
+{
+	string Name
+	string DebugName
+}
+
+SubStruct1 : RootStruct
+{
+	string SubName
+}
+
+

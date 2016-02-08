@@ -836,7 +836,7 @@ namespace putki
 
 			APP_INFO("Starting build with " << context->builder->num_threads << " threads..")
 			
-			for (int i=0;i<(context->builder->num_threads-1);i++)
+			for (unsigned int i=0;i<(context->builder->num_threads-1);i++)
 			{
 				buildthread *bt = new buildthread();
 				bt->id = i;

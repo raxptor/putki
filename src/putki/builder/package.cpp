@@ -783,7 +783,7 @@ namespace putki
 
 			// Now comes slot list, we add both packed & unpacked.
 			ptr = pack_int16_field(ptr, packlist.size() + unpacked.size());
-			for (int i=0;i!=(packlist.size() + unpacked.size());i++)
+			for (unsigned int i=0;i!=(packlist.size() + unpacked.size());i++)
 			{
 				const int PKG_FLAG_PATH       = 1;
 				const int PKG_FLAG_EXTERNAL   = 2;

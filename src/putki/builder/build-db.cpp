@@ -332,7 +332,7 @@ namespace putki
 
 		void add_external_resource_dependency(record *r, const char *filepath, const char *signature)
 		{
-			for (int i=0; i<r->dependencies.size(); i++)
+			for (unsigned int i=0; i<r->dependencies.size(); i++)
 			{
 				if (!strcmp(r->dependencies[i].path.c_str(), filepath))
 				{
@@ -354,9 +354,9 @@ namespace putki
 
 		void merge_input_dependencies(record *target, record *source)
 		{
-			for (int i=0; i<source->input_dependencies.size(); i++)
+			for (unsigned int i=0; i<source->input_dependencies.size(); i++)
 				add_input_dependency(target, source->input_dependencies[i].path.c_str(), source->input_dependencies[i].signature.c_str());
-			for (int i=0; i<source->dependencies.size(); i++)
+			for (unsigned int i=0; i<source->dependencies.size(); i++)
 				add_external_resource_dependency(target, source->dependencies[i].path.c_str(), source->dependencies[i].signature.c_str());
 		}
 

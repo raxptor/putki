@@ -8,7 +8,7 @@ namespace putki
 	class indentedwriter
 	{
 public:
-		indentedwriter(std::ostream &ostr) : m_stream(ostr), m_indent(0)
+		indentedwriter(std::ostream &ostr, int indent=0) : m_stream(ostr), m_indent(indent)
 		{
 
 		}

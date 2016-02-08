@@ -5,7 +5,6 @@
 
 namespace putki
 {
-
 	namespace runtime
 	{
 		const char * desc_str(desc const * rt)
@@ -45,10 +44,10 @@ namespace putki
 			// if you change this table, re-build the compiler and re-compile everything too.
 			static const int count = 3;
 			static const desc rtd[count] = {
-				{PLATFORM_64BIT,   LANGUAGE_CPP,     8,     1,     true       },
-				{PLATFORM_32BIT,   LANGUAGE_CPP,     4,     1,     true       },
+				{PLATFORM_64BIT,   LANGUAGE_CPP,    8,  1, 8, true},
+				{PLATFORM_32BIT,   LANGUAGE_CPP,    4,  1, 4, true},
 				// We use 16-bit pointers here!
-				{PLATFORM_CSHARP,  LANGUAGE_CSHARP,  2,     1,     true       }
+				{PLATFORM_CSHARP,  LANGUAGE_CSHARP, 2,  1, 1, true}
 			};
 
 			if (index < count) {

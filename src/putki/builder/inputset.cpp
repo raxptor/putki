@@ -262,7 +262,7 @@ namespace putki
 				std::string line(ln);
 				
 				int spl[64], spls = 0;
-				for (int i = 0;i < line.size();i++)
+				for (unsigned int i = 0;i < line.size();i++)
 				{
 					if (line[i] == ':')
 					{

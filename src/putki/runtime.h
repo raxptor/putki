@@ -26,6 +26,7 @@ namespace putki
 			language_t language;
 			int ptrsize;
 			int boolsize;
+			int struct_align;
 			bool low_byte_first;
 		};
 

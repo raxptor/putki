@@ -92,7 +92,7 @@ void generate_project(putki::project *p)
 		putki::write_bind_decl(pf, putki::indentedwriter(bind_decl));
 		putki::write_bind_calls(pf, putki::indentedwriter(bind_calls));
 		putki::write_bind_decl_dll(pf, putki::indentedwriter(bind_decl_dll));
-		putki::write_bind_call_dll(pf, putki::indentedwriter(bind_calls_dll));
+		putki::write_bind_call_dll(pf, putki::indentedwriter(bind_calls_dll, 2));
 
 		inki_master << "#include \"inki/" << subpath << ".cpp\"\n";
 		inki_master << "#include \"editor/" << subpath << ".cpp\"\n";

@@ -335,7 +335,7 @@ namespace putki
 				do
 				{
 					// nice!
-					int t = time(0) + rand();
+					time_t t = time(0) + rand();
 					char ap[16];
 					for (int j=0;j<6;j++)
 						ap[j] = digits[ (t >> j*4) & 0xf];
