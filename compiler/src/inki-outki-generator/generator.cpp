@@ -132,7 +132,7 @@ namespace putki
 		else if (pf->type == FIELDTYPE_ENUM)
 			return std::string("inki::") + to_c_enum_name(pf->ref_type);
 		else if (pf->type == FIELDTYPE_POINTER)
-			return std::string("inki::") + pf->ref_type + "*";
+			return std::string("inki::") + to_c_struct_name(pf->ref_type) + "*";
 
 		return putki_field_type_pod(pf->type);
 	}
@@ -168,7 +168,8 @@ namespace putki
 			for (size_t i = 0; i < file->enums.size(); i++)
 			{
 				putki::parsed_enum *e = &file->enums[i];
-				out.line() << "enum " << e->name;
+				out.line();
+				out.line() << "enum " << to_c_enum_name(e->name);
 				out.line() << "{";
 				for (size_t j = 0; j<e->values.size(); j++)
 				{
@@ -475,26 +476,26 @@ namespace putki
 		for (size_t i=0; i<file->enums.size(); i++)
 		{
 			putki::parsed_enum *e = &file->enums[i];
-			out.line() << "enum " << e->name;
+			out.line() << "enum " << to_c_enum_name(e->name);
 			out.line() << "{";
 			for (size_t j=0; j<e->values.size(); j++)
 			{
 				if (j > 0)
 					out.cont() << ",";
-				out.line(1) << e->values[j].name << " = " << e->values[j].value;
+				out.line(1) << to_c_enum_value(e->values[j].name) << " = " << e->values[j].value;
 			}
 			out.line() << "};";
 			out.line();
-			out.line() << "inline " << e->name << " " << e->name << "_from_string(const char *val)";
+			out.line() << "inline " << to_c_enum_name(e->name) << " " << to_c_struct_name(e->name) << "_from_string(const char *val)";
 			out.line() << "{";
 			out.indent(1);
 			for (size_t j=0; j<e->values.size(); j++)
-				out.line() << "if (!strcmp(val, \"" << e->values[j].name << "\")) return " << e->values[j].name << ";";
-			out.line() << "return (" << e->name << ") 0;";
+				out.line() << "if (!strcmp(val, \"" << e->values[j].name << "\")) return " << to_c_enum_value(e->values[j].name) << ";";
+			out.line() << "return (" << to_c_enum_name(e->name) << ") 0;";
 			out.indent(-1);
 			out.line() << "}";
 
-			out.line() << "inline const char * " << e->name << "_to_string(" << e->name << " val)";
+			out.line() << "inline const char * " << to_c_struct_name(e->name) << "_to_string(" << to_c_enum_name(e->name) << " val)";
 			out.line() << "{";
 			out.indent(1);
 			out.line() << "switch (val)";
@@ -508,7 +509,7 @@ namespace putki
 			out.indent(-1);
 			out.line() << "}";
 
-			out.line() << "inline const char * " << e->name << "_string_by_index(int idx)";
+			out.line() << "inline const char * " << to_c_struct_name(e->name) << "_string_by_index(int idx)";
 			out.line() << "{";
 			out.indent(1);
 			out.line() << "switch (idx)";
@@ -575,7 +576,7 @@ namespace putki
 								out.line() << f_name << " = 0;";
 							break;
 						case FIELDTYPE_ENUM:
-							out.line() << f_name << " = (" << s->fields[j].ref_type << ")0;";
+							out.line() << f_name << " = (" << to_c_enum_name(s->fields[j].ref_type) << ")0;";
 							break;
 						case FIELDTYPE_BOOL:
 							out.line() << f_name << " = false;";
@@ -650,7 +651,7 @@ namespace putki
 				out.line() << "char *write_" << s_name << "_into_blob(inki::" << s_name << " *in, char *out_beg, char *out_end);";
 			}
 
-			out.line() << "void walk_dependencies_" << s_name << "(" << s_name << " *input, putki::depwalker_i *walker, bool traverseChildren, bool skipInputOnly, bool rttiDispatch);";
+			out.line() << "void walk_dependencies_" << s_name << "(" << s_name << " *input, putki::depwalker_i *walker, bool traverse_children, bool skipInputOnly, bool rttiDispatch);";
 		}
 
 		out.line();
@@ -737,7 +738,7 @@ namespace putki
 		}
 		else if (f->type == FIELDTYPE_ENUM)
 		{
-			out.line() << ref << " = inki::" << f->ref_type << "_from_string(putki::parse::get_value_string(" << node << "));";
+			out.line() << ref << " = inki::" << to_c_struct_name(f->ref_type) << "_from_string(putki::parse::get_value_string(" << node << "));";
 		}
 		else if (f->type == FIELDTYPE_STRUCT_INSTANCE)
 		{
@@ -847,7 +848,7 @@ namespace putki
 			if (runtime)
 				out.line() << "void walk_dependencies_" << s_name << "(" << s_name << " *input, putki::depwalker_i *walker)";
 			else
-				out.line() << "void walk_dependencies_" << s_name << "(" << s_name << " *input, putki::depwalker_i *walker, bool traverseChildren, bool skipInputOnly, bool rttiDispatch)";
+				out.line() << "void walk_dependencies_" << s_name << "(" << s_name << " *input, putki::depwalker_i *walker, bool traverse_children, bool skipInputOnly, bool rttiDispatch)";
 					
 			out.line() << "{";
 			out.indent(1);
@@ -859,14 +860,14 @@ namespace putki
 				out.line() << "if (!rttiDispatch) {";
 				out.line(1) << "putki::typereg_get_handler(input->rtti_type_ref())->walk_dependencies(input, walker";
 				if (!runtime)
-					out.cont() << ", traverseChildren, skipInputOnly, true";
+					out.cont() << ", traverse_children, skipInputOnly, true";
 				out.cont() << ");";
 				out.line(1) << "return;";
 				out.line() << "}";
 			}
 			
-			const char *levelCheck = runtime ? "" : "if (traverseChildren) ";
-			const char *traverseArgs  = runtime ? "" : ", traverseChildren";
+			const char *levelCheck = runtime ? "" : "if (traverse_children) ";
+			const char *traverseArgs  = runtime ? "" : ", traverse_children";
 
 			for (size_t j=0; j<s->fields.size(); j++)
 			{
@@ -927,7 +928,7 @@ namespace putki
 						out.line() << "if (walker->pointer_pre_filter((putki::instance_t *)&" << ref << ", \"" << fd.ref_type << "\"))";
 
 					out.line() << "{";
-					out.line(1) << "if (" << ref << ") { " << levelCheck << " walk_dependencies_" << fd.ref_type << "(" << ref << ", walker "
+					out.line(1) << "if (" << ref << ") { " << levelCheck << " walk_dependencies_" << to_c_struct_name(fd.ref_type) << "(" << ref << ", walker "
 					            << (runtime ? "" : ", true ") << inkiArgs << "); }";
 					out.line() << "}";
 					out.line() << "walker->pointer_post((putki::instance_t *)&" << ref << ");";
@@ -1026,7 +1027,7 @@ namespace putki
 			}
 			else if (fd.type == FIELDTYPE_ENUM)
 			{
-				out.line() << "out << " << delim << " \"\\\"\" << inki::" << fd.ref_type << "_to_string(" << ref << ") << \"\\\"\" ;";
+				out.line() << "out << " << delim << " \"\\\"\" << inki::" << to_c_struct_name(fd.ref_type) << "_to_string(" << ref << ") << \"\\\"\" ;";
 			}
 			else if (fd.type == FIELDTYPE_POINTER)
 			{
@@ -1113,8 +1114,8 @@ namespace putki
 			out.line() << "bool in_output() { return " << (s->domains & putki::DOMAIN_RUNTIME ? "true" : "false") << "; }";
 			out.line();
 			out.line() << "// deps";
-			out.line() << "void walk_dependencies(putki::instance_t source, putki::depwalker_i *walker, bool traverseChildren, bool skipInputOnly, bool rttiDispatch) {";
-			out.line(1) << "walk_dependencies_" << s_name << "( (" << s_name << " *) source, walker, traverseChildren, skipInputOnly, rttiDispatch);";
+			out.line() << "void walk_dependencies(putki::instance_t source, putki::depwalker_i *walker, bool traverse_children, bool skipInputOnly, bool rttiDispatch) {";
+			out.line(1) << "walk_dependencies_" << s_name << "( (" << s_name << " *) source, walker, traverse_children, skipInputOnly, rttiDispatch);";
 			out.line() << "}";
 			out.line();
 			out.line() << "// json writer";

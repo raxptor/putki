@@ -9,6 +9,7 @@
 #include <fstream>
 
 #include "inki-outki-generator/generator.h"
+#include "inki-outki-generator/style.h"
 #include "netki-generator/netki-generator.h"
 
 #include "writetools/indentedwriter.h"

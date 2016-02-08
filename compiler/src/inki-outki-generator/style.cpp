@@ -52,7 +52,13 @@ namespace putki
 
 	std::string to_c_enum_value(std::string name)
 	{
-		return with_underscore(name, true);
+		for (int i=0;i!=name.size();i++)
+		{
+			char c = name[i];
+			if (c >= 'a' && c <= 'a')
+				name[i] = (c - 'a' + 'A');
+		}
+		return name;
 	}
 
 	std::string to_c_enum_name(std::string name)

@@ -26,7 +26,7 @@ namespace putki
 		out.line() << "if (!value || !value[0])";
 		out.line() << "\t((inki::" << to_c_struct_name(s->name) << " *)(mir->inst))->" << field_ref << " = 0;";
 		out.line() << "else";
-		out.line() << "\t((inki::" << to_c_struct_name(s->name) << " *)(mir->inst))->" << field_ref << " = (inki::" << s->fields[j].ref_type << " *) putki::db::ptr_to_allow_unresolved(mir->refs_db, value);";
+		out.line() << "\t((inki::" << to_c_struct_name(s->name) << " *)(mir->inst))->" << field_ref << " = (inki::" << to_c_struct_name(s->fields[j].ref_type) << " *) putki::db::ptr_to_allow_unresolved(mir->refs_db, value);";
 	}
 
 	void write_integer_set_get(putki::indentedwriter out, int64_t min, int64_t max, const char *type_name, putki::parsed_struct *s, size_t j, std::string const &field_ref)
@@ -55,7 +55,7 @@ namespace putki
 			if (s->fields[j].is_build_config)
 				continue;
 
-			std::string f_name = to_c_struct_name(s->fields[j].name);
+			std::string f_name = to_c_field_name(s->fields[j].name);
 			
 			out.line() << "//////////////////////////////////////////////////////////////";
 			out.line() << "// Field handler for " << s_name << "." << f_name;
@@ -156,7 +156,7 @@ namespace putki
 			out.indent(1);
 
 			if (s->fields[j].type == FIELDTYPE_ENUM)
-				out.line() << obj_ref << field_ref << " = " << s->fields[j].ref_type << "_from_string(value);";
+				out.line() << obj_ref << field_ref << " = " << to_c_struct_name(s->fields[j].ref_type) << "_from_string(value);";
 
 			out.indent(-1);
 			out.line() << "}";
@@ -164,7 +164,7 @@ namespace putki
 			out.line() << "const char* get_enum(putki::mem_instance *obj) { ";
 			out.indent(1);
 			if (s->fields[j].type == FIELDTYPE_ENUM)
-				out.line() << "return " << s->fields[j].ref_type << "_to_string(" << obj_ref << field_ref << ");";
+				out.line() << "return " << to_c_struct_name(s->fields[j].ref_type) << "_to_string(" << obj_ref << field_ref << ");";
 			else
 				out.line() << "return 0;";
 			out.indent(-1);
@@ -173,7 +173,7 @@ namespace putki
 			out.line() << "const char* get_enum_possible_value(int i) { ";
 			out.indent(1);
 			if (s->fields[j].type == FIELDTYPE_ENUM)
-				out.line() << "return " << s->fields[j].ref_type << "_string_by_index(i);";
+				out.line() << "return " << to_c_struct_name(s->fields[j].ref_type) << "_string_by_index(i);";
 			else
 				out.line() << "return 0;";
 			out.indent(-1);
