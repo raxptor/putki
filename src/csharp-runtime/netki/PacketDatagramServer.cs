@@ -20,8 +20,14 @@ namespace Netki
 			_pkt = pkt;
 		}
 
+        public void Terminate()
+        {
+            _listener.Close();
+        }
+
 		private void NextRead()
 		{
+            
 		}
 
 		public int GetPort()
@@ -84,6 +90,5 @@ namespace Netki
 
 			_port = ((IPEndPoint)_listener.LocalEndPoint).Port;
 		}
-
 	}
 }

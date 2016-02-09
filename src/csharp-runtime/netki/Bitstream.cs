@@ -9,34 +9,36 @@ namespace Netki
 		public class Buffer
 		{
 			public byte[] buf;
-			public int bufsize;
+			public int bytesize;
+			public int bitsize;
 			public int bytepos;
 			public int bitpos;
 			public int error;
 
 			public int BitsLeft()
 			{
-				return (bufsize - bytepos) * 8 - bitpos;
+				return 8*bytesize + bitsize - 8*bytepos - bitpos;
 			}
 
 			public static Buffer Make(byte[] buffer)
 			{
 				Buffer b = new Buffer();
 				b.buf = buffer;
-				b.bufsize = buffer.Length;
-				b.bytepos = 0;
-				b.bitpos = 0;
-				b.error = 0;
+				b.bytesize = buffer.Length;
 				return b;
 			}
 
-			public void Flip()
+			public void Flip(bool sync = true)
 			{
+				if (sync)
+				{
+					SyncByte(this);
+				}
+
 				error = 0;
-				if (bitpos > 0)
-					bufsize = bytepos + 1;
-				else
-					bufsize = bytepos;
+
+				bytesize = bytepos;
+				bitsize = bitpos;
 				bytepos = 0;
 				bitpos = 0;
 			}
@@ -45,7 +47,8 @@ namespace Netki
 		public static void Copy(Buffer dst, Buffer src)
 		{
 			dst.buf = src.buf;
-			dst.bufsize = src.bufsize;
+			dst.bytesize = src.bytesize;
+			dst.bitsize = src.bitsize;
 			dst.bytepos = src.bytepos;
 			dst.bitpos = src.bitpos;
 			dst.error = src.error;
@@ -67,8 +70,12 @@ namespace Netki
 				}
 				if (tmp.BitsLeft() > 32)
 					Bitstream.PutBits(dest, 32, Bitstream.ReadBits(tmp, 32));
-				if (tmp.BitsLeft() >= 8)
+
+				int left = tmp.BitsLeft();
+				if (left >= 8)
 					Bitstream.PutBits(dest, 8, Bitstream.ReadBits(tmp, 8));
+				else if (left > 0)
+					Bitstream.PutBits(dest, left, Bitstream.ReadBits(tmp, left));
 			}
 		}
 		
@@ -131,7 +138,7 @@ namespace Netki
 		public static bool PutBytes(Buffer buf, byte[] data)
 		{
 			SyncByte(buf);
-			if (buf.bufsize - buf.bytepos < data.Length)
+			if (buf.BitsLeft() < 8*data.Length)
 				return false;
 
 			System.Buffer.BlockCopy(data, 0, buf.buf, buf.bytepos, data.Length);
@@ -139,7 +146,7 @@ namespace Netki
 			return false;
 		}
 	
-			public static void PutCompressedUint(Buffer buf, uint value)
+		public static void PutCompressedUint(Buffer buf, uint value)
 		{
 			int bits = 0, prefixes = 0;
 			
@@ -223,18 +230,24 @@ namespace Netki
 		
 		public static float ReadFloat(Buffer buf)
 		{
-			SyncByte(buf);
-			if (buf.BitsLeft() < 32)
+			if (buf.BitsLeft () < 32) {
 				return 0;
-			float f = BitConverter.ToSingle(buf.buf, buf.bytepos);
-			buf.bytepos += 4;
+			}
+			
+			byte[] tmp = new byte[4];
+			for (int i = 0; i != 4; i++) {
+				tmp[i] = (byte) ReadBits(buf, 8);
+			}
+
+			float f = BitConverter.ToSingle(tmp, 0);
 			return f;
 		}
 		
 		public static void PutFloat(Buffer buf, float f)
 		{
 			byte[] val = BitConverter.GetBytes(f);
-			PutBytes(buf, val);
+			for (int i = 0; i != 4; i++)
+				PutBits(buf, 8, val[i]);			
 		}
 		
 		public static UInt32 ReadBits(Buffer buf, int bits)
@@ -264,7 +277,7 @@ namespace Netki
 		public static byte[] ReadBytes(Buffer buf, int count)
 		{
 			SyncByte(buf);
-			if (buf.bufsize - buf.bytepos < count)
+			if (buf.BitsLeft() < 8*count)
 				return null;
 
 			byte[] dst = new byte[count];
