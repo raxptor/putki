@@ -672,7 +672,7 @@ namespace putki
 		indentedwriter enc(netki_switch_encode);
 		
 		hw.cont() << "// Netki generated code";
-		hw.line() << "namespace netki";
+		hw.line() << "namespace Netki";
 		hw.line() << "{";
 		hw.indent(1);
 		
