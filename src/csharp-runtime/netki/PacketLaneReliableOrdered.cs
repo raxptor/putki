@@ -98,8 +98,6 @@ namespace Netki
 				int bytepos = src.bytepos;
 				int bitpos = src.bitpos;
 				Bitstream.PutBits(dest, 8, seq);
-
-				// byte align where actual data is				
 				Bitstream.Insert(dest, src);
 				src.bytepos = bytepos;
 				src.bitpos = bitpos;
@@ -137,7 +135,7 @@ namespace Netki
 				{
 					Bitstream.Buffer buf = Bitstream.Buffer.Make(new byte[1024]);
 					WrapOut(buf, _sent[i], i);
-                    buf.Flip();
+                    buf.Flip(false);
 					outputFn(buf);
 					_ackFlushTimer = 0.0f;
 					if (_sendTimer[i] < 0.0f)
@@ -160,7 +158,7 @@ namespace Netki
 				{
 					Bitstream.Buffer buf = Bitstream.Buffer.Make(new byte[1024]);
 					WrapOut(buf, null, 0);
-                    buf.Flip();
+                    buf.Flip(false);
 					outputFn(buf);
 				}
 			}

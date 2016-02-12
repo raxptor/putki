@@ -53,7 +53,7 @@ namespace Netki
 			Bitstream.Buffer buf = Bitstream.Buffer.Make(new byte[stream.bytesize + 8]);
 			Bitstream.PutBits(buf, 8, _sendPos++);
 			Bitstream.Insert(buf, stream);
-            buf.Flip();
+            buf.Flip(false);
 			_send.Add(buf);
 		}
 

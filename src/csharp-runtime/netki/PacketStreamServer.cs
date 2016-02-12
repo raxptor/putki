@@ -44,6 +44,29 @@ namespace Netki
 		{
 			_handler = handler;
 		}
+            
+        private void InternalOnDisconnected(int connection_id)
+        {            
+            Console.WriteLine("Connection disconnected (" + connection_id + ")");
+            Connection conn = _connections[connection_id];
+            conn.conn.OnDisconnected();
+            _connections[connection_id] = null;
+
+            lock (_free_connections)
+            {
+                _free_connections.Add(connection_id);
+            }
+
+            try
+            {
+                conn.socket.Close();
+            }
+            catch (Exception)
+            {
+
+            }
+        }
+       
 
 		public void OnAsyncReceive(IAsyncResult result)
 		{
@@ -57,20 +80,13 @@ namespace Netki
 			}
 			catch (Exception)
 			{
-				Console.WriteLine("Disconnected!");
-				ret = -1;
+                InternalOnDisconnected(connection_id);
+                return;
 			}
 				
 			if (ret <= 0)
 			{
-				conn.conn.OnDisconnected();
-				_connections[connection_id] = null;
 
-				lock (_free_connections)
-				{
-					_free_connections.Add(connection_id);
-				}
-				conn.socket.Close();
 			}
 			else
 			{
@@ -86,7 +102,14 @@ namespace Netki
 						rp += amt;
 					}
 				}
-				conn.socket.BeginReceive(conn.recvbuf, 0, conn.recvbuf.Length, 0, OnAsyncReceive, connection_id);
+                try
+                {
+				    conn.socket.BeginReceive(conn.recvbuf, 0, conn.recvbuf.Length, 0, OnAsyncReceive, connection_id);
+                }
+                catch (Exception)
+                {
+                    InternalOnDisconnected(connection_id);
+                }
 			}
 		}
 
@@ -142,7 +165,7 @@ namespace Netki
 				_free_connections.Add(max_connections - i - 1);
 
 			IPEndPoint localEP = new IPEndPoint(0, port);
-			_listener = new Socket(localEP.Address.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
+            _listener = new Socket(localEP.Address.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
 			_listener.Bind(localEP);
 			_listener.Listen(100);
 			_listener.BeginAccept(OnAsyncAccepted, _listener);

@@ -43,21 +43,32 @@ namespace Netki
 		private void ReadLoop()
 		{
 			EndPoint ep = new IPEndPoint(IPAddress.Any, 0);
-			while (true)
-			{
-				byte[] _recvBuf = new byte[4096];
-				int bytes = _listener.ReceiveFrom(_recvBuf, ref ep);
-				if (bytes > 0)
-				{
-					IPEndPoint ipep = (IPEndPoint)ep;
-					byte[] addr = ipep.Address.GetAddressBytes();
+            try
+            {             
+    			while (true)
+    			{                
+    				byte[] _recvBuf = new byte[4096];
+    				int bytes = _listener.ReceiveFrom(_recvBuf, ref ep);
+    				if (bytes > 0)
+    				{
+    					IPEndPoint ipep = (IPEndPoint)ep;
+    					byte[] addr = ipep.Address.GetAddressBytes();
 
-					ulong port = (uint)ipep.Port;
-					ulong addr_portion = ((ulong)addr[3] << 24) | ((ulong)addr[2] << 16) | ((ulong)addr[1] << 8) | (ulong)addr[0];
-					ulong endpoint = addr_portion | (port << 32);
-					_pkt(_recvBuf, (uint)bytes, endpoint);
-				}
-			}
+    					ulong port = (uint)ipep.Port;
+    					ulong addr_portion = ((ulong)addr[3] << 24) | ((ulong)addr[2] << 16) | ((ulong)addr[1] << 8) | (ulong)addr[0];
+    					ulong endpoint = addr_portion | (port << 32);
+    					_pkt(_recvBuf, (uint)bytes, endpoint);
+    				}
+    			}
+            }
+            catch (SocketException)
+            {
+
+            }
+            catch (ObjectDisposedException)
+            {
+
+            }
 		}
 
 		public void Send(byte[] data, int offset, int length, ulong endpoint)
