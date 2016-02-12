@@ -28,15 +28,9 @@ namespace Netki
 				return b;
 			}
 
-			public void Flip(bool sync = true)
+			public void Flip()
 			{
-				if (sync)
-				{
-					SyncByte(this);
-				}
-
 				error = 0;
-
 				bytesize = bytepos;
 				bitsize = bitpos;
 				bytepos = 0;

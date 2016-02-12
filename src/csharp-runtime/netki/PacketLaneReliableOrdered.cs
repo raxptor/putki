@@ -135,7 +135,7 @@ namespace Netki
 				{
 					Bitstream.Buffer buf = Bitstream.Buffer.Make(new byte[1024]);
 					WrapOut(buf, _sent[i], i);
-                    buf.Flip(false);
+                    buf.Flip();
 					outputFn(buf);
 					_ackFlushTimer = 0.0f;
 					if (_sendTimer[i] < 0.0f)
@@ -158,7 +158,7 @@ namespace Netki
 				{
 					Bitstream.Buffer buf = Bitstream.Buffer.Make(new byte[1024]);
 					WrapOut(buf, null, 0);
-                    buf.Flip(false);
+                    buf.Flip();
 					outputFn(buf);
 				}
 			}
