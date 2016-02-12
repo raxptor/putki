@@ -79,7 +79,7 @@ namespace Netki
 			}
 		}
 
-		public void Start(int port, int max_peers = 100)
+		public void Start(int port = 0)
 		{
 			IPEndPoint localEP = new IPEndPoint(0, 0);
 			_listener = new Socket(localEP.Address.AddressFamily, SocketType.Dgram, ProtocolType.Udp);

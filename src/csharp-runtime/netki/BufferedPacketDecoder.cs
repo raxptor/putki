@@ -73,8 +73,6 @@ namespace Netki
 			{
 				DecodedPacket pkt;
 				int ret = Decode(data, offset, length, out pkt);
-				if (ret > length)
-					data[-1] = 100;
 
 				offset += ret;
 				length -= ret;
@@ -91,8 +89,6 @@ namespace Netki
 
 		public bool Save(byte[] data, int offset, int length)
 		{
-			if (length < 0)
-				_data[-1] = 100;
 			if (_readpos + length > _data.Length)
 				return false;
 

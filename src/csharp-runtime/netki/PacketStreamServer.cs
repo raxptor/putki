@@ -55,7 +55,7 @@ namespace Netki
 			{
 				ret = conn.socket.EndReceive(result);
 			}
-			catch (Exception e)
+			catch (Exception)
 			{
 				Console.WriteLine("Disconnected!");
 				ret = -1;
