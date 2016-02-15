@@ -153,8 +153,14 @@ namespace Netki
 
 			if (_ackOutHead != _ackOutTail)
 			{
+                int count = (int)_ackOutHead - (int)_ackOutTail;
+                if (count < 0)
+                {
+                    count += 256;
+                }
+
 				_ackFlushTimer += dt;
-				if (_ackFlushTimer > 0.30f * _resendTime)
+                if (_ackFlushTimer > 0.30f * _resendTime || count > 32)
 				{
 					Bitstream.Buffer buf = Bitstream.Buffer.Make(new byte[1024]);
 					WrapOut(buf, null, 0);
