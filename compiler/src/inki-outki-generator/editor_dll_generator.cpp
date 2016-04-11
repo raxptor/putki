@@ -75,7 +75,7 @@ namespace putki
 
 				std::string new_obj = "0";
 				if (s->fields[j].type == FIELDTYPE_STRUCT_INSTANCE)
-					new_obj = s->fields[j].ref_type + "()";
+					new_obj = to_c_field_name(s->fields[j].ref_type) + "()";
 				else if (s->fields[j].type == FIELDTYPE_STRING || s->fields[j].type == FIELDTYPE_FILE || s->fields[j].type == FIELDTYPE_PATH)
 					new_obj = "\"\"";
 
