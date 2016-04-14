@@ -241,7 +241,7 @@ namespace putki
 				}
 				else
 				{
-					if (!flags & PKG_FLAG_UNRESOLVED)
+					if (!(flags & PKG_FLAG_UNRESOLVED))
 					{
 						PTK_WARNING("Flag is not set to any valid combination, changing to unresolved: " << flags);
 						lp->slots[i].flags = PKG_FLAG_UNRESOLVED;
@@ -363,7 +363,7 @@ namespace putki
 		
 		int next_unresolved_slot(loaded_package *p, int start)
 		{
-			while (start < p->slots_size)
+			while (start < (int)p->slots_size)
 			{
 				if (p->slots[start].flags & PKG_FLAG_UNRESOLVED)
 					return start;
