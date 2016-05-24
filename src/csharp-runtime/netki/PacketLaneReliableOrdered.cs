@@ -39,7 +39,7 @@ namespace Netki
 				byte idx = (byte)Bitstream.ReadBits(stream, 8);
 				if (stream.error != 0)
 				{
-					Error("Broken packet");
+					Error("Broken packet 3");
 					return;
 				}
 				// free up the slot.
@@ -52,7 +52,7 @@ namespace Netki
 			byte seq = (byte)Bitstream.ReadBits(stream, 8);
 			if (stream.error != 0)
 			{
-				Error("Broken packet");
+				Error("Broken packet 2");
 				return;
 			}
 
