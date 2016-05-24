@@ -96,9 +96,11 @@ namespace putki
 				std::cout << std::endl;
 				std::cout.flush();
 				mtx.unlock();
+#if defined(PUTKI_CRASH_ON_ERROR)
 				// crash
 				int *p = (int *) 0x23414;
 				*p = 234124;
+#endif
 			}
 			
 			buf << "\n";

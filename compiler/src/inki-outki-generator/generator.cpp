@@ -1204,7 +1204,7 @@ namespace putki
 				{
 					std::string ft = rt_wrap_field_type(fd.type, rt);
 					if (fd.type == FIELDTYPE_STRUCT_INSTANCE)
-						ft = out_ns + fd.ref_type;
+						ft = out_ns + to_c_struct_name(fd.ref_type);
 
 					out.line() << outd << "_size = " << srcd << ".size();";
 					out.line();

@@ -10,7 +10,7 @@ namespace putki
 		LOG_DEBUG,
 		LOG_INFO,
 		LOG_WARNING,
-		LOG_ERROR
+		LOG_ERROR		
 	};
 	
 	void print_log_multi(const char *indent, LogType *levels, const char **messages, unsigned int count);
