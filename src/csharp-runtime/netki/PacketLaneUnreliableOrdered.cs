@@ -25,7 +25,7 @@ namespace Netki
 
 			if (stream.error != 0)
 			{
-				Error("Broken packet");
+				Error("Broken packet 1");
 				return;
 			}
 
@@ -53,6 +53,7 @@ namespace Netki
 			Bitstream.Buffer buf = Bitstream.Buffer.Make(new byte[stream.bytesize + 8]);
 			Bitstream.PutBits(buf, 8, _sendPos++);
 			Bitstream.Insert(buf, stream);
+            Bitstream.SyncByte(buf);
             buf.Flip();
 			_send.Add(buf);
 		}

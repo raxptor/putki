@@ -83,7 +83,7 @@ namespace putki
 			
 			// -- pick out header --
 			in.seekg(0, std::ios::end);
-			unsigned long readsize = in.tellg();
+			unsigned long readsize = (unsigned long)in.tellg();
 			
 			in.seekg(0, std::ios::beg);
 			in.read(header, hdr_size);
