@@ -35,7 +35,15 @@ namespace putki
 		out.indent(1);
 		out.line() << "if (v < " << min << "LL || v >= " << max << "LL)";
 		out.line(1) << "return 0;";
-		out.line() << type_name << " value = (" << type_name << ") v;";
+
+		if (!strcmp(type_name, "bool"))
+		{
+			out.line() << type_name << " value = (v != 0);";
+		}
+		else
+		{
+			out.line() << type_name << " value = (" << type_name << ") v;";
+		}
 		write_plain_set(out, s, j, field_ref);
 		out.line() << "return 1;";
 		out.indent(-1);
@@ -71,11 +79,11 @@ namespace putki
 				std::string vec_ref = "((inki::" + s_name + " *)((putki::mem_instance_real*)obj)->inst)->" + f_name + ".";
 				out.line() << "int _idx;";
 				out.line() << "void set_array_index(int i) { _idx = i; }";
-				out.line() << "int get_array_size(putki::mem_instance *obj) { return " << vec_ref << "size(); }";
+				out.line() << "int get_array_size(putki::mem_instance *obj) { return (int)" << vec_ref << "size(); }";
 
 				std::string new_obj = "0";
 				if (s->fields[j].type == FIELDTYPE_STRUCT_INSTANCE)
-					new_obj = s->fields[j].ref_type + "()";
+					new_obj = to_c_struct_name(s->fields[j].ref_type) + "()";
 				else if (s->fields[j].type == FIELDTYPE_STRING || s->fields[j].type == FIELDTYPE_FILE || s->fields[j].type == FIELDTYPE_PATH)
 					new_obj = "\"\"";
 

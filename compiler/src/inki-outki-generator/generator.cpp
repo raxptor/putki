@@ -959,9 +959,6 @@ namespace putki
 	{
 		std::string s_name = to_c_struct_name(s->name);
 
-		out.line() << s_name << " * input = (" << s_name << " *)source;";
-		out.line() << "char ibuf[128];";
-
 		// copy and massage a little.
 		std::vector<putki::parsed_field> copy = s->fields;
 		for (size_t i=0; i<copy.size(); i++) {
@@ -972,11 +969,20 @@ namespace putki
 			}
 		}
 
+		bool first = true;
+
 		for (size_t j=0; j<copy.size(); j++)
 		{
 			putki::parsed_field & fd = copy[j];
 			if (fd.is_build_config)
 				continue;
+
+			if (first)
+			{
+				out.line() << s_name << " * input = (" << s_name << " *)source;";
+				out.line() << "char ibuf[128];";
+				first = false;
+			}
 
 			std::string f_name = to_c_field_name(fd.name);
 
@@ -1204,9 +1210,9 @@ namespace putki
 				{
 					std::string ft = rt_wrap_field_type(fd.type, rt);
 					if (fd.type == FIELDTYPE_STRUCT_INSTANCE)
-						ft = out_ns + fd.ref_type;
+						ft = out_ns + to_c_struct_name(fd.ref_type);
 
-					out.line() << outd << "_size = " << srcd << ".size();";
+					out.line() << outd << "_size = (unsigned int)" << srcd << ".size();";
 					out.line();
 					out.line() << "{";
 					out.indent(1);
