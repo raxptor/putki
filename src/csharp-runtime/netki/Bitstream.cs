@@ -120,24 +120,11 @@ namespace Netki
 			return true;
 		}
 
-		public static void SyncByte(Buffer buf)
-		{
-			if (buf.bitpos > 0)
-			{
-				buf.bitpos = 0;
-				buf.bytepos++;
-			}
-		}
-
 		public static bool PutBytes(Buffer buf, byte[] data)
 		{
-			SyncByte(buf);
-			if (buf.BitsLeft() < 8*data.Length)
-				return false;
-
-			System.Buffer.BlockCopy(data, 0, buf.buf, buf.bytepos, data.Length);
-			buf.bytepos += data.Length;
-			return false;
+            for (int i=0;i<data.Length;i++)
+                Bitstream.PutBits(buf, 8, data[i]);
+            return buf.error != 0;
 		}
 	
 		public static void PutCompressedUint(Buffer buf, uint value)
@@ -270,19 +257,14 @@ namespace Netki
 
 		public static byte[] ReadBytes(Buffer buf, int count)
 		{
-			SyncByte(buf);
-			if (buf.BitsLeft() < 8*count)
-				return null;
-
 			byte[] dst = new byte[count];
-			System.Buffer.BlockCopy(buf.buf, buf.bytepos, dst, 0, count);
-			buf.bytepos += count;
+            for (int i=0;i<count;i++)
+                dst[i] = (byte)Bitstream.ReadBits(buf, 8);
 			return dst;
 		}
 
 		public static void PutStringDumb(Buffer buf, string value)
 		{
-			SyncByte (buf);
 			if (value == null)
 			{
 				Bitstream.PutCompressedInt(buf, -1);
@@ -296,7 +278,6 @@ namespace Netki
 
 		public static string ReadStringDumb(Buffer buf)
 		{
-			SyncByte (buf);
 			int len = ReadCompressedInt(buf);
 			if (len > 65536)
 			{
@@ -315,5 +296,14 @@ namespace Netki
 			}
 			return System.Text.UTF8Encoding.UTF8.GetString(data);
 		}
-	}
+
+        public static void SyncByte(Buffer buf)
+        {
+            if (buf.bitpos > 0)
+            {
+                buf.bitpos = 0;
+                buf.bytepos++;
+            }
+        }
+    }
 }

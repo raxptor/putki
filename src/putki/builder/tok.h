@@ -1,7 +1,9 @@
 #ifndef __PUTKI_TOK_H__
 #define __PUTKI_TOK_H__
 
-// quick tokenizatino
+// quick tokenization
+
+#include <stddef.h>
 
 namespace putki
 {
