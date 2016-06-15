@@ -359,9 +359,6 @@ namespace putki
 
 				out.line();
 			}
-			
-			
-			
 
 			out.line() << "// Generated constants";
 

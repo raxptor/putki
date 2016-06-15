@@ -15,6 +15,17 @@ namespace Putki
 			return p;
 		}
 
+		public static string PathOf(object o)
+		{
+			foreach (Package p in s_loaded)
+			{
+				string tmp = p.PathOf(o);
+				if (tmp != null)
+					return tmp;
+			}
+			return null;
+		}
+
 		public static Type Resolve<Type>(string path)
 		{
 			foreach (Package p in s_loaded)

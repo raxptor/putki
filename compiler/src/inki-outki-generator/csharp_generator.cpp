@@ -360,7 +360,8 @@ namespace putki
 
 	void write_csharp_inki_class(putki::parsed_file *file, putki::indentedwriter out)
 	{
-		out.line() << "namespace inki";
+		out.line();
+		out.line() << "namespace Inki";
 		out.line() << "{";
 		out.indent(1);
 
@@ -386,252 +387,68 @@ namespace putki
 
 			std::string expr_size_add = "";
 
-			out.line() << "[PutkedProxyDescriptor(\"" << s->name << "\")]";
+			out.line() << "[System.Serializable]";
 			out.line() << "public class " << s->name;
 
 			if (!s->parent.empty())
+			{
 				out.cont() << " : " << s->parent;
-			else
-				out.cont() << " : PutkEd.ProxyObject";
-
-			const char *newifparent = s->parent.empty() ? "" : "new ";
+			}
 
 			out.line() << "{";
-			out.line(1) << newifparent << "public DLLLoader.MemInstance m_mi;";
-			out.line();
-
 			out.indent(1);
 
-
-			out.line() << "public" << (s->parent.empty() ? " virtual" : " override") << " void Connect(DLLLoader.MemInstance mi)";
-			out.line() << "{";
+			std::string new_hide_str = "";
 			if (!s->parent.empty())
-				out.line(1) << "base.Connect(Get" << s->name << "Parent(mi).m_mi);";
-			out.line(1) << "// Should really check here!";
-			out.line(1) << "m_mi = mi;";
+				new_hide_str = "new ";
+			out.line() << new_hide_str << "public const int TYPE = " << s->unique_id << ";";
+
+			out.line() << "public " << s->name << "()";
+			out.line() << "{";
+			out.indent(1);
+
+			for (size_t i = 0; i < s->fields.size(); i++)
+			{
+				putki::parsed_field *f = &s->fields[i];
+				if (!(f->domains & putki::DOMAIN_INPUT))
+					continue;
+				if (f->is_array)
+				{
+					out.line() << f->name << " = new " << cs_type_name(f) << "[0];";
+				}
+				else if (!f->def_value.empty())
+				{
+					out.line() << f->name << " = " << f->def_value;
+				}
+			}
+
+			out.indent(-1);
 			out.line() << "}";
-			out.line();
-
-			out.line() << "// Fields";
-
+			
 			for (size_t i=0; i<s->fields.size(); i++)
 			{
 				putki::parsed_field *f = &s->fields[i];
 				if (!(f->domains & putki::DOMAIN_INPUT))
 					continue;
-//				if (!strcmp(f->name.c_str(), "parent"))
-// continue;
 
 				const int dllindex = s->fields[i]._WROTE_DLL_FIELD_INDEX;
 				if (dllindex == -1)
 				{
-					out.line();
-					out.line() << "// !!! field " << s->fields[i].name << " was not written to dll handler";
-					out.line();
 					continue;
 				}
+				
+				if (!strcmp(f->name.c_str(), "parent"))
+					continue;
 
-				const char *args = "()";
-				const char *args_set0 = "";
-
-
-				////////////////////
-				// First we do get.
-
-
-				const char firstletter = s->fields[i].name[0];
-
-				const char *getpfx = "Get";
-				const char *setpfx = "Set";
-				const char *resolvepfx = "Resolve";
-				const char *sizepostfx = "Size";
-				const char *pushpostfx = "PushBack";
-				const char *erasepostfx = "Erase";
-
-				if (firstletter >= 'a' && firstletter < 'z')
+				if (!f->is_array)
 				{
-					getpfx = "get_";
-					setpfx = "set_";
-					resolvepfx = "resolve_";
-					sizepostfx = "_size";
-					pushpostfx = "_push_back";
-					erasepostfx = "_erase";
+					out.line() << "public " << cs_type_name(f) << " " << f->name << ";";
 				}
-
-				if (s->fields[i].is_array)
+				else
 				{
-					args = "(int arrayIndex)";
-					args_set0 = "int arrayIndex, ";
-					out.line() << "public int " << getpfx << s->fields[i].name << sizepostfx << "() { return m_mi.GetField(" << dllindex << ").GetArraySize(m_mi); }";
-					out.line();
-
-					out.line() << "public void " << s->fields[i].name << pushpostfx << "() { m_mi.GetField(" << dllindex << ").ArrayInsert(m_mi); }";
-					out.line();
-					out.line() << "public void " << s->fields[i].name << erasepostfx << "(int index) { m_mi.GetField(" << dllindex << ").SetArrayIndex(index); m_mi.GetField(" << dllindex << ").ArrayErase(m_mi); }";
-					out.line();
+					out.line() << cs_type_name(f) << "[] " << f->name << ";";
 				}
-
-
-				std::string get_name = std::string(getpfx) + s->fields[i].name;
-				std::string set_name = std::string(setpfx) + s->fields[i].name;
-
-				if (get_name == "get__rtti_type")
-					get_name = "get_rtti_type";
-
-				if (get_name == "get_parent")
-				{
-					// SUPER DELUXE HACK TO WRITE STATIC MEMBER
-					get_name = std::string("Get") + s->name + "Parent";
-					out.line() << "static ";
-					args = "(DLLLoader.MemInstance m_mi)";
-				}
-
-				switch (s->fields[i].type)
-				{
-					case FIELDTYPE_INT32:
-						out.line() << "public int " << get_name << args;
-						break;
-					case FIELDTYPE_UINT32:
-						out.line() << "public uint " << get_name << args;
-						break;
-					case FIELDTYPE_STRING:
-					case FIELDTYPE_FILE:
-					case FIELDTYPE_PATH:
-						out.line() << "public string " <<get_name << args;
-						break;
-					case FIELDTYPE_POINTER:
-						out.line() << "public string " <<get_name << args;
-						break;
-					case FIELDTYPE_STRUCT_INSTANCE:
-						out.line() << "public " << s->fields[i].ref_type << " " << get_name << args;
-						break;
-					case FIELDTYPE_FLOAT:
-						out.line() << "public float " << get_name << args;
-						break;
-					default:
-						out.line() << "public void  " << get_name << args;
-						break;
-				}
-
-				out.line() << "{";
-				out.indent(1);
-
-				if (s->fields[i].is_array)
-					out.line() << "m_mi.GetField(" << dllindex << ").SetArrayIndex(arrayIndex);";
-
-				switch (s->fields[i].type)
-				{
-					case FIELDTYPE_INT32:
-						out.line() << "return m_mi.GetField(" << dllindex << ").GetInt32(m_mi);";
-						break;
-					case FIELDTYPE_UINT32:
-						out.line() << "return m_mi.GetField(" << dllindex << ").GetUInt32(m_mi);";
-						break;
-					case FIELDTYPE_STRING:
-					case FIELDTYPE_FILE:
-					case FIELDTYPE_POINTER:
-					case FIELDTYPE_PATH:
-						out.line() << "return m_mi.GetField(" << dllindex << ").GetString(m_mi);";
-						break;
-					case FIELDTYPE_STRUCT_INSTANCE:
-						out.line() << "DLLLoader.MemInstance ml = m_mi.GetField(" << dllindex << ").GetStructInstance(m_mi);";
-						out.line() << "if (ml == null) return null;";
-						out.line() << "inki." << s->fields[i].ref_type << " p = new inki." << s->fields[i].ref_type << "();";
-						out.line() << "p.Connect(ml);";
-						out.line() << "return p;";
-						break;
-					case FIELDTYPE_FLOAT:
-						out.line() << "return m_mi.GetField(" << dllindex << ").GetFloat(m_mi);";
-						break;
-					default:
-						out.line() << "// nothing";
-						break;
-				}
-
-				out.indent(-1);
-				out.line() << "}";
-
-				// SET
-
-				switch (s->fields[i].type)
-				{
-					case FIELDTYPE_INT32:
-						out.line() << "public void " << set_name << "(" << args_set0 << "int value)";
-						break;
-					case FIELDTYPE_UINT32:
-						out.line() << "public void " << set_name << "(" << args_set0 << "uint value)";
-						break;
-					case FIELDTYPE_STRING:
-					case FIELDTYPE_FILE:
-					case FIELDTYPE_POINTER:
-					case FIELDTYPE_PATH:
-						out.line() << "public void " << set_name << "(" << args_set0 << "string value)";
-						break;
-					case FIELDTYPE_FLOAT:
-						out.line() << "public void " << set_name << "(" << args_set0 << "float value)";
-						break;
-					default:
-						out.line() << "public void  " << set_name << "(" << args_set0 << "int dummy)";
-						break;
-				}
-
-				out.line() << "{";
-				out.indent(1);
-
-				if (s->fields[i].is_array)
-					out.line() << "m_mi.GetField(" << dllindex << ").SetArrayIndex(arrayIndex);";
-
-				switch (s->fields[i].type)
-				{
-					case FIELDTYPE_INT32:
-						out.line() << "m_mi.GetField(" << dllindex << ").SetInt32(m_mi, value);";
-						break;
-					case FIELDTYPE_UINT32:
-						out.line() << "m_mi.GetField(" << dllindex << ").SetUInt32(m_mi, value);";
-						break;
-					case FIELDTYPE_STRING:
-					case FIELDTYPE_FILE:
-					case FIELDTYPE_POINTER:
-					case FIELDTYPE_PATH:
-						out.line() << "m_mi.GetField(" << dllindex << ").SetString(m_mi, value);";
-						break;
-					case FIELDTYPE_FLOAT:
-						out.line() << "m_mi.GetField(" << dllindex << ").SetFloat(m_mi, value);";
-						break;
-					default:
-						out.line() << "// nothing";
-						break;
-				}
-
-				out.indent(-1);
-				out.line() << "}";
-
-
-				if (s->fields[i].type == FIELDTYPE_POINTER)
-				{
-					out.line();
-					out.line() << "public inki." << s->fields[i].ref_type << " " << resolvepfx << s->fields[i].name << args;
-					out.line() << "{";
-
-					if (s->fields[i].is_array)
-						out.line(1) << "m_mi.GetField(" << dllindex << ").SetArrayIndex(arrayIndex);";
-
-					out.line(1) << "DLLLoader.MemInstance ml = DLLLoader.MemInstance.Load(m_mi.GetField(" << dllindex << ").GetPointer(m_mi));";
-					out.line(1) << "return ml != null ? (DataHelper.CreatePutkEdObj(ml) as inki." << s->fields[i].ref_type << ") : null;";
-					out.line() << "}";
-				}
-
-
-				out.line();
 			}
-
-			out.line() << "// Generated constants";
-
-			std::string new_hide_str = "";
-			if (!s->parent.empty())
-				new_hide_str = "new ";
-
-			out.line() << new_hide_str << "public const int TYPE = " << s->unique_id << ";";
 
 			out.indent(-1);
 			out.line() << "}";
@@ -642,7 +459,7 @@ namespace putki
 		}
 
 		out.indent(-1);
-		out.line() << "} // namespace outki";
+		out.line() << "} // namespace Inki";
 	}
 
 }

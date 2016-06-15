@@ -8,7 +8,7 @@ namespace putki
 	std::string to_c_field_name(std::string name);
 	std::string to_c_struct_name(std::string name);
 	std::string to_c_enum_name(std::string name);
-	std::string to_c_enum_value(std::string name);	
+	std::string to_c_enum_value(std::string name);
 }
 
 
