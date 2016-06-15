@@ -127,7 +127,7 @@ namespace putki
 
 		void split_aux_path(std::string path, std::string * base, std::string * ref)
 		{
-			int p = path.find_first_of('#');
+			size_t p = path.find_first_of('#');
 			if (p != std::string::npos)
 			{
 				*base = path.substr(0, p);
@@ -221,7 +221,7 @@ namespace putki
 					buffer = unsafe_buffer;
 				}
 
-				md5_buffer(ss.c_str(), ss.size(), signature);
+				md5_buffer(ss.c_str(), (unsigned int)ss.size(), signature);
 				md5_sig_to_string(signature, buffer, 64);
 				return buffer;
 
