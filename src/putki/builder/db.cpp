@@ -127,7 +127,7 @@ namespace putki
 
 		void split_aux_path(std::string path, std::string * base, std::string * ref)
 		{
-			int p = path.find_last_of('#');
+			int p = path.find_first_of('#');
 			if (p != std::string::npos)
 			{
 				*base = path.substr(0, p);

@@ -132,7 +132,6 @@ namespace putki
 					d.objpath = path;
 					d.db = db;
 					h->fill_from_parsed(parse::get_object_item(aux_obj, "data"), obj, &d);
-
 					db::start_loading(db, refpath.c_str());
 					db::insert(db, refpath.c_str(), h, obj);
 				}
