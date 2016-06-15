@@ -321,7 +321,9 @@ namespace putki
 		{
 			std::string base, ref;
 			split_aux_path(path, &base, &ref);
-			return !strcmp(base.c_str(), pathof(d, baseobj));
+			std::string base_base, base_ref;
+			split_aux_path(pathof(d, baseobj), &base_base, &base_ref);
+			return !strcmp(base.c_str(), base_base.c_str());
 		}
 
 		const char *make_aux_path(data *d, instance_t onto)
@@ -330,6 +332,16 @@ namespace putki
 			std::map<instance_t, std::string>::iterator i = d->paths.find(onto);
 			if (i != d->paths.end())
 			{
+				std::string onto_base, onto_aux;
+				if (is_aux_path(i->second.c_str()))
+				{
+					split_aux_path(i->second, &onto_base, &onto_aux);
+				}
+				else
+				{
+					onto_base = i->second;
+				}
+
 				int q = 0;
 				const char *digits = "0123456789abcdef";
 				do
@@ -341,7 +353,7 @@ namespace putki
 						ap[j] = digits[ (t >> j*4) & 0xf];
 					ap[6] = 0;
 						
-					sprintf(d->auxpathbuf, "%s#%s", i->second.c_str(), ap);
+					sprintf(d->auxpathbuf, "%s#%s", onto_base.c_str(), ap);
 				}
 				while (d->objs.find(d->auxpathbuf) != d->objs.end());
 				return d->auxpathbuf;

@@ -562,7 +562,7 @@ namespace putki
 			ad.output = context->output;
 			ad.record = record;
 			ad.name = default_name;
-			th->walk_dependencies(output_obj, &ad, false);
+			th->walk_dependencies(output_obj, &ad, true);
 
 			for (unsigned int i=0;i<ad.aux_outs.size();i++)
 			{
