@@ -86,6 +86,7 @@ namespace putki
 		{
 			builder_setup_fn s_init_fn = 0;
 			packaging_fn s_packaging_fn = 0;
+			reporting_fn s_reporting_fn = 0;
 		}
 
 		void set_builder_configurator(builder_setup_fn conf)
@@ -98,11 +99,24 @@ namespace putki
 			s_packaging_fn = fn;
 		}
 
+		void set_reporting_fn(reporting_fn fn)
+		{
+			s_reporting_fn = fn;
+		}
+
 		void invoke_packager(db::data *out, build::packaging_config *pconf)
 		{
 			if (s_packaging_fn)
 			{
 				s_packaging_fn(out, pconf);
+			}
+		}
+
+		void invoke_reporting(putki::db::data *out, putki::build::packaging_config *pconf)
+		{
+			if (s_reporting_fn)
+			{
+				s_reporting_fn(out, pconf);
 			}
 		}
 

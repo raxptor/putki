@@ -7,6 +7,7 @@ namespace Netki
 	{
 		Bitstream.Buffer[] _recv = new Bitstream.Buffer[256];
 		List<Bitstream.Buffer> _send = new List<Bitstream.Buffer>();
+		DateTime[] _timestamp = new DateTime[256];
 		byte _recvHead = 0;
 		byte _recvTail = 0;
 		byte _sendPos = 0;
@@ -19,7 +20,7 @@ namespace Netki
 				_recv[i] = new Bitstream.Buffer();
 		}
 			
-		public void Incoming(Bitstream.Buffer stream)
+		public void Incoming(Bitstream.Buffer stream, DateTime timestamp)
 		{
 			byte seq = (byte)Bitstream.ReadBits(stream, 8);
 
@@ -46,6 +47,7 @@ namespace Netki
 	
 			Bitstream.SyncByte(stream);
 			Bitstream.Copy(_recv[seq], stream);
+			_timestamp[seq] = timestamp;
 		}
 
 		public void Send(Bitstream.Buffer stream)
@@ -58,17 +60,17 @@ namespace Netki
 			_send.Add(buf);
 		}
 
-		public Bitstream.Buffer Update(float dt, PacketLaneOutput outputFn)
+		public bool Update(float dt, PacketLaneOutput outputFn, ref LanePacket incoming)
 		{
 			while (_recvTail != _recvHead)
 			{
 				if (_recv[_recvTail].buf != null)
 				{
-					Bitstream.Buffer ret = new Bitstream.Buffer();
-					Bitstream.Copy(ret, _recv[_recvTail]);
+					incoming.Buffer = new Bitstream.Buffer();
+					Bitstream.Copy(incoming.Buffer, _recv[_recvTail]);
 					_recv[_recvTail++].buf = null;
 					_recvTotal++;
-					return ret;
+					return true;
 				}
 				else
 				{
@@ -87,7 +89,7 @@ namespace Netki
 				_send.Clear();
 			}
 
-			return null;
+			return false;
 		}
 
 		public float ComputePacketLoss()

@@ -406,7 +406,11 @@ namespace putki
 				APP_INFO("Wrote " << js.written << " JSON objects to output")
 			}
 
-			APP_INFO("Done building. Writing packages")
+			APP_INFO("Done building. Performing reporting step.")
+
+			builder::invoke_reporting(output, &pconf);
+
+			APP_INFO("Done reporting. Writing packages")
 
 			for (unsigned int i=0;i!=pconf.packages.size();i++)
 			{

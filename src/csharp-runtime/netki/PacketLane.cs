@@ -4,11 +4,17 @@ namespace Netki
 {
 	public delegate void PacketLaneOutput(Bitstream.Buffer send);
 
-	public interface PacketLane
+	public struct LanePacket
 	{
-		void Incoming(Bitstream.Buffer stream);
+		public DateTime Timestamp;
+		public Bitstream.Buffer Buffer;
+	}
+
+	public interface PacketLane
+	{		
+		void Incoming(Bitstream.Buffer stream, DateTime timestamp);
 		void Send(Bitstream.Buffer stream);
-		Bitstream.Buffer Update(float dt, PacketLaneOutput outputFn);
+		bool Update(float dt, PacketLaneOutput outputFn, ref LanePacket incoming);
 		float ComputePacketLoss();
 	}
 }

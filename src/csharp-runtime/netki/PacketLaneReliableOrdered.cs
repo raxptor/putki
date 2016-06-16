@@ -6,6 +6,7 @@ namespace Netki
 	{
 		Bitstream.Buffer[] _sent = new Bitstream.Buffer[256];
 		Bitstream.Buffer[] _recv = new Bitstream.Buffer[256];
+		DateTime[] _timestamp = new DateTime[256];
 
 		float _resendTime = 0.50f;
 		float _ackFlushTimer = 0.0f;
@@ -28,7 +29,7 @@ namespace Netki
 			}
 		}
 
-		public void Incoming(Bitstream.Buffer stream)
+		public void Incoming(Bitstream.Buffer stream, DateTime timestamp)
 		{
 			// read ack numbers
 			while (true)
@@ -71,6 +72,7 @@ namespace Netki
 				_recvPending++;
 
 			Bitstream.Copy(_recv[seq], stream);
+			_timestamp[seq] = timestamp;
 		}
 
 		public void Send(Bitstream.Buffer stream)
@@ -104,21 +106,22 @@ namespace Netki
 			}
 		}
 
-		public Bitstream.Buffer Update(float dt, PacketLaneOutput outputFn)
+		public bool Update(float dt, PacketLaneOutput outputFn, ref LanePacket incoming)
 		{
 			// dequeue in order.
 			if (_recv[_recvPos].buf != null)
 			{
 				_recvPending--;
-				Bitstream.Buffer ret = new Bitstream.Buffer();
-				Bitstream.Copy(ret, _recv[_recvPos]);
+				incoming.Buffer = new Bitstream.Buffer();
+				Bitstream.Copy(incoming.Buffer, _recv[_recvPos]);
+				incoming.Timestamp = _timestamp[_recvPos];
 				_recv[_recvPos++].buf = null;
-				return ret;
+				return true;
 			}
 
-            // no send permitted.
-            if (dt < 0)
-                return null;
+			// no send permitted.
+			if (dt < 0)
+				return false;
 
 			// advance ack tail.
 			while (_sendAckTail != _sendHead && _sent[_sendAckTail].buf == null)
@@ -135,7 +138,7 @@ namespace Netki
 				{
 					Bitstream.Buffer buf = Bitstream.Buffer.Make(new byte[1024]);
 					WrapOut(buf, _sent[i], i);
-                    buf.Flip();
+					buf.Flip();
 					outputFn(buf);
 					_ackFlushTimer = 0.0f;
 					if (_sendTimer[i] < 0.0f)
@@ -153,23 +156,23 @@ namespace Netki
 
 			if (_ackOutHead != _ackOutTail)
 			{
-                int count = (int)_ackOutHead - (int)_ackOutTail;
-                if (count < 0)
-                {
-                    count += 256;
-                }
+				int count = (int)_ackOutHead - (int)_ackOutTail;
+				if (count < 0)
+				{
+					count += 256;
+				}
 
 				_ackFlushTimer += dt;
-                if (_ackFlushTimer > 0.30f * _resendTime || count > 32)
+				if (_ackFlushTimer > 0.30f * _resendTime || count > 32)
 				{
 					Bitstream.Buffer buf = Bitstream.Buffer.Make(new byte[1024]);
 					WrapOut(buf, null, 0);
-                    buf.Flip();
+					buf.Flip();
 					outputFn(buf);
 				}
 			}
 
-			return null;
+			return false;
 		}
 
 		public float ComputePacketLoss()
