@@ -18,18 +18,25 @@ namespace putki
 			void *userptr;
 		};
 
+		static DWORD ThreadFn(LPVOID user)
+		{
+			thread *thr = (thread*)user;
+			thr->func(thr->userptr);
+			return 0;
+		}
+
 		inline thread* thread_create(thread_fn fn, void *userptr)
 		{
 			thread *t = new thread();
 			t->func = fn;
 			t->userptr = userptr;
-			t->thr = 0;
+			t->thr = CreateThread(0, 3 * 1024 * 1024, &ThreadFn, t, 0, 0);
 			return t;
 		}
 
 		inline void thread_join(thread* thr)
 		{
-			WaitForSingleObject(thr->thr, 0);
+			WaitForSingleObject(thr->thr, INFINITE);
 		}
 
 		inline void thread_free(thread* thr)

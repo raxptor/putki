@@ -82,9 +82,8 @@ namespace putki
 			{
 				if (recycle)
 				{
-					APP_DEBUG("recycle flag is set, but could not find old object " << path)
+					APP_DEBUG("Recycle flag is set, but this appears to be a new object: " << path)
 				}
-				
 				rootobj = h->alloc();
 			}
 				

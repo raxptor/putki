@@ -805,7 +805,6 @@ namespace putki
 
 			data *d = (data *)arg;
 			int s = skt_listen(EDITOR_PORT);
-			
 
 			while (s != -1)
 			{

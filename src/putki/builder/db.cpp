@@ -280,7 +280,7 @@ namespace putki
 		void insert(data *d, const char *path, type_handler_i *th, instance_t i)
 		{
 			sys::scoped_maybe_lock _lk(d->mtx);
-			APP_DEBUG("DB:" << d << " db insert on path [" << path << "] obj=" << i << "th=" << th);
+			APP_DEBUG("DB:" << d << " db insert on path [" << path << "] obj=" << i << " th=" << th << " (" << th->name() << ")");
 			//APP_DEBUG("Type:" << th->name() << " id:" << th->id())
 			
 			if (d->erase_on_overwrite)

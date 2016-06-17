@@ -3,6 +3,7 @@
 #include <putki/liveupdate/liveupdate.h>
 #include <putki/builder/log.h>
 #include <putki/runtime.h>
+#include <putki/sys/socket.h>
 
 #include <stdint.h>
 #include <cstdlib>
@@ -13,8 +14,6 @@ int run_putki_builder(int argc, char **argv)
 {
 
 	// configure builder with app handlers.
-
-
 	const char *single_asset = 0;
 	const char *build_config = "Default";
 	bool incremental = false;
@@ -156,6 +155,7 @@ int run_putki_builder(int argc, char **argv)
 
 	if (liveupdate)
 	{
+		socket_init();
 		putki::liveupdate::data *lu = putki::liveupdate::create();
 		putki::liveupdate::run_server(lu);
 		putki::liveupdate::free(lu);

@@ -26,6 +26,12 @@ inline void usleep(DWORD us)
 
 typedef int socklen_t;
 
+inline void socket_init()
+{	
+	WSADATA wsaData;
+	WSAStartup(MAKEWORD(2, 2), &wsaData);	
+}
+
 #else
 
 #include <sys/socket.h>
@@ -33,5 +39,9 @@ typedef int socklen_t;
 #include <unistd.h>
 #include <signal.h>
 #include <netinet/in.h>
+
+inline void socket_init()
+{
+}
 
 #endif

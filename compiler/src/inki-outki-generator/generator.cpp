@@ -857,10 +857,10 @@ namespace putki
 			{
 				// here we detect the actual type and call into the right one... in the runtime we never end up walking dependencies
 				// and calling into the root type in a chain, but we might when loading unknown data.
-				out.line() << "if (!rttiDispatch) {";
+				out.line() << "if (rttiDispatch) {";
 				out.line(1) << "putki::typereg_get_handler(input->rtti_type_ref())->walk_dependencies(input, walker";
 				if (!runtime)
-					out.cont() << ", traverse_children, skipInputOnly, true";
+					out.cont() << ", traverse_children, skipInputOnly, false";
 				out.cont() << ");";
 				out.line(1) << "return;";
 				out.line() << "}";
@@ -911,7 +911,7 @@ namespace putki
 				std::string inkiArgs;
 				if (!runtime)
 				{
-					inkiArgs = (fd.name == "parent") ? ", skipInputOnly, true" : ", skipInputOnly, false";
+					inkiArgs = (fd.name == "parent") ? ", skipInputOnly, false" : ", skipInputOnly, true";
 				}
 				
 				if (fd.type == putki::FIELDTYPE_STRUCT_INSTANCE)

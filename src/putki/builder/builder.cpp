@@ -445,28 +445,8 @@ namespace putki
 				if (!putki::db::is_aux_path(path))
 					return false;
 
-				aux_outs.push_back(path);
-				return true;
-			}
-
-			void pointer_post(putki::instance_t *on)
-			{
-				if (!*on)
-					return;
-
 				putki::type_handler_i *th;
 				putki::instance_t obj = 0;
-
-				const char *path = putki::db::pathof_including_unresolved(input, *on);
-				if (!path && !(path = putki::db::pathof_including_unresolved(tmp, *on)))
-				{
-					RECORD_ERROR(record, "No path on non-null pointer")
-					return;
-				}
-
-				if (!putki::db::is_aux_path(path))
-					return;
-
 				if (putki::db::fetch(output, path, &th, &obj))
 				{
 					*on = obj;
@@ -477,7 +457,7 @@ namespace putki
 					if (!putki::db::fetch(input, path, &th, &obj))
 					{
 						RECORD_ERROR(record, "Breakdown of common sense on [" << path << "] CRAZY OBJECT!")
-						return;
+						return false;
 					}
 
 					RECORD_DEBUG(record, "Cloning [" << path << "] to output.")
@@ -485,6 +465,14 @@ namespace putki
 					putki::db::insert(output, path, th, obj);
 					*on = obj;
 				}
+
+				aux_outs.push_back(path);
+				return true;
+			}
+
+			void pointer_post(putki::instance_t *on)
+			{
+
 			}
 		};
 
