@@ -270,7 +270,7 @@ namespace putki
 					}
 				}
 
-				spl[spls++] = line.size();
+				spl[spls++] = (int)line.size();
 
 				if (spls >= 4)
 				{

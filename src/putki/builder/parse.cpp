@@ -100,7 +100,7 @@ namespace putki
 			
 			bool shortened = false;
 			int p = 0;
-			while (p < (node->length-5))
+			while (p < ((int)node->length-5))
 			{
 				if (str[p] == '\\' && str[p+1] == 'u')
 				{

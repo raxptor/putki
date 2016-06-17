@@ -99,7 +99,7 @@ namespace putki
 				instance_t obj;
 				db::fetch(ref_source, aw.paths[i].c_str(), &th, &obj);
 
-				int sp = aw.paths[i].find_first_of('#');
+				int sp = (int)aw.paths[i].find_first_of('#');
 
 				out << "		{\n";
 				out << "			ref: \""<< aw.paths[i].substr(sp, aw.paths[i].size() - sp) << "\",\n";
@@ -126,7 +126,7 @@ namespace putki
 			putki::sstream ts;
 			write::write_object_into_stream(ts, ref_source, th, obj);
 			sys::mk_dir_for_path(out_path.c_str());
-			return sys::write_file(out_path.c_str(), ts.str().c_str(), ts.str().size());
+			return sys::write_file(out_path.c_str(), ts.str().c_str(), (unsigned long)ts.str().size());
 		}
 
 		namespace
@@ -149,7 +149,7 @@ namespace putki
 				return "\"\"";
 			}
 
-			const int len = strlen(input);
+			const int len = (int)strlen(input);
 
 			putki::sstream ss;
 			ss << "\"";
