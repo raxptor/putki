@@ -109,19 +109,19 @@ namespace Netki
 		public bool Update(float dt, PacketLaneOutput outputFn, ref LanePacket incoming)
 		{
 			// dequeue in order.
-			if (_recv[_recvPos].buf != null)
-			{
-				_recvPending--;
-				incoming.Buffer = new Bitstream.Buffer();
-				Bitstream.Copy(incoming.Buffer, _recv[_recvPos]);
-				incoming.Timestamp = _timestamp[_recvPos];
-				_recv[_recvPos++].buf = null;
-				return true;
-			}
-
-			// no send permitted.
 			if (dt < 0)
+			{
+				if (_recv[_recvPos].buf != null)
+				{
+					_recvPending--;
+					incoming.Buffer = new Bitstream.Buffer();
+					Bitstream.Copy(incoming.Buffer, _recv[_recvPos]);
+					incoming.Timestamp = _timestamp[_recvPos];
+					_recv[_recvPos++].buf = null;
+					return true;
+				}
 				return false;
+			}
 
 			// advance ack tail.
 			while (_sendAckTail != _sendHead && _sent[_sendAckTail].buf == null)
