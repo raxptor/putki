@@ -2,6 +2,7 @@
 
 #include <putki/builder/typereg.h>
 #include <vector>
+#include <stddef.h>
 
 namespace putki
 {
