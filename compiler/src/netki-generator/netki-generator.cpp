@@ -411,7 +411,7 @@ namespace putki
 					wr.line() << "}";
 					break;
 				case FIELDTYPE_FLOAT:
-					wr.line() << "// fix me";
+					wr.line() << "Bitstream.PutFloat(buf, " << field_ref << ");";
 					break;
 				case FIELDTYPE_ENUM:
 					wr.line() << "Bitstream.PutBits(buf, 32, (int)" << field_ref << ");";
@@ -530,7 +530,7 @@ namespace putki
 					wr.line() << "}";
 					break;
 				case FIELDTYPE_FLOAT:
-					wr.line() << field_ref << " = 1234567.0f;";
+					wr.line() << field_ref << " = Bitstream.ReadFloat(buf);";
 					break;
 				case FIELDTYPE_ENUM:
 					wr.line() << field_ref << " = (" << type << ") = Bitstream.ReadBits(buf, 32);";
