@@ -136,7 +136,7 @@ namespace Netki
 				// If pending sends
 				if (_sendTimer[i] <= 0.0f)
 				{
-					Bitstream.Buffer buf = Bitstream.Buffer.Make(new byte[1024]);
+					Bitstream.Buffer buf = Bitstream.Buffer.Make(new byte[16*1024]);
 					WrapOut(buf, _sent[i], i);
 					buf.Flip();
 					outputFn(buf);
