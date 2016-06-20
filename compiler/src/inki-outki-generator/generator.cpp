@@ -10,14 +10,6 @@
 
 namespace putki
 {
-	bool is_putki_struct(putki::parsed_struct *s)
-	{
-		for (int i=0;i!=s->targets.size();i++)
-			if (!strcmp(s->targets[i].c_str(), "putki"))
-				return true;
-		return false;
-	}
-
 	void write_ptr_walker(putki::parsed_file *file, putki::indentedwriter out, bool runtime);
 
 	void write_includes(putki::parsed_file *file, putki::indentedwriter out, bool inki)
@@ -527,6 +519,9 @@ namespace putki
 		for (size_t i=0; i!=file->structs.size(); i++)
 		{
 			putki::parsed_struct *s = &file->structs[i];
+			if (!(s->domains & putki::DOMAIN_INPUT))
+				continue;
+
 			std::string s_name = to_c_struct_name(s->name);
 
 			out.line();
@@ -781,6 +776,10 @@ namespace putki
 		for (int i=0; i!=file->structs.size(); i++)
 		{
 			putki::parsed_struct *s = &file->structs[i];
+
+			if (!(s->domains & putki::DOMAIN_INPUT))
+				continue;
+
 			std::string s_name = to_c_struct_name(s->name);
 
 			out.line() << "void fill_" << s_name << "_from_parsed(putki::parse::node *pn, void *target_, putki::load_resolver_i *resolver)";
@@ -841,6 +840,8 @@ namespace putki
 		{
 			putki::parsed_struct *s = &file->structs[i];
 			if (runtime && !(s->domains & putki::DOMAIN_RUNTIME))
+				continue;
+			if (!runtime && !(s->domains & putki::DOMAIN_INPUT))
 				continue;
 
 			std::string s_name = to_c_struct_name(s->name);
@@ -1087,6 +1088,9 @@ namespace putki
 		for (int i=0; i!=file->structs.size(); i++)
 		{
 			putki::parsed_struct *s = &file->structs[i];
+			if (!(s->domains & putki::DOMAIN_INPUT))
+				continue;
+
 			std::string s_name = to_c_struct_name(s->name);
 
 			out.line();
@@ -1324,6 +1328,9 @@ namespace putki
 		for (unsigned int i=0; i<file->structs.size(); i++)
 		{
 			putki::parsed_struct *s = &file->structs[i];
+			if (!(s->domains & putki::DOMAIN_INPUT))
+				continue;
+
 			out.line() << "inki::bind_type_" << to_c_struct_name(s->name) << "();";
 		}
 	}

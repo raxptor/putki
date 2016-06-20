@@ -35,7 +35,6 @@ namespace putki
 		out->is_type_root = false;
 		out->permit_as_asset = true;
 		out->permit_as_auxptr = true;
-		out->targets.push_back("putki");
 
 		bool read_parent = false;
 
@@ -78,9 +77,16 @@ namespace putki
 			else if (tok[0] == '@')
 			{
 				if (tok[1] == '-')
+				{
 					out->targets.clear();
+					out->domains = 0;
+				}
 				else
+				{
+					if (out->targets.empty())
+						out->domains = 0;
 					out->targets.push_back(&tok[1]);
+				}
 				std::cout << " added target [" << &tok[1] << "]" << std::endl;
 			}
 			else

@@ -303,6 +303,8 @@ namespace putki
 		for (size_t i=0; i!=file->structs.size(); i++)
 		{
 			putki::parsed_struct *s = &file->structs[i];
+			if (!(s->domains & putki::DOMAIN_INPUT))
+				continue;
 
 			write_field_handlers(out, s);
 
@@ -418,6 +420,9 @@ namespace putki
 		for (unsigned int i=0; i<file->structs.size(); i++)
 		{
 			putki::parsed_struct *s = &file->structs[i];
+			if (!(s->domains & putki::DOMAIN_INPUT))
+				continue;
+
 			out.line() << "void bind_type_" << to_c_struct_name(s->name) << "_dll();";
 		}
 		out.indent(-1);
@@ -429,6 +434,9 @@ namespace putki
 		for (unsigned int i=0; i<file->structs.size(); i++)
 		{
 			putki::parsed_struct *s = &file->structs[i];
+			if (!(s->domains & putki::DOMAIN_INPUT))
+				continue;
+
 			out.line() << "inki::bind_type_" << to_c_struct_name(s->name) << "_dll();";
 		}
 	}
