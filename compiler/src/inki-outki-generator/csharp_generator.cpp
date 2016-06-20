@@ -124,6 +124,14 @@ namespace putki
 
 			int size = 0;
 
+			if (!s->parent.empty())
+			{
+				out.line() << "public " << s->name << "()";
+				out.line() << "{";
+				out.line(1) << "_rtti_type = " << s->unique_id << ";";
+				out.line() << "}";
+			}
+
 			out.line() << "// Fields";
 			for (size_t i=0; i<s->fields.size(); i++)
 			{
