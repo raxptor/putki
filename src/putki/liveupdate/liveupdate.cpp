@@ -27,9 +27,9 @@ namespace putki
 
 	namespace liveupdate
 	{
-		int skt_listen(int port)
+		sock_t skt_listen(int port)
 		{
-			int s = socket(AF_INET, SOCK_STREAM, 0);
+			sock_t s = socket(AF_INET, SOCK_STREAM, 0);
 			if (s < 0)
 			{
 				std::cerr << "Could not open listening socket" << std::endl;
@@ -54,7 +54,7 @@ namespace putki
 			return s;
 		}
 		
-		int skt_accept(int lp)
+		sock_t skt_accept(sock_t lp)
 		{
 			sockaddr_in client;
 			socklen_t sz = sizeof(client);
@@ -89,7 +89,7 @@ namespace putki
 		struct ed_client
 		{
 			ed_session session;
-			int socket;
+			sock_t socket;
 		};
 		
 		ed_client *create_editor_connection()
@@ -108,7 +108,7 @@ namespace putki
 			while (true)
 			{
 				sys::scoped_maybe_lock lk(&cl->session.mtx);
-				int skt = cl->socket;
+				sock_t skt = cl->socket;
 				while (skt == -1)
 				{
 					cl->session.cond.wait(&cl->session.mtx);
@@ -193,7 +193,7 @@ namespace putki
 				conn->session.cond.broadcast();
 				conn->session.mtx.unlock();
 		
-				int skt = socket(AF_INET, SOCK_STREAM, 0);
+				sock_t skt = socket(AF_INET, SOCK_STREAM, 0);
 				if (connect(skt, (sockaddr*)&addrLocal, sizeof(addrLocal)) < 0)
 				{
 					close(skt);
@@ -219,7 +219,7 @@ namespace putki
 					++i;
 				}
 				
-				int wr = send(skt, tmp.c_str(), tmp.size(), 0);
+				int wr = send(skt, tmp.c_str(), (int) tmp.size(), 0);
 				if (wr != tmp.size())
 				{
 					APP_INFO("Failed to write " << tmp.size() << " bytes, closing connection.")
@@ -267,7 +267,7 @@ namespace putki
 					}
 					
 					
-					int write = send(skt, tmp.c_str(), tmp.size(), 0);
+					int write = send(skt, tmp.c_str(), (int)tmp.size(), 0);
 					if (write != tmp.size())
 					{
 						APP_INFO("Failed to write " << tmp.size() << " bytes, closing connection.")
@@ -315,7 +315,7 @@ namespace putki
 		struct thr_info
 		{
 			data *d;
-			int socket;
+			sock_t socket;
 		};
 
 		void clean_sessions(data *d)
@@ -534,7 +534,7 @@ namespace putki
 						std::string argstring;
 
 						std::vector<std::string> args;
-						int del = cmd.find_first_of(' ');
+						size_t del = cmd.find_first_of(' ');
 						if (del != std::string::npos)
 						{
 							argstring = cmd.substr(del+1, cmd.size() - del);
@@ -585,7 +585,7 @@ namespace putki
 									}
 			
 									char *tmp = strdup(e->second.data.c_str());
-									if (!update_with_json(input_db, e->first.c_str(), tmp, e->second.data.size()))
+									if (!update_with_json(input_db, e->first.c_str(), tmp, (int)e->second.data.size()))
 									{
 										APP_WARNING("Json update failed. I am broken now and will exit");
 									}
@@ -804,7 +804,7 @@ namespace putki
 			APP_INFO("Live update: waiting for editors...");
 
 			data *d = (data *)arg;
-			int s = skt_listen(EDITOR_PORT);
+			sock_t s = skt_listen(EDITOR_PORT);
 
 			while (s != -1)
 			{
@@ -826,7 +826,7 @@ namespace putki
 			APP_INFO("Live update: waiting for clients...");
 
 			data *d = (data *)arg;
-			int s = skt_listen(CLIENT_PORT);
+			sock_t s = skt_listen(CLIENT_PORT);
 
 			while (s != -1)
 			{

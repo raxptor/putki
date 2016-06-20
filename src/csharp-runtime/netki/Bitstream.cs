@@ -48,8 +48,11 @@ namespace Netki
 			dst.error = src.error;
 		}
 
-		public static void Insert(Buffer dest, Buffer source)
+		public static bool Insert(Buffer dest, Buffer source)
 		{
+			if (dest.BitsLeft() < source.BitsLeft())
+				return false;
+
 			Bitstream.Buffer tmp = new Bitstream.Buffer();
 			Copy(tmp, source);
 
@@ -71,6 +74,47 @@ namespace Netki
 				else if (left > 0)
 					Bitstream.PutBits(dest, left, Bitstream.ReadBits(tmp, left));
 			}
+			return true;
+		}
+
+		public static void PutBitU(Buffer buf, UInt32 value)
+		{
+			UInt32 bit = (value & 1) << buf.bitpos;
+			UInt32 mask = s_bitmask[buf.bitpos];
+			UInt32 old = buf.buf[buf.bytepos];
+			buf.buf[buf.bytepos] = (byte)((old & mask) | bit);
+		}
+
+		public static void PutBitsMax8U(Buffer buf, int bits, UInt32 value)
+		{
+			if (buf.bitpos == 0)
+			{
+				buf.buf[buf.bytepos] = (byte)(value & s_bitmask[bits]);
+				if (bits == 8)
+					buf.bytepos++;
+				else
+					buf.bitpos = bits;
+			}
+			else
+			{
+				int room = 8 - buf.bitpos;
+				if (bits <= room)
+				{
+					byte mixin = (byte)((value & s_bitmask[bits]) << buf.bitpos);
+					buf.buf[buf.bytepos] = (byte)(buf.buf[buf.bytepos] | mixin);
+					buf.bitpos += bits;
+					if (buf.bitpos == 8)
+					{
+						buf.bitpos = 0;
+						buf.bytepos++;
+					}
+				}
+				else
+				{
+					PutBitsMax8U(buf, room, value);
+					PutBitsMax8U(buf, bits - room, value >> room);
+				}
+			}
 		}
 		
 		public static bool PutBits(Buffer buf, int bits, UInt32 value)
@@ -83,7 +127,7 @@ namespace Netki
 
 			if (bits > 8)
 			{
-				PutBits(buf, 8, value & 0xff);
+				PutBitsMax8U(buf, 8, value & 0xff);
 				PutBits(buf, bits - 8, value >> 8);
 				return true;
 			}
@@ -112,11 +156,10 @@ namespace Netki
 				}
 				else
 				{
-					PutBits(buf, room, value);
-					return PutBits(buf, bits - room, value >> room);
+					PutBitsMax8U(buf, room, value);
+					PutBitsMax8U(buf, bits - room, value >> room);
 				}
 			}
-
 			return true;
 		}
 
