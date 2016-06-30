@@ -17,6 +17,10 @@ namespace Putki
 
 		public static string PathOf(object o)
 		{
+			if (o == null)
+			{
+				return null;
+			}
 			foreach (Package p in s_loaded)
 			{
 				string tmp = p.PathOf(o);
@@ -28,6 +32,10 @@ namespace Putki
 
 		public static Type Resolve<Type>(string path)
 		{
+			if (path == null)
+			{
+				return default(Type);
+			}
 			foreach (Package p in s_loaded)
 			{
 				object o = p.Resolve(path);

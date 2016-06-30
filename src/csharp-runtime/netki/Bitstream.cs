@@ -15,6 +15,13 @@ namespace Netki
 			public int bitpos;
 			public int error;
 
+			public void Reset()
+			{
+				bitpos = bytepos = bitsize = 0;
+				bytesize = buf.Length;
+				error =0;
+			}
+
 			public int BitsLeft()
 			{
 				return 8*bytesize + bitsize - 8*bytepos - bitpos;
