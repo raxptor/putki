@@ -270,15 +270,19 @@ namespace Netki
 				tmp[i] = (byte) ReadBits(buf, 8);
 			}
 
-			float f = BitConverter.ToSingle(tmp, 0);
-			return f;
+			float[] f = new float[1];
+			System.Buffer.BlockCopy(tmp, 0, f, 0, 4);
+			return f[0];
 		}
 		
-		public static void PutFloat(Buffer buf, float f)
+		public static void PutFloat(Buffer buf, float value)
 		{
-			byte[] val = BitConverter.GetBytes(f);
+			float[] f = new float[1] { value };
+			byte[] v = new byte[4];
+			f[0] = value;
+			System.Buffer.BlockCopy(f, 0, v, 0, 4);
 			for (int i = 0; i != 4; i++)
-				PutBits(buf, 8, val[i]);			
+				PutBits(buf, 8, v[i]);			
 		}
 		
 		public static UInt32 ReadBits(Buffer buf, int bits)
