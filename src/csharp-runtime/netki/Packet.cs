@@ -2,13 +2,15 @@
 
 namespace Netki
 {
-	public class Packet
+	public interface Packet
 	{
-		public int type_id;
+		int GetTypeId();
+		bool Write(Bitstream.Buffer buf);
+		bool Read(Bitstream.Buffer buf);
+	}
 
-		public Packet(int _type_id)
-		{
-			type_id = _type_id;
-		}
+	public interface PacketHolder
+	{
+		Packet Box(int type_id);
 	}
 }

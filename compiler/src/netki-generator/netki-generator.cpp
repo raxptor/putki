@@ -318,37 +318,29 @@ namespace putki
 	{
 		wr.line();
 		wr.line() << "// Generated from struct '" << s->name << "'";
-		wr.line() << "public class " << s->name << " : Packet";
+		wr.line() << "public struct " << s->name << " : Packet";
 		wr.line() << "{";
 		wr.indent(1);
+		wr.line() << "public int GetTypeId() { return " << s->unique_id << "; }";
 		wr.line() << "public const int TYPE_ID = " << s->unique_id << ";";
-		wr.line();
-		wr.line() << "public " << s->name << "() : base(TYPE_ID)";
-		wr.line() << "{";
-		wr.line() << "}";
 		wr.line();
 
 		for (int i=0; i!=s->fields.size(); i++)
 		{
 			parsed_field *field = &s->fields[i];
-
 			std::string type = field_type_csharp(field);
-			std::string defval = field->def_value;
-			if (!defval.empty())
-				defval = " = " + defval;
-
 			if (field->is_array)
 			{
 				wr.line() << "public " << type << "[] " << field->name << ";";
 			}
 			else
 			{
-				wr.line() << "public " << type << " " << field->name << defval << ";";
+				wr.line() << "public " << type << " " << field->name << ";";
 			}
 		}
 
 		wr.line();
-		wr.line() << "public static bool WriteIntoBitstream(Bitstream.Buffer buf, " << s->name << " obj)";
+		wr.line() << "public bool Write(Bitstream.Buffer buf)";
 		wr.line() << "{";
 		wr.indent(1);
 
@@ -356,7 +348,7 @@ namespace putki
 		{
 			parsed_field *field = &s->fields[i];
 
-			std::string field_ref = std::string("obj.") + field->name;
+			std::string field_ref = field->name;
 			
 			if (field->is_array)
 			{
@@ -417,7 +409,7 @@ namespace putki
 					wr.line() << "Bitstream.PutBits(buf, 32, (int)" << field_ref << ");";
 					break;
 				case FIELDTYPE_STRUCT_INSTANCE:
-					wr.line() << field->ref_type << ".WriteIntoBitstream(buf, " << field_ref << ");";
+					wr.line() << field_ref << ".Write(buf);";
 					break;
 				default:
 					wr.line() << "<compile error trying to write pointer field " << s->name << ">";
@@ -437,7 +429,7 @@ namespace putki
 		wr.indent(-1);
 		wr.line() << "}";
 		wr.line();
-		wr.line() << "public static bool ReadFromBitstream(Bitstream.Buffer buf, " << s->name << " into)";
+		wr.line() << "public bool Read(Bitstream.Buffer buf)";
 		wr.line() << "{";
 		wr.indent(1);
 
@@ -446,7 +438,7 @@ namespace putki
 		{
 			parsed_field *field = &s->fields[i];
 
-			std::string field_ref = std::string("into.") + field->name;
+			std::string field_ref = field->name;
 			std::string type = field_type_csharp(field);
 
 			if (field->is_array)
@@ -537,7 +529,7 @@ namespace putki
 					break;
 				case FIELDTYPE_STRUCT_INSTANCE:
 					wr.line() << field_ref << " = new " << type << "();";
-					wr.line() << "if (!" << field->ref_type << ".ReadFromBitstream(buf, " << field_ref << "))";
+					wr.line() << "if (!" << field_ref << ".Read(buf))";
 					wr.line(1) << "return false;";
 					break;
 				default:
@@ -694,24 +686,63 @@ namespace putki
 			}
 		}
 		
+		
+		std::string holder_name = proj->loader_name + "PacketHolder";
+		
 		hw.indent(-1);
 		hw.line();
+		hw.line(1) << "public struct " << holder_name << " : PacketHolder";
+		hw.line(1) << "{";
+		for (int i=0; i!=proj->files.size(); i++)
+		{
+			parsed_file *pf = &proj->files[i];
+			for (int j=0; j!=pf->structs.size(); j++)
+			{
+				parsed_struct *s = &pf->structs[j];
+				if (is_netki_struct(s))
+				{
+					hw.line(2) << "public " << s->name << " " << s->name << ";";
+				}
+			}
+		}
+		hw.line();
+		hw.line(2) << "public Packet Box(int type_id)";
+		hw.line(2) << "{";
+		hw.line(3) << "switch (type_id)";
+		hw.line(3) << "{";
+		for (int i=0; i!=proj->files.size(); i++)
+		{
+			parsed_file *pf = &proj->files[i];
+			for (int j=0; j!=pf->structs.size(); j++)
+			{
+				parsed_struct *s = &pf->structs[j];
+				if (is_netki_struct(s))
+				{
+					hw.line(4) << "case " << s->unique_id << ": return " << s->name << ";";
+				}
+			}
+		}
+		hw.line(4) << "default: return null;";
+		hw.line(3) << "}";
+		hw.line(2) << "}";
+		hw.line(1) << "}";
+		hw.line(1);
+		
 		hw.line(1) << "public static class " << proj->loader_name << "Packets";
 		hw.line(1) << "{";
-		hw.line(2) << "public static bool Decode(Bitstream.Buffer bs, int type_id, out DecodedPacket pkt)";
+		hw.line(2) << "public static bool Decode(Bitstream.Buffer bs, int type_id, ref DecodedPacket<" << holder_name << "> pkt)";
 		hw.line(2) << "{";
 		hw.line(3) << "pkt.type_id = -1;";
-		hw.line(3) << "pkt.packet = null;";
-		hw.line(3) << "switch (type_id) {";
-		hw.line() << netki_switch_parse.str();
-		hw.line(3) << "}";
+//		hw.line(3) << "switch (type_id) {";
+//		hw.line() << netki_switch_parse.str();
+//		hw.line(3) << "}";
 		hw.line(3) << "return false;";
 		hw.line(2) << "}";
-		hw.line(2) << "public static void Encode(Packet packet, Bitstream.Buffer buffer)";
+		hw.line(2) << "public static void Encode<Pkt>(ref Pkt packet, Bitstream.Buffer buffer) where Pkt : Packet";
 		hw.line(2) << "{";
-		hw.line(3) << "switch (packet.type_id) {";
-		hw.line() << netki_switch_encode.str();
-		hw.line(3) << "}";
+//		hw.line(3) << "switch (packet.type_id) {";
+//		hw.line() << netki_switch_encode.str();
+//		hw.line(3) << "}";
 		hw.line(2) << "}";
 		hw.line(1) << "}";
 		hw.line(0) << "}"; // namespace 

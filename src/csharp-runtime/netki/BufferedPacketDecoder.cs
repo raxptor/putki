@@ -2,16 +2,16 @@
 
 namespace Netki
 {
-	public delegate void OnPacketDelegate(DecodedPacket packet);
+	public delegate void OnPacketDelegate<HolderType>(ref DecodedPacket<HolderType> packet) where HolderType : PacketHolder;
 
-	public class BufferedPacketDecoder : PacketDecoder
+	public class BufferedPacketDecoder<HolderType> : PacketDecoder<HolderType> where HolderType : PacketHolder
 	{
 		byte[] _data;
-		PacketDecoder _decoder;
+		PacketDecoder<HolderType> _decoder;
 		int _parsepos, _readpos;
 		bool _error = false;
 
-		public BufferedPacketDecoder(int bufsize, PacketDecoder decoder)
+		public BufferedPacketDecoder(int bufsize, PacketDecoder<HolderType> decoder)
 		{
 			_data = new byte[bufsize];
 			_decoder = decoder;
@@ -19,7 +19,7 @@ namespace Netki
 			_readpos = 0;
 		}
 
-		public int Decode(byte[] data, int offset, int length, out DecodedPacket pkt)
+		public int Decode(byte[] data, int offset, int length, ref DecodedPacket<HolderType> pkt)
 		{
 			int ret;
 
@@ -29,25 +29,23 @@ namespace Netki
 				if (!Save(data, offset, length))
 				{
 					_error = true;
-					pkt.packet = null;
 					pkt.type_id = -1;
 					return length;
 				}
 
-				ret = DoDecode(_data, _parsepos, _readpos - _parsepos, out pkt);
+				ret = DoDecode(_data, _parsepos, _readpos - _parsepos, ref pkt);
 				if (ret > 0)
 					OnParsed(ret);
 				return length;
 			}
 
 			// No data in queue; attempt decode directly in buffer
-			ret = DoDecode(data, offset, length, out pkt);
+			ret = DoDecode(data, offset, length, ref pkt);
 			if (pkt.type_id < 0)
 			{
 				// No decode yet. Consume what it wants and store the rest.
 				if (!Save(data, offset + ret, length - ret))
 				{
-					pkt.packet = null;
 					pkt.type_id = -1;
 					_error = true;
 				}
@@ -67,18 +65,19 @@ namespace Netki
 			}
 		}
 
-		public void OnStreamData(byte[] data, int offset, int length, OnPacketDelegate handler)
+		DecodedPacket<HolderType> pktHolder;
+
+		public void OnStreamData(byte[] data, int offset, int length, OnPacketDelegate<HolderType> handler)
 		{
 			while (true)
 			{
-				DecodedPacket pkt;
-				int ret = Decode(data, offset, length, out pkt);
+				int ret = Decode(data, offset, length, ref pktHolder);
 
 				offset += ret;
 				length -= ret;
-				if (pkt.type_id < 0)
+				if (pktHolder.type_id < 0)
 					break;
-				handler(pkt);
+				handler(ref pktHolder);
 			}
 		}
 
@@ -100,9 +99,9 @@ namespace Netki
 			return true;
 		}
 
-		public int DoDecode(byte[] data, int offset, int length, out DecodedPacket pkt)
+		public int DoDecode(byte[] data, int offset, int length, ref DecodedPacket<HolderType> pkt)
 		{
-			return _decoder.Decode(data, offset, length, out pkt);
+			return _decoder.Decode(data, offset, length, ref pkt);
 		}
 	}
 }
