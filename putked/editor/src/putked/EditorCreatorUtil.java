@@ -3,52 +3,51 @@ package putked;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.control.Label;
-import putked.Interop.Field;
-import putked.Interop.MemInstance;
+import putki.Compiler;
 
 public class EditorCreatorUtil
-{		
-    public static Node makeArrayFieldLabel(Field fi, int index)
+{
+    public static Node makeArrayFieldLabel(Compiler.ParsedField fi, int index)
     {
-        Label lbl = new Label(fi.getName() + "[" + index + "]");
+        Label lbl = new Label(fi.name + "[" + index + "]");
         lbl.setMinWidth(120);
         return lbl;
     }
 
-    public static Node makeFieldLabel(Field fi)
+    public static Node makeFieldLabel(Compiler.ParsedField fi)
     {
-        Label lbl = new Label(fi.getName());
+        Label lbl = new Label(fi.name);
         lbl.getStyleClass().add("field-label");
         lbl.setAlignment(Pos.CENTER_LEFT);
         return lbl;
     }
-    
+
     public static Node makeInlineEditorHeader(String name)
     {
         Label lbl = new Label(name);
         lbl.getStyleClass().add("field-label");
-        lbl.setAlignment(Pos.CENTER_LEFT); 
+        lbl.setAlignment(Pos.CENTER_LEFT);
         return lbl;
     }
 
-    public static Node makeLabel(Field fi, int index)
+    public static Node makeLabel(Compiler.ParsedField fi, int index)
     {
-        if (fi.isArray())
+        if (fi.isArray)
             return makeArrayFieldLabel(fi, index);
         else
             return makeFieldLabel(fi);
     }
 
-    public static String makeInlineAuxTitle(MemInstance mi)
+    public static String makeInlineAuxTitle(DataObject mi)
     {
-        return mi.getType().getName() + " [" + filterAux(mi.getPath()) + "]";
+        return mi.getType().name + " [" + filterAux(mi.getPath()) + "]";
     }
 
-    public static String makeInlineTitle(MemInstance mi)
+    public static String makeInlineTitle(DataObject mi)
     {
-        return mi.getPath() + " (" + mi.getType().getName() + ")";
+        return mi.getPath() + " (" + mi.getType().name + ")";
     }
-    
+
     public static String filterAux(String input)
     {
     	for (int i=0;i<input.length();i++)

@@ -1,10 +1,9 @@
 package putked;
 
-import putked.Interop.Field;
-import putked.Interop.MemInstance;
+import putki.Compiler;
 
-public interface FieldEditorCreator 
+public interface FieldEditorCreator
 {
 	// Can return null for arrays.
-	FieldEditor createEditor(MemInstance mi, Field field, int index, boolean asArray);
+	FieldEditor createEditor(DataObject mi, Compiler.ParsedField field, int index, boolean asArray);
 }

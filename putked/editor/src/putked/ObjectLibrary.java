@@ -33,12 +33,13 @@ import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 import javafx.util.Callback;
+import putki.Compiler;;
 
 public class ObjectLibrary {
 	public class ObjEntry {
 		public String name;
 		public String path;
-		public Interop.Type type;
+		public Compiler.ParsedStruct type;
 	};
 
 	class DirEntry {
@@ -58,7 +59,7 @@ public class ObjectLibrary {
 	private String m_dirFilterString = "";
 
 	ObjectLibrary() {
-		
+
 		m_root = new HBox();
 		m_root.setFillHeight(true);
 		m_root.setMaxWidth(100000.0);
@@ -66,7 +67,7 @@ public class ObjectLibrary {
 
 		// Creating a tree table view
 		m_dirView = new TreeView<String>();
-		
+
 		m_root.getChildren().add(m_dirView);
 
 		TableColumn<ObjEntry, String> col_fn = new TableColumn<>("Name");
@@ -83,9 +84,9 @@ public class ObjectLibrary {
 
 		col_type.setCellValueFactory(new Callback<CellDataFeatures<ObjEntry, String>, ObservableValue<String>>() {
 			public ObservableValue<String> call(CellDataFeatures<ObjEntry, String> p) {
-				Interop.Type t = p.getValue().type;
+				Compiler.ParsedStruct t = p.getValue().type;
 				if (t != null)
-					return new ReadOnlyStringWrapper(t.getName());
+					return new ReadOnlyStringWrapper(t.name);
 				return new ReadOnlyStringWrapper("<NULL>");
 			}
 		});
@@ -130,7 +131,7 @@ public class ObjectLibrary {
 						}
 					}
 				});
-		
+
 		m_filesView.setOnMousePressed(new EventHandler<MouseEvent>() {
 			@Override
 			public void handle(MouseEvent event) {
@@ -139,7 +140,7 @@ public class ObjectLibrary {
 				}
 			}
 		});
-		
+
 		ContextMenu dirmenu = new ContextMenu();
 		ArrayList<DataImporter> importers = Main.getImporters();
 		for (DataImporter imp : importers)
@@ -152,14 +153,14 @@ public class ObjectLibrary {
 					@Override
 					public void run() {
 						if (imp.importTo(whereTo))
-							loadIndex();					
+							loadIndex();
 					}
 				});
 				actionEvt.consume();
 			});
 			dirmenu.getItems().add(newobj);
 		}
-		
+
 		MenuItem newobj = new MenuItem("New object");
 		newobj.setOnAction( (actionEvt) -> {
 			TreeItem<String> ti = m_dirView.getSelectionModel().getSelectedItem();
@@ -167,7 +168,7 @@ public class ObjectLibrary {
 			javafx.application.Platform.runLater(new Runnable() {
 				@Override
 				public void run() {
-					Interop.Type t = Main.s_instance.askForType();
+					Compiler.ParsedStruct t = Main.s_instance.askForType();
 					if (t != null)
 					{
 						Main.ImportFinalizationQuestion fin = new Main.ImportFinalizationQuestion();
@@ -175,7 +176,8 @@ public class ObjectLibrary {
 						Main.s_instance.askImportFinalization(fin, null);
 						if (fin.accepted)
 						{
-							t.createInstance(fin.proposedPath);
+							DataObject obj = new DataObject(t, fin.proposedPath);
+							Main.s_dataWriter.WriteObject(obj);
 							loadIndex();
 						}
 					}
@@ -183,9 +185,9 @@ public class ObjectLibrary {
 			});
 			actionEvt.consume();
 		});
-		
+
 		dirmenu.getItems().add(newobj);
-		
+
 		m_dirView.setContextMenu(dirmenu);
 
 		m_filesView.setRowFactory(new Callback<TableView<ObjEntry>, TableRow<ObjEntry>>() {
@@ -210,15 +212,15 @@ public class ObjectLibrary {
 		                        event.consume();
 		                    }
 		                });
-		                
+
 		            }
 		        };
 			}
 		});
-		
+
 		loadIndex();
 	}
-	
+
 	public ContextMenu makeContextMenu(ObjEntry item)
 	{
     	ContextMenu mn = new ContextMenu();
@@ -245,19 +247,19 @@ public class ObjectLibrary {
 			String s = m_search.getText();
 			if (obj.path.startsWith(m_dirFilterString))
 				return s.isEmpty() || obj.path.contains(s)
-						|| obj.type.getName().contains(s);
+						|| obj.type.name.contains(s);
 			return false;
 		});
 	}
-	
+
 	private void loadIndex()
 	{
 		m_dirMap.clear();
 		m_allObjects.clear();
 		final TreeItem<String> root = new TreeItem<>("/");
 		root.setExpanded(true);
-		System.out.println("Obj paths is " + Interop.getObjsPath());
-		scanDirectory(root, new File(Interop.getObjsPath()), "");
+		System.out.println("Obj paths is " + Main.s_instance.getObjsPath());
+		scanDirectory(root, Main.s_instance.getObjsPath().toFile(), "");
 		m_dirView.setRoot(root);
 	}
 
@@ -295,13 +297,13 @@ public class ObjectLibrary {
 				if (!name.endsWith(ending))
 					continue;
 
-				Interop.Type objType = null;
+				Compiler.ParsedStruct objType = null;
 
 				try {
 					byte[] scan = new byte[64];
 					InputStream is = new FileInputStream(files[i]);
 					int bread = is.read(scan);
-					
+
 					if (bread > 0) {
 						String matchPrefix = "type: \"";
 						String s = new String(scan);
@@ -313,12 +315,12 @@ public class ObjectLibrary {
 							if (end > 0)
 							{
 								s = s.substring(0, end);
-								objType = Interop.s_wrap.getTypeByName(s);
+								objType = Main.s_compiler.getTypeByName(s);
 							}
 						}
 					}
 					is.close();
-				} 
+				}
 				catch (IOException e)
 				{
 				}
@@ -331,9 +333,9 @@ public class ObjectLibrary {
 					oe.type = objType;
 				} else {
 					System.out.println("Slow-path loading [" + oe.path + "]");
-					Interop.MemInstance mi = Interop.s_wrap.load(oe.path);
-					if (mi != null)
-						oe.type = mi.getType();					
+					DataObject obj = Main.s_dataLoader.load(oe.path);
+					if (obj != null)
+						oe.type = obj.getType();
 				}
 
 				if (oe.type != null) {

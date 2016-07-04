@@ -6,7 +6,9 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.nio.file.Path;
 import java.util.List;
+
 import java.util.ArrayList;
+import java.util.HashMap;
 
 public class Compiler
 {
@@ -30,45 +32,63 @@ public class Compiler
 
 	public class ParsedField
 	{
-		int domains;
-		boolean isArray;
-		boolean isAuxPtr;
-		boolean isBuildConfig;
-		boolean showInEditor;
-		FieldType type;
-		String name;
-		String refType;
-		String defValue;
-		ParsedStruct resolvedRefStruct;
-		ParsedEnum resolvedEnum;
+		public int index;
+		public int domains;
+		public boolean isArray;
+		public boolean isAuxPtr;
+		public boolean isBuildConfig;
+		public boolean showInEditor;
+		public FieldType type;
+		public String name;
+		public String refType;
+		public String defValue;
+		public ParsedStruct resolvedRefStruct;
+		public ParsedEnum resolvedEnum;
 	}
 
 	public class ParsedStruct
 	{
-		int domains;
-		int uniqueId;
-		String name;
-		String parent;
-		String loaderName;
-		List<ParsedField> fields;
-		String inlineEditor;
-		List<String> targets;
-		boolean isTypeRoot;
-		boolean permitAsAux;
-		boolean permitAsAsset;
+		public int domains;
+		public int uniqueId;
+		public String name;
+		public String parent;
+		public String loaderName;
+		public String moduleName;
+		public List<ParsedField> fields;
+		public String inlineEditor;
+		public List<String> targets;
+		public boolean isTypeRoot;
+		public boolean permitAsAux;
+		public boolean permitAsAsset;
+
+		public ParsedStruct resolvedParent;
+
+		public boolean hasParent(ParsedStruct p)
+		{
+			ParsedStruct c = this;
+			while (c != null)
+			{
+				if (c == p)
+				{
+					return true;
+				}
+				c = c.resolvedParent;
+			}
+			return false;
+		}
 	}
 
 	public class EnumValue
 	{
-		String name;
-		int value;
+		public String name;
+		public int value;
 	}
 
 	public class ParsedEnum
 	{
-		String loaderName;
-		String name;
-		List<EnumValue> values;
+		public String loaderName;
+		public String name;
+		public List<EnumValue> values;
 	}
 
 	public class ParsedFile
@@ -90,9 +110,25 @@ public class Compiler
 		public List<ParsedFile> parsedFiles;
 	}
 
+	List<ParsedStruct> allTypes = new ArrayList<Compiler.ParsedStruct>();
+	List<ParsedEnum> allEnums = new ArrayList<Compiler.ParsedEnum>();
+	HashMap<String, ParsedStruct> typesByName = new HashMap<String, ParsedStruct>();
+	HashMap<String, ParsedEnum> enumsByName = new HashMap<String, ParsedEnum>();
+	List<ParsedTree> allTrees = new ArrayList<Compiler.ParsedTree>();
+
 	public void error(String path, int line, String err)
 	{
 		System.out.println(path + ":" + line + " Error! " + err);
+	}
+
+	public List<ParsedStruct> getAllTypes()
+	{
+		return allTypes;
+	}
+
+	public ParsedStruct getTypeByName(String s)
+	{
+		return typesByName.get(s);
 	}
 
 	public boolean parseEnumLine(ParsedEnum cur, String line)
@@ -105,10 +141,7 @@ public class Compiler
 			if (readValue)
 			{
 				Integer tmp = Integer.parseInt(pieces[k]);
-				if (tmp != null)
-					val.value = (int)tmp;
-				else
-					return false;
+				val.value = (int)tmp;
 			}
 			else if (pieces[k].equals("="))
 			{
@@ -221,7 +254,7 @@ public class Compiler
 				else if (!gotType)
 				{
 					next.type = FieldType.STRUCT_INSTANCE;
-					readRefType = true;
+					next.refType = typeName;
 					gotType = true;
 				}
 			}
@@ -248,6 +281,7 @@ public class Compiler
 
 		if (gotType && !readRefType && !readDefValue)
 		{
+			next.index = cur.fields.size();
 			cur.fields.add(next);
 			return true;
 		}
@@ -387,7 +421,7 @@ public class Compiler
 				}
 			}
 		}
-		return null;
+		return tmp;
 	}
 
 	public void scanTree(ParsedTree tree, Path root, Path where) throws IOException
@@ -451,12 +485,91 @@ public class Compiler
 			}
 
 			scanTree(pt, start.resolve("src"), start.resolve("src"));
-
+			allTrees.add(pt);
 		}
 		catch (java.io.IOException e)
 		{
 
 		}
+		return true;
+	}
+
+	// Post processing
+	public boolean resolve()
+	{
+		int unique_id = 1;
+		for (ParsedTree tree : allTrees)
+		{
+			for (ParsedFile file : tree.parsedFiles)
+			{
+				for (ParsedStruct struct : file.structs)
+				{
+					struct.moduleName = tree.moduleName;
+					struct.loaderName = tree.loaderName;
+					struct.uniqueId = unique_id;
+					allTypes.add(struct);
+					if (typesByName.put(struct.name, struct) != null)
+					{
+						System.out.println("Error: Duplicate entries of struct " + struct.name + "!");
+						return false;
+					}
+				}
+				for (ParsedEnum e : file.enums)
+				{
+					e.loaderName = tree.loaderName;
+					allEnums.add(e);
+					if (enumsByName.put(e.name, e) != null)
+					{
+						System.out.println("Error: Duplicate entries of enum " + e.name + "!");
+						return false;
+					}
+				}
+			}
+		}
+
+		for (ParsedStruct struct : allTypes)
+		{
+			for (ParsedField field : struct.fields)
+			{
+				if (field.type == FieldType.ENUM)
+				{
+					field.resolvedEnum = enumsByName.get(field.refType);
+					if (field.resolvedEnum == null)
+					{
+						System.out.println("Unresolved enum name [" + field.refType + "] in field " + struct.name + "." + field.name);
+						return false;
+					}
+				}
+				else if (field.refType != null)
+				{
+					field.resolvedRefStruct = typesByName.get(field.refType);
+					if (field.resolvedRefStruct == null)
+					{
+						System.out.println("Unresolved type name [" + field.refType + "] in field " + struct.name + "." + field.name);
+						return false;
+					}
+				}
+			}
+			if (struct.parent != null)
+			{
+				struct.resolvedParent = typesByName.get(struct.parent);
+				if (struct.resolvedParent == null)
+				{
+					System.out.println("Unresolved parent name [" + struct.parent + "] in struct " + struct.name);
+					return false;
+				}
+			}
+		}
+
+		return true;
+	}
+
+	public boolean compile(Path start)
+	{
+		if (!scanPath(start))
+			return false;
+		if (!resolve())
+			return false;
 		return true;
 	}
 
