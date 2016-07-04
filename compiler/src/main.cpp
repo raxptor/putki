@@ -22,7 +22,6 @@ void generate_project(putki::project *p)
 
 	std::string outki_base(out_base + "/outki");
 	std::string inki_base(out_base + "/inki");
-	std::string editor_base(out_base + "/editor");
 	std::string csharp_outki(out_base + "/outki_csharp");
 	std::string csharp_inki(out_base + "/inki_csharp");
 	std::string java_inki(out_base + "/java/inki");
@@ -30,8 +29,8 @@ void generate_project(putki::project *p)
 	std::stringstream rt_blob_load_calls;
 	std::stringstream rt_blob_load_header;
 
-	std::stringstream bind_decl, bind_decl_dll;
-	std::stringstream bind_calls, bind_calls_dll;
+	std::stringstream bind_decl;
+	std::stringstream bind_calls;
 
 	std::stringstream inki_master, runtime_master;
 
@@ -48,7 +47,6 @@ void generate_project(putki::project *p)
 		std::string subpath = pf->sourcepath.substr(p->base_path.size()+1);
 		std::string rt_path = outki_base + "/" + subpath;
 		std::string inki_path = inki_base + "/" + subpath;
-		std::string editor_path = editor_base + "/" + subpath;
 
 		// c++ runtime header
 		std::stringstream rt_header;
@@ -83,20 +81,11 @@ void generate_project(putki::project *p)
 		putki::write_csharp_runtime_class(pf, putki::indentedwriter(csharp_runtime), casewriter, casewriter_resolve);
 		casewriter.indent(-5);
 
-		// dll impl
-		std::stringstream dll_impl;
-		dll_impl << "#include <inki/" << subpath << ".h>\n";
-		putki::write_dll_impl(pf, putki::indentedwriter(dll_impl));
-		putki::save_stream(editor_path + ".cpp", dll_impl);
-
 		// bindings
 		putki::write_bind_decl(pf, putki::indentedwriter(bind_decl));
 		putki::write_bind_calls(pf, putki::indentedwriter(bind_calls));
-		putki::write_bind_decl_dll(pf, putki::indentedwriter(bind_decl_dll));
-		putki::write_bind_call_dll(pf, putki::indentedwriter(bind_calls_dll, 2));
 
 		inki_master << "#include \"inki/" << subpath << ".cpp\"\n";
-		inki_master << "#include \"editor/" << subpath << ".cpp\"\n";
 		runtime_master << "#include \"outki/" << subpath << ".cpp\"\n";
 
 		// csharp inki
@@ -106,28 +95,6 @@ void generate_project(putki::project *p)
 		putki::indentedwriter jw(java_inki_code);
 		jw.indent(1);
 		putki::write_java_inki_class(pf, jw);
-	}
-
-	// bind dll calls
-	{
-		std::stringstream bind_editor;
-		bind_editor << bind_decl_dll.str() << std::endl;
-
-		putki::indentedwriter iw(bind_editor);
-		iw.line() << "namespace inki";
-		iw.line() << "{";
-		iw.indent(1);
-		iw.line() << "void bind_" << p->module_name << "_editor()";
-		iw.line() << "{";
-		iw.indent(1);
-		iw.line();
-		bind_editor << bind_calls_dll.str();
-		iw.indent(-1);
-		iw.line() << "}";
-		iw.indent(-1);
-		iw.line() << "}";
-		putki::save_stream(editor_base + "/bind.cpp", bind_editor);
-		inki_master << "#include \"editor/bind.cpp\"\n";
 	}
 
 	// bind calls

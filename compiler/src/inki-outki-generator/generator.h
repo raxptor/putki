@@ -24,10 +24,6 @@ namespace putki
 	void write_bind_decl(putki::parsed_file *file, putki::indentedwriter out);
 	void write_bind_calls(putki::parsed_file *file, putki::indentedwriter out);
 
-	void write_dll_impl(putki::parsed_file *file, putki::indentedwriter out);
-	void write_bind_decl_dll(putki::parsed_file *file, putki::indentedwriter out);
-	void write_bind_call_dll(putki::parsed_file *file, putki::indentedwriter out);
-
 	// c sharp
 	void write_csharp_runtime_class(putki::parsed_file *file, putki::indentedwriter out, putki::indentedwriter switch_case_out, putki::indentedwriter switch_case_resolve);
 	void write_csharp_inki_class(putki::parsed_file *file, putki::indentedwriter out);
