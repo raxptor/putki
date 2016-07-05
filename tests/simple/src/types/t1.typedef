@@ -1,0 +1,46 @@
+
+enum FineEnum
+{
+	VALUE_100 = 100
+	VALUE_500 = 500
+	SOMETHING_ELSE
+}
+
+TestStructTypes
+{
+	string TestString
+	int TestInt
+	s32 TestS32
+	u32 TestU32
+	byte TestByte
+	float TestFloat
+	enum FineEnum TestEnum
+}
+
+RootStruct rtti
+{
+	string Name
+	string DebugName
+}
+
+SubStruct1 : RootStruct
+{
+	string SubName
+}
+
+WithAuxes
+{
+	auxptr[] RootStruct Roots
+}
+
+NestedAuxes
+{
+	auxptr[] WithAuxes Nested
+}
+
+ThreeLevelAuxes
+{
+	auxptr[] NestedAuxes Nested
+	auxptr[] WithAuxes WithAux
+	auxptr[] RootStruct Single
+}

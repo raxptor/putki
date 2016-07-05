@@ -43,6 +43,10 @@ public class DataObject
 			case BYTE:
 				try
 				{
+					if (field.defValue == null || field.defValue.length() == 0)
+					{
+						return 0L;
+					}
 					return Long.parseLong(field.defValue);
 				}
 				catch (NumberFormatException e)
@@ -52,6 +56,10 @@ public class DataObject
 			case FLOAT:
 				try
 				{
+					if (field.defValue == null || field.defValue.length() == 0)
+					{
+						return 0.0f;
+					}
 					return Float.parseFloat(field.defValue);
 				}
 				catch (NumberFormatException e)
@@ -61,6 +69,10 @@ public class DataObject
 			case BOOL:
 				try
 				{
+					if (field.defValue == null || field.defValue.length() == 0)
+					{
+						return false;
+					}
 					return Boolean.parseBoolean(field.defValue);
 				}
 				catch (NumberFormatException e)
@@ -154,6 +166,11 @@ public class DataObject
 		if (this != m_root)
 		{
 			return m_root.createAuxInstance(type);
+		}
+
+		if (m_auxObjects == null)
+		{
+			m_auxObjects = new HashMap<>();
 		}
 
 		SecureRandom r = new SecureRandom();

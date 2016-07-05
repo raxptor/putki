@@ -515,7 +515,7 @@ class StructEditor implements FieldEditor
 
         Label header = null;
 
-        if (m_name != null && !m_name.equals("parent"))
+        if (m_name != null && !m_name.equals("__parent"))
         {
             header = new Label(m_name + " (" + m_mi.getType().name + ")");
             header.setMaxWidth(Double.MAX_VALUE);

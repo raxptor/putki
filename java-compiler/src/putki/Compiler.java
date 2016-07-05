@@ -38,6 +38,7 @@ public class Compiler
 		public boolean isAuxPtr;
 		public boolean isBuildConfig;
 		public boolean showInEditor;
+		public boolean isParentField;
 		public FieldType type;
 		public String name;
 		public String refType;
@@ -93,13 +94,13 @@ public class Compiler
 
 	public class ParsedFile
 	{
-		String sourcePath;
-		String fileName;
-		String moduleName;
-		String signature;
-		List<ParsedStruct> structs;
-		List<ParsedEnum> enums;
-		List<String> includes;
+		public String sourcePath;
+		public String fileName;
+		public String moduleName;
+		public String signature;
+		public List<ParsedStruct> structs;
+		public List<ParsedEnum> enums;
+		public List<String> includes;
 	};
 
 	public class ParsedTree
@@ -107,7 +108,9 @@ public class Compiler
 		public String moduleName;
 		public String loaderName;
 		public String typeFileEnding;
+		public Path genCodeRoot;
 		public List<ParsedFile> parsedFiles;
+		public HashMap<String, ParsedTree> deps;
 	}
 
 	List<ParsedStruct> allTypes = new ArrayList<Compiler.ParsedStruct>();
@@ -115,11 +118,17 @@ public class Compiler
 	HashMap<String, ParsedStruct> typesByName = new HashMap<String, ParsedStruct>();
 	HashMap<String, ParsedEnum> enumsByName = new HashMap<String, ParsedEnum>();
 	List<ParsedTree> allTrees = new ArrayList<Compiler.ParsedTree>();
+	HashMap<String, ParsedTree> allModules = new HashMap<String, ParsedTree>();
 	List<String> allTargets = new ArrayList<String>();
 
 	public void error(String path, int line, String err)
 	{
 		System.out.println(path + ":" + line + " Error! " + err);
+	}
+
+	public List<ParsedTree> allTrees()
+	{
+		return allTrees;
 	}
 
 	public List<ParsedStruct> getAllTypes()
@@ -143,6 +152,8 @@ public class Compiler
 			{
 				Integer tmp = Integer.parseInt(pieces[k]);
 				val.value = (int)tmp;
+				cur.values.add(val);
+				return true;
 			}
 			else if (pieces[k].equals("="))
 			{
@@ -159,6 +170,11 @@ public class Compiler
 			{
 				return false;
 			}
+		}
+
+		if (val.name != null)
+		{
+			cur.values.add(val);
 		}
 		return true;
 	}
@@ -511,7 +527,7 @@ public class Compiler
 		}
 	}
 
-	public boolean scanPath(Path start)
+	public ParsedTree scanModule(Path start)
 	{
 		try
 		{
@@ -524,10 +540,16 @@ public class Compiler
 			pt.loaderName = "loader";
 			pt.typeFileEnding = "typedef";
 			pt.parsedFiles = new ArrayList<ParsedFile>();
-			if (lines.size() > 1)
+			pt.genCodeRoot = start.resolve("_gen");
+			pt.deps = new HashMap<>();
+
+			if (lines.size() > 0 && !lines.get(0).trim().equals("version:1.0"))
 			{
-				pt.moduleName = lines.get(0);
-				pt.loaderName = lines.get(1);
+				if (lines.size() > 1)
+				{
+					pt.moduleName = lines.get(0);
+					pt.loaderName = lines.get(1);
+				}
 			}
 
 			for (int i=0;i<lines.size();i++)
@@ -537,7 +559,13 @@ public class Compiler
 				{
 					if (line.startsWith("dep:"))
 					{
-						scanPath(start.resolve(line.substring(4)));
+						String name = line.substring(4);
+						ParsedTree module = scanModule(start.resolve(line.substring(4)));
+						if (module == null)
+						{
+							return null;
+						}
+						pt.deps.put(module.moduleName, module);
 					}
 					else if (line.startsWith("config:"))
 					{
@@ -545,17 +573,33 @@ public class Compiler
 						if (!allTargets.contains(target))
 							allTargets.add(target);
 					}
+					else if (line.startsWith("genpath:"))
+					{
+						pt.genCodeRoot = start.resolve(line.substring(8));
+					}
+					else if (line.startsWith("name:"))
+					{
+						pt.moduleName = line.substring(5);
+						pt.loaderName = line.substring(5);
+					}
 				}
+			}
+
+			// Don't scan again.
+			if (allModules.containsKey(pt.moduleName))
+			{
+				return allModules.get(pt.moduleName);
 			}
 
 			scanTree(pt, start.resolve("src"), start.resolve("src"));
 			allTrees.add(pt);
+			return pt;
 		}
 		catch (java.io.IOException e)
 		{
 
 		}
-		return true;
+		return null;
 	}
 
 	// Post processing
@@ -581,9 +625,11 @@ public class Compiler
 					{
 						ParsedField parent = new ParsedField();
 						parent.domains = struct.domains;
-						parent.name = "parent";
+						parent.name = "__parent";
+						parent.isParentField = true;
 						parent.type = FieldType.STRUCT_INSTANCE;
 						parent.refType = struct.parent;
+						parent.showInEditor = true;
 						struct.fields.add(0, parent);
 					}
 					for (int i=0;i<struct.fields.size();i++)
@@ -643,7 +689,7 @@ public class Compiler
 
 	public boolean compile(Path start)
 	{
-		if (!scanPath(start))
+		if (scanModule(start) == null)
 			return false;
 		if (!resolve())
 			return false;
@@ -654,10 +700,14 @@ public class Compiler
 	public static void main(String [] args)
 	{
 		Compiler c = new Compiler();
-		if (!c.scanPath(Paths.get("/Users/dannilsson/git/neocrawler/")))
+		if (!c.compile(Paths.get("/Users/dannilsson/git/putki-cleanup/tests/simple")))
 		{
 			return;
 		}
+
+		CodeWriter writer = new CodeWriter();
+		CSharpGenerator.generateMixkiParsers(c, writer);
+		writer.write();
 	}
 }
 
