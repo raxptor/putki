@@ -1,7 +1,7 @@
 PUTKI_PATH = path.getdirectory(_SCRIPT)
 ZLIB_PATH = PUTKI_PATH .. "/external/libz"
 ZLIB_INCLUDES = { ZLIB_PATH }
-PUTKI_LIB_INCLUDES = { PUTKI_PATH .. "/src/", PUTKI_PATH .. "/src/data-dll" }
+PUTKI_LIB_INCLUDES = { PUTKI_PATH .. "/src/" }
 PUTKI_LIB_LINKS = { "putki-lib", "jsmn", "libz" }
 
 function putki_use_builder_lib()
@@ -21,7 +21,7 @@ function putki_typedefs_builder(path, use_impls, pathbase)
 	includedirs (pathbase .. "/_gen")
 	files { pathbase .. "/" .. path .. "/**.typedef" }
 	if use_impls == true then
-		files { pathbase .. "/_gen/*inki-master.cpp", pathbase .. "/_gen/inki/**.h", pathbase ..  "/_gen/editor/**.h" }
+		files { pathbase .. "/_gen/*inki-master.cpp", pathbase .. "/_gen/inki/**.h" }
 	end
 end
 
@@ -53,7 +53,6 @@ project "putki-lib"
 	files { "src/**.cpp", "src/**.h" }
 	files { "src/**.cpp", "src/**.h" }	
 	files { "builder/src/*.cpp" }
-	files { "datatool/src/*.cpp" }
 	files { "src/md5/*.*" }
 	
 	excludes { "src/cpp-runtime/**" }
