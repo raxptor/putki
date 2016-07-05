@@ -6,7 +6,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
 
-import putked.DataLoader.ParseStatus;
 import putki.Compiler;
 import putki.Compiler.ParsedField;
 import putki.Compiler.ParsedStruct;
@@ -38,7 +37,52 @@ public class DataLoader
 
 	public String decodeString(byte[] data, int begin, int end)
 	{
-		return new String(data, begin, end - begin);
+		String str = new String(data,  begin,  end-begin,  Charset.forName("UTF-8"));
+		int strLen = str.length();
+		StringBuilder tmp = new StringBuilder(data.length);
+		boolean doEscape = false;
+		int u = -1;
+		int uval = 0;
+		String hex = new String("0123456789abcdef");
+
+		for (int i=0;i<strLen;i++)
+		{
+			char b = str.charAt(i);
+			if (u != -1)
+			{
+				uval = uval + hex.indexOf(b) << (3-u)*4;
+				if (++u == 4)
+				{
+					tmp.append((char)(uval));
+					u = -1;
+				}
+			}
+			else if (b == '\\')
+			{
+				doEscape = true;
+				continue;
+			}
+			else if (doEscape)
+			{
+				switch (b)
+				{
+					case 'n': tmp.append("\n"); break;
+					case 't': tmp.append("\t"); break;
+					case 'r': tmp.append("\r"); break;
+					case '"': tmp.append("\""); break;
+					case 'u': u = 0; uval = 0; break;
+					default: System.out.println("Unknown escape code [" + b + "]!"); break;
+				}
+				doEscape = false;
+				continue;
+			}
+			else
+			{
+				tmp.append((char)b);
+			}
+		}
+
+		return tmp.toString();
 	}
 
 	public void parseArray(ParseStatus status, JsonArrayFn fn)

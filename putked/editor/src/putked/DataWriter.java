@@ -4,11 +4,8 @@ import java.io.IOException;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.List;
-
 import putki.Compiler;
 import putki.Compiler.FieldType;
 
@@ -29,8 +26,33 @@ public class DataWriter
 
 	public static void encString(StringBuilder prop, String name)
 	{
+		String allow = new String("# _-'!?/(){}%&+*");
 		prop.append("\"");
-		prop.append(name);
+		for (int i=0;i<name.length();i++)
+		{
+			char a = name.charAt(i);
+			if (a == '\\')
+			{
+				prop.append("\\\\");
+			}
+			else if (a == '\"')
+			{
+				prop.append("\\\"");
+			}
+			else if (Character.isLetterOrDigit(a) || allow.indexOf(a) != -1)
+			{
+				prop.append(a);
+			}
+			else
+			{
+				String hex = "0123456789abcdef";
+				prop.append("\\u");
+				for (int j=0;j<4;j++)
+				{
+					prop.append(hex.charAt((a >> 4*(3-j)) & 0xf));
+				}
+			}
+		}
 		prop.append("\"");
 	}
 

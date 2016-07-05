@@ -1,10 +1,11 @@
 package putked;
 
+import java.security.SecureRandom;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 
 import putki.Compiler;
-import putki.Compiler.ParsedField;
 
 public class DataObject
 {
@@ -150,9 +151,33 @@ public class DataObject
 
 	public DataObject createAuxInstance(Compiler.ParsedStruct type)
 	{
-		return null;
+		if (this != m_root)
+		{
+			return m_root.createAuxInstance(type);
+		}
+
+		SecureRandom r = new SecureRandom();
+		String pick = "0123456789abcdefghijklmnopqrstuvxyz";
+		while (true)
+		{
+			StringBuilder tmp = new StringBuilder();
+			tmp.append("#");
+			for (int i=0;i<5;i++)
+			{
+				tmp.append(pick.charAt(r.nextInt(pick.length())));
+			}
+			String ref = tmp.toString();
+			if (!m_auxObjects.containsKey(ref))
+			{
+				DataObject aux = new DataObject(type, this, m_path + ref);
+				System.out.println("Created aux [" + ref + "] onto [" + m_path + "]");
+				m_auxObjects.put(ref, aux);
+				return aux;
+			}
+		}
 	}
 
+	@SuppressWarnings("unchecked")
 	public int getArraySize(int field)
 	{
 		if (!m_type.fields.get(field).isArray)
@@ -177,6 +202,11 @@ public class DataObject
 	{
 		@SuppressWarnings("unchecked")
 		List<Object> list = (List<Object>) m_data[field];
+		if (list == null)
+		{
+			list = new ArrayList<Object>();
+			m_data[field] = list;
+		}
 		list.add(index, null);
 	}
 

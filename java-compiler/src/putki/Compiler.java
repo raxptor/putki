@@ -430,6 +430,8 @@ public class Compiler
 						curStruct.name = pieces[j];
 						curStruct.domains = 0xff;
 						curStruct.fields = new ArrayList<ParsedField>();
+						curStruct.permitAsAsset = true;
+						curStruct.permitAsAux = true;
 						readModifiers = j + 1;
 						break;
 					}
