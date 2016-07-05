@@ -13,6 +13,20 @@ public class DataObject
 		m_data = new Object[struct.fields.size()];
 		m_type = struct;
 		m_path = path;
+		m_root = this;
+	}
+
+	public DataObject(Compiler.ParsedStruct struct, DataObject root, String path)
+	{
+		m_data = new Object[struct.fields.size()];
+		m_type = struct;
+		m_path = path;
+		m_root = root;
+	}
+
+	public DataObject getRootAsset()
+	{
+		return m_root;
 	}
 
 	public Object makeDefaultValue(Compiler.ParsedField field)
@@ -60,13 +74,18 @@ public class DataObject
 		}
 	}
 
-	@SuppressWarnings("unchecked")
 	public Object getField(int index, int arrayIndex)
+	{
+		return getField(index, arrayIndex, true);
+	}
+
+	@SuppressWarnings("unchecked")
+	public Object getField(int index, int arrayIndex, boolean makeDefault)
 	{
 		Compiler.ParsedField field = m_type.fields.get(index);
 		if (m_data[index] == null)
 		{
-			return makeDefaultValue(field);
+			return makeDefault ? makeDefaultValue(field) : null;
 		}
 
 		if (field.isArray)
@@ -75,7 +94,7 @@ public class DataObject
 			Object o = list.get(arrayIndex);
 			if (o != null)
 				return o;
-			return makeDefaultValue(field);
+			return makeDefault ? makeDefaultValue(field) : null;
 		}
 
 		return m_data[index];
@@ -174,12 +193,13 @@ public class DataObject
 		{
 			m_auxObjects = new HashMap<String, DataObject>();
 		}
-		System.out.println("Adding aux object " + ref + " to " + aux.getPath());
+		System.out.println("Adding aux object " + ref + " as " + aux.getPath() + " onto " + getPath());
 		m_auxObjects.put(ref, aux);
 	}
 
-	public Object[] m_data;
-	public Compiler.ParsedStruct m_type;
-	public String m_path;
-	public HashMap<String, DataObject> m_auxObjects;
+	Object[] m_data;
+	Compiler.ParsedStruct m_type;
+	String m_path;
+	HashMap<String, DataObject> m_auxObjects;
+	DataObject m_root;
 }

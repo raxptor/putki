@@ -1,6 +1,7 @@
 package putked;
 
 import java.io.IOException;
+import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
@@ -308,7 +309,7 @@ public class DataLoader
 				case STRUCT_INSTANCE:
 				{
 					Tmp t = new Tmp();
-					t.result = new DataObject(field.resolvedRefStruct, obj.getPath() + ":" + field.name);
+					t.result = new DataObject(field.resolvedRefStruct, obj.getRootAsset(), obj.getPath() + ":" + field.name);
 					parseData(status, t);
 					if (!status.error)
 					{
@@ -316,8 +317,21 @@ public class DataLoader
 					}
 					break;
 				}
-				case PATH:
 				case POINTER:
+				{
+					String s = parseValue(status);
+					int aux = s.indexOf('#');
+					if (aux != -1)
+					{
+						obj.setField(field.index, arrayIndex, obj.getRootAsset().getPath() + s.substring(aux));
+					}
+					else
+					{
+						obj.setField(field.index, arrayIndex, s);
+					}
+					break;
+				}
+				case PATH:
 				case FILE:
 				case STRING:
 				case ENUM:
@@ -412,14 +426,14 @@ public class DataLoader
 						{
 							ParsedStruct struct = Main.s_compiler.getTypeByName(parseValue(status));
 							if (!status.error && struct != null)
-								tmp2.result = new DataObject(struct, tmp.result.getPath() + tmp2.ref);
+								tmp2.result = new DataObject(struct, tmp.result.getRootAsset(), tmp.result.getPath() + tmp2.ref);
 						}
 						else if (name.equals("data"))
 						{
 							parseData(status,  tmp2);
 							if (!status.error)
 							{
-								tmp.result.addAux(tmp2.ref, tmp2.result);
+								tmp.result.getRootAsset().addAux(tmp2.ref, tmp2.result);
 							}
 						}
 					}
@@ -506,6 +520,20 @@ public class DataLoader
 					}
 				}
 			});
+
+			/*
+			 * Test writing the object back as .json2 for manual inspection on load.
+			 *
+			if (tmp.result != null)
+			{
+				DataWriter dw = new DataWriter(m_root);
+				StringBuilder sb = dw.writeAsset(tmp.result);
+
+				java.io.File f = new java.io.File(p.toAbsolutePath() + "2");
+				Files.write(f.toPath(), sb.toString().getBytes(Charset.forName("UTF-8")));
+			}
+			*/
+
 			return tmp.result;
 		}
 		catch (IOException e)
