@@ -1,0 +1,13 @@
+{
+	"type": "TestStructTypes",
+	"data": {
+		"TestString": "String1",
+		"TestInt": 123,
+		"TestS32": -123,
+		"TestU32": 99,
+		"TestByte": 255,
+		"TestFloat": -3.1415927
+	},
+	"aux": [
+	]
+}

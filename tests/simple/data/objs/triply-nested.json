@@ -1,0 +1,59 @@
+{
+	"type": "ThreeLevelAuxes",
+	"data": {
+		"Nested": ["#k13z8",
+		"#tq1bp"]
+	},
+	"aux": [
+		{
+			"ref": "#k13z8",
+			"type": "NestedAuxes",
+			"data": {
+				"Nested": ["#ijhq9"]
+			}
+		}, {
+			"ref": "#tq1bp",
+			"type": "NestedAuxes",
+			"data": {
+				"Nested": ["#ur6z7"]
+			}
+		}, {
+			"ref": "#ur6z7",
+			"type": "WithAuxes",
+			"data": {
+				"Roots": ["#okup6"]
+			}
+		}, {
+			"ref": "#okup6",
+			"type": "RootStruct",
+			"data": {
+				"Name": "Root2",
+				"DebugName": "Debug Root 2"
+			}
+		}, {
+			"ref": "#ijhq9",
+			"type": "WithAuxes",
+			"data": {
+				"Roots": ["#icvq2",
+				"#bfx34"]
+			}
+		}, {
+			"ref": "#icvq2",
+			"type": "SubStruct1",
+			"data": {
+				"parent": {
+					"Name": "",
+					"DebugName": ""
+				},
+				"SubName": "Sub1"
+			}
+		}, {
+			"ref": "#bfx34",
+			"type": "RootStruct",
+			"data": {
+				"Name": "Root",
+				"DebugName": "Debug Root"
+			}
+		}
+	]
+}

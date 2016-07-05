@@ -1,0 +1,9 @@
+{
+	"type": "RootStruct",
+	"data": {
+		"Name": "Root1 Name",
+		"DebugName": "Root2 Debug"
+	},
+	"aux": [
+	]
+}
