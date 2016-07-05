@@ -44,18 +44,3 @@ solution "Tools"
         
         putki_use_builder_lib()
         putki_typedefs_builder("src/types", false)
-
-    project "test-data-dll"
-
-        kind "SharedLib"
-        language "C++"
-        targetname "test-data-dll"
-
-        files { "src/dll-main.cpp" }
-        files { "src/builder/**.*" }
-        links { "test-putki-lib"}
-        includedirs { "src" }
-
-        putki_typedefs_builder("src/types", false)
-        putki_use_builder_lib()
-        
