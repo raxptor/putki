@@ -115,6 +115,7 @@ public class Compiler
 	HashMap<String, ParsedStruct> typesByName = new HashMap<String, ParsedStruct>();
 	HashMap<String, ParsedEnum> enumsByName = new HashMap<String, ParsedEnum>();
 	List<ParsedTree> allTrees = new ArrayList<Compiler.ParsedTree>();
+	List<String> allTargets = new ArrayList<String>();
 
 	public void error(String path, int line, String err)
 	{
@@ -194,6 +195,7 @@ public class Compiler
 		boolean readDefValue = false;
 		ParsedField next = new ParsedField();
 		next.domains = DOMAIN_INPUT | DOMAIN_OUTPUT;
+		next.showInEditor = true;
 
 		String[] pieces = line.split("\\s+");
 		for (int k=0;k<pieces.length;k++)
@@ -209,9 +211,23 @@ public class Compiler
 					return false;
 				}
 			}
-			else if (pieces[k].equals("no-out"))
+			else if (pieces[k].equals("[no-out]"))
 			{
 				next.domains = next.domains & ~DOMAIN_OUTPUT;
+			}
+			else if (pieces[k].equals("[no-in]"))
+			{
+				next.domains = next.domains & ~DOMAIN_INPUT;
+			}
+			else if (pieces[k].equals("[hidden]"))
+			{
+				next.showInEditor = false;
+			}
+			else if (pieces[k].equals("[build-config]"))
+			{
+				next.isBuildConfig = true;
+				next.domains = DOMAIN_INPUT;
+				next.showInEditor = false;
 			}
 			else if (!gotType)
 			{
@@ -281,7 +297,6 @@ public class Compiler
 
 		if (gotType && !readRefType && !readDefValue)
 		{
-			next.index = cur.fields.size();
 			cur.fields.add(next);
 			return true;
 		}
@@ -419,8 +434,49 @@ public class Compiler
 						break;
 					}
 				}
+
+				boolean readParent = false;
+				for (int j=readModifiers;curStruct != null&&j<pieces.length;j++)
+				{
+					if (pieces[j].equals(":"))
+					{
+						readParent = true;
+					}
+					else if (readParent)
+					{
+						curStruct.parent = pieces[j];
+						readParent = false;
+					}
+					else if (pieces[j].equals("rtti"))
+					{
+						curStruct.isTypeRoot = true;
+					}
+					else if (pieces[j].equals("no-auxptr"))
+					{
+						curStruct.permitAsAux = false;
+					}
+					else if (pieces[j].equals("no-asset"))
+					{
+						curStruct.permitAsAsset = false;
+					}
+					else if (pieces[j].equals("non-instantiable"))
+					{
+						curStruct.permitAsAux = false;
+						curStruct.permitAsAsset = false;
+					}
+					else if (pieces[j].equals("no-out"))
+					{
+						curStruct.domains = curStruct.domains & ~DOMAIN_OUTPUT;
+					}
+				}
+				if (readParent)
+				{
+					error(path, i, "Unexpected error; no parent followed.");
+				}
 			}
 		}
+
+
 		return tmp;
 	}
 
@@ -481,6 +537,12 @@ public class Compiler
 					{
 						scanPath(start.resolve(line.substring(4)));
 					}
+					else if (line.startsWith("config:"))
+					{
+						String target = line.substring(7);
+						if (!allTargets.contains(target))
+							allTargets.add(target);
+					}
 				}
 			}
 
@@ -512,6 +574,19 @@ public class Compiler
 					{
 						System.out.println("Error: Duplicate entries of struct " + struct.name + "!");
 						return false;
+					}
+					if (struct.parent != null)
+					{
+						ParsedField parent = new ParsedField();
+						parent.domains = struct.domains;
+						parent.name = "parent";
+						parent.type = FieldType.STRUCT_INSTANCE;
+						parent.refType = struct.parent;
+						struct.fields.add(0, parent);
+					}
+					for (int i=0;i<struct.fields.size();i++)
+					{
+						struct.fields.get(i).index = i;
 					}
 				}
 				for (ParsedEnum e : file.enums)

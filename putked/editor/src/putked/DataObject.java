@@ -1,7 +1,10 @@
 package putked;
 
 import java.util.HashMap;
+import java.util.List;
+
 import putki.Compiler;
+import putki.Compiler.ParsedField;
 
 public class DataObject
 {
@@ -12,27 +15,103 @@ public class DataObject
 		m_path = path;
 	}
 
-	public Object getField(int index)
+	public Object makeDefaultValue(Compiler.ParsedField field)
 	{
-		if (index >= 0 && index < m_data.length)
-			return m_data[index];
-		return null;
+		switch (field.type)
+		{
+			case STRUCT_INSTANCE:
+			{
+				return new DataObject(field.resolvedRefStruct, "tmp-struct");
+			}
+			case UINT32:
+			case INT32:
+			case BYTE:
+				try
+				{
+					return Long.parseLong(field.defValue);
+				}
+				catch (NumberFormatException e)
+				{
+					return new Long(0);
+				}
+			case FLOAT:
+				try
+				{
+					return Float.parseFloat(field.defValue);
+				}
+				catch (NumberFormatException e)
+				{
+					return new Float(0.0f);
+				}
+			case BOOL:
+				try
+				{
+					return Boolean.parseBoolean(field.defValue);
+				}
+				catch (NumberFormatException e)
+				{
+					return false;
+				}
+			default:
+				if (field.defValue == null)
+					return "";
+				else
+					return field.defValue;
+		}
 	}
 
-	public void setField(int index, Object value)
-	{
-		if (index >= 0 && index < m_data.length)
-			m_data[index] = value;
-	}
-
+	@SuppressWarnings("unchecked")
 	public Object getField(int index, int arrayIndex)
 	{
-		return null;
+		Compiler.ParsedField field = m_type.fields.get(index);
+		if (m_data[index] == null)
+		{
+			return makeDefaultValue(field);
+		}
+
+		if (field.isArray)
+		{
+			List<Object> list = (List<Object>) m_data[index];
+			Object o = list.get(arrayIndex);
+			if (o != null)
+				return o;
+			return makeDefaultValue(field);
+		}
+
+		return m_data[index];
 	}
 
+	@SuppressWarnings("unchecked")
 	public void setField(int index, int arrayIndex, Object value)
 	{
+		System.out.println(m_path + ":" + m_type.fields.get(index).name + "[" + arrayIndex +"] = " + value.toString());
+		Compiler.ParsedField fld = m_type.fields.get(index);
+		if (!fld.isArray)
+		{
+			// Maybe check type?
+			m_data[index] = value;
+			return;
+		}
 
+		List<Object> list = (List<Object>) m_data[index];
+		if (list == null)
+		{
+			list = new java.util.ArrayList<Object>();
+			m_data[index] = list;
+		}
+
+		if (arrayIndex == list.size())
+		{
+			list.add(value);
+		}
+		else if (arrayIndex < list.size())
+		{
+			list.set(arrayIndex, value);
+		}
+		else
+		{
+			System.out.println("Array index out of range when setting field " + fld.name + ", ignoring");
+		}
 	}
 
 	public Compiler.ParsedStruct getType()
@@ -57,17 +136,46 @@ public class DataObject
 
 	public int getArraySize(int field)
 	{
-		return 0;
+		if (!m_type.fields.get(field).isArray)
+		{
+			System.out.println("help!");
+		}
+
+		List<Object> list = (List<Object>) m_data[field];
+		if (list == null)
+			return 0;
+		return list.size();
 	}
 
 	public void arrayErase(int field, int index)
 	{
-
+		@SuppressWarnings("unchecked")
+		List<Object> list = (List<Object>) m_data[field];
+		list.remove(index);
 	}
 
 	public void arrayInsert(int field, int index)
 	{
+		@SuppressWarnings("unchecked")
+		List<Object> list = (List<Object>) m_data[field];
+		list.add(index, null);
+	}
 
+	public DataObject getAux(String ref)
+	{
+		if (m_auxObjects == null)
+			return null;
+		return m_auxObjects.get(ref);
+	}
+
+	public void addAux(String ref, DataObject aux)
+	{
+		if (m_auxObjects == null)
+		{
+			m_auxObjects = new HashMap<String, DataObject>();
+		}
+		System.out.println("Adding aux object " + ref + " to " + aux.getPath());
+		m_auxObjects.put(ref, aux);
 	}
 
 	public Object[] m_data;

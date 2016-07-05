@@ -35,7 +35,9 @@ public class FieldAccess<Type>
 	@SuppressWarnings("unchecked")
 	public Type get()
 	{
-		return (Type)m_object.getField(m_index, m_arrayIndex);
+		Object o = m_object.getField(m_index, m_arrayIndex);
+		System.out.println("get " + m_object.getType().fields.get(m_index) + "[" + m_arrayIndex + "] = [" + o.toString() + "]");
+		return (Type)o;
 	}
 
 	public void set(Type value)

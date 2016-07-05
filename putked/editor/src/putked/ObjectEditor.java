@@ -65,22 +65,22 @@ class FileEditor implements FieldEditor
 
 class BooleanEditor implements FieldEditor
 {
-    FieldAccess<Integer> m_f;
+    FieldAccess<Boolean> m_f;
     String m_name;
 
     public BooleanEditor(DataObject mi, Compiler.ParsedField f, int index)
     {
     	m_name = f.name;
-        m_f = new FieldAccess<Integer>(mi, f, index);
+        m_f = new FieldAccess<Boolean>(mi, f, index);
     }
 
     @Override
     public Node createUI()
     {
         CheckBox cb = new CheckBox(m_name);
-        cb.setSelected(m_f.get() != 0);
+        cb.setSelected(m_f.get());
         cb.selectedProperty().addListener( (obs, old, ny) -> {
-        	m_f.set(ny ? 1 : 0);
+        	m_f.set(ny);
         });
         return cb;
     }
@@ -122,14 +122,12 @@ class EnumEditor implements FieldEditor
 
 class IntegerEditor implements FieldEditor
 {
-    DataObject m_mi;
     FieldAccess<Long> m_f;
     long m_min, m_max;
 
     public IntegerEditor(DataObject mi, ParsedField f, int index, long min, long max)
     {
-        m_mi = mi;
-        m_f = new FieldAccess<Long>(f);
+        m_f = new FieldAccess<Long>(mi, f, index);
         m_min = min;
         m_max = max;
     }
@@ -666,8 +664,8 @@ public class ObjectEditor
                     name += "[" + index + "]";
 
                 DataObject _mi = (DataObject)mi.getField(field.index, index);
-                System.out.println("field ed [" + _mi.getType().inlineEditor + "]");
-                if (_mi.getType().inlineEditor.equals("Vec4"))
+                String ined = _mi.getType().inlineEditor;
+                if (ined != null && ined.equals("Vec4"))
                     return new StructEditor(_mi, name, true);
 
                 return new StructEditor(_mi, name, false);

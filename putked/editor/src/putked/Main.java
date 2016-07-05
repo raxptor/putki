@@ -106,7 +106,7 @@ public class Main extends Application
 
     public DataObject load(String path)
     {
-    	return null;
+    	return s_dataLoader.load(path);
     }
 
     public void startEditing(String path)
