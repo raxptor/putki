@@ -30,6 +30,9 @@ public class CSharpGenerator
 		{
 			for (ParsedStruct struct : file.structs)
 			{
+				if ((struct.domains & Compiler.DOMAIN_INPUT) == 0 ||
+					(struct.domains & Compiler.DOMAIN_OUTPUT) == 0)
+						continue;
 				sb.append("\t\t\tnew SourceLoader.Parser(\"" + struct.name + "\", " + struct.name + "Fn),\n");
 			}
 			for (ParsedEnum e : file.enums)
@@ -77,10 +80,10 @@ public class CSharpGenerator
 		switch (field.type)
 		{
 			case STRING:
-				sb.append(src + ".ToString();");
+				sb.append(src + ".ToString()");
 				break;
 			case POINTER:
-				sb.append("loader.Resolve(path, " + src + ".ToString()) as outki." + field.refType);
+				sb.append("loader.Resolve<outki." + field.refType + ">(path, " + src + ".ToString())");
 				break;
 			case INT32:
 				sb.append("int.Parse(" + src + ".ToString())");
@@ -90,6 +93,9 @@ public class CSharpGenerator
 				break;
 			case BYTE:
 				sb.append("byte.Parse(" + src + ".ToString())");
+				break;
+			case BOOL:
+				sb.append("int.Parse(" + src + ".ToString()) != 0");
 				break;
 			case FLOAT:
 				sb.append("float.Parse(" + src + ".ToString())");
@@ -112,12 +118,20 @@ public class CSharpGenerator
 		{
 			for (ParsedStruct struct : file.structs)
 			{
+				if ((struct.domains & Compiler.DOMAIN_INPUT) == 0 ||
+					(struct.domains & Compiler.DOMAIN_OUTPUT) == 0)
+					continue;
+
 				String npfx = "\n\t\t\t";
 				String outki = "outki." + struct.name;
 				sb.append("\n");
 				sb.append("\t\tstatic object " + struct.name + "Fn(SourceLoader loader, string path, object obj) {");
-				sb.append(npfx).append(outki + " tmp = new " + outki + "();");
-				sb.append(npfx).append("MicroJson.Object source = obj as MicroJson.Object;");
+				sb.append(npfx).append(outki + " target = new " + outki + "();");
+				sb.append(npfx).append("return " + struct.name + "ParseInto(loader, path, obj as MicroJson.Object, target);");
+				sb.append("\n\t\t}\n");
+				sb.append("\n\t\tstatic outki." + struct.name + " " + struct.name + "ParseInto(SourceLoader loader, string path, object src, outki." + struct.name + " target) {");
+				sb.append(npfx).append("MicroJson.Object source = src as MicroJson.Object;");
+
 				for (ParsedField fld : struct.fields)
 				{
 					if ((fld.domains & Compiler.DOMAIN_OUTPUT) == 0)
@@ -128,13 +142,18 @@ public class CSharpGenerator
 					{
 						continue;
 					}
+					String tmp = "__" + fld.name;
+					String ref = "target." + fld.name;
+
 					if (fld.isParentField)
 					{
-						sb.append(npfx).append(struct.resolvedParent.loaderName + "." + struct.resolvedParent.name + "Fn(loader, path, obj);");
+						sb.append(npfx).append("object parentObj;");
+						sb.append(npfx).append("if (source.Data.TryGetValue(\"" + fld.name + "\", out parentObj))");
+						sb.append(npfx).append("{");
+						sb.append(npfx).append("\t" + struct.resolvedParent.loaderName + "." + struct.resolvedParent.name + "ParseInto(loader, path, parentObj, target);");
+						sb.append(npfx).append("}");
 						continue;
 					}
-					String tmp = "__" + fld.name;
-					String ref = "tmp." + fld.name;
 					if (!fld.isArray)
 					{
 						sb.append(npfx).append("object " + tmp + "Obj;");
@@ -163,7 +182,7 @@ public class CSharpGenerator
 						sb.append(npfx).append(ref + " = " + arrTmp + ".ToArray();");
 					}
 				}
-				sb.append(npfx).append("return tmp;\n");
+				sb.append(npfx).append("return target;\n");
 				sb.append("\t\t}\n");
 			}
 			for (ParsedEnum e : file.enums)

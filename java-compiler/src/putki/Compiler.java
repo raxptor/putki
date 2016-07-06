@@ -486,6 +486,12 @@ public class Compiler
 					{
 						curStruct.domains = curStruct.domains & ~DOMAIN_OUTPUT;
 					}
+					else if (pieces[j].equals("@netki"))
+					{
+						// TODO: Fixme
+						// curStruct.targets.add("netki");
+						curStruct.domains = 0;
+					}
 				}
 				if (readParent)
 				{
@@ -625,7 +631,7 @@ public class Compiler
 					{
 						ParsedField parent = new ParsedField();
 						parent.domains = struct.domains;
-						parent.name = "__parent";
+						parent.name = "parent";
 						parent.isParentField = true;
 						parent.type = FieldType.STRUCT_INSTANCE;
 						parent.refType = struct.parent;

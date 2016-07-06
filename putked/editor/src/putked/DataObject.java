@@ -6,6 +6,7 @@ import java.util.HashMap;
 import java.util.List;
 
 import putki.Compiler;
+import putki.Compiler.FieldType;
 
 public class DataObject
 {
@@ -224,7 +225,16 @@ public class DataObject
 			list = new ArrayList<Object>();
 			m_data[field] = list;
 		}
-		list.add(index, null);
+
+		Compiler.ParsedField fld = m_type.fields.get(field);
+		if (fld.type == FieldType.STRUCT_INSTANCE)
+		{
+			list.add(index, new DataObject(fld.resolvedRefStruct, getRootAsset(), ""));
+		}
+		else
+		{
+			list.add(index, null);
+		}
 	}
 
 	public DataObject getAux(String ref)
