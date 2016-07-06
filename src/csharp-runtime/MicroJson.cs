@@ -41,7 +41,7 @@ namespace Putki
 
 		public static bool IsWhitespace(char c)
 		{
-			return c == ' ' || c == '\t' || c == '\n';
+			return c == ' ' || c == '\t' || c == 0xD || c == 0xA;
 		}
 
 		public static object Parse(ref ParseStatus status)
