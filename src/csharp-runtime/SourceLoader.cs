@@ -8,6 +8,7 @@ namespace Mixki
 	public class SourceLoader
 	{
 		public delegate object ParseFn(SourceLoader loader, string path, object obj);
+		public delegate void LogFn(string txt);
 
 		public struct Parser
 		{
@@ -25,6 +26,8 @@ namespace Mixki
 		Dictionary<String, object> m_parsed;
 		Dictionary<String, ParseFn> m_parsers;
 
+		public LogFn Logger;
+
 		public SourceLoader(string root, Parser[] parsers)
 		{
 			m_root = root;
@@ -35,18 +38,26 @@ namespace Mixki
 			{
 				m_parsers.Add(p.Type, p.Fn);
 			}
+			Logger = delegate {				
+			};
 		}
 
-		public object Resolve(string assetPath, string path)
+		public Type Resolve<Type>(string assetPath, string path) where Type : class
 		{
+			if (path == null || path == "")
+				return null;
+			
 			if (path.StartsWith("#"))
-				return Resolve(assetPath + path);
+				return Resolve<Type>(assetPath + path);
 			else
-				return Resolve(path);
+				return Resolve<Type>(path);
 		}
 
-		public object Resolve(string path)
+		public Type Resolve<Type>(string path) where Type : class
 		{
+			if (path == null || path == "")
+				return null;
+			
 			string assetPath = path;
 			int auxref = assetPath.IndexOf('#');
 			if (auxref != -1)
@@ -57,7 +68,7 @@ namespace Mixki
 			object val;
 			if (m_parsed.TryGetValue(path, out val))
 			{
-				return val;
+				return val as Type;
 			}
 			else
 			{
@@ -75,14 +86,14 @@ namespace Mixki
 				object typeObj;
 				if (!ro.Data.TryGetValue("type", out typeObj))
 				{
-					Console.WriteLine("Failed to read type field of [" + path + "]");
+					Logger("Failed to read type field of [" + path + "]");
 					return null;
 				}
 
 				object dataObj;
 				if (!ro.Data.TryGetValue("data", out dataObj))
 				{
-					Console.WriteLine("Failed to read data field of [" + path + "]");
+					Logger("Failed to read data field of [" + path + "]");
 					return null;
 				}
 
@@ -91,13 +102,14 @@ namespace Mixki
 				if (m_parsers.TryGetValue(type, out p))
 				{
 					object parsed = p(this, assetPath, dataObj);
-					Console.WriteLine("Parsed [" + path + "] as [" + type + "]");
+					Logger("Parsed [" + path + "] as [" + type + "]");
 					m_parsed.Add(path, parsed);
-					return parsed;
+					Putki.PackageManager.RegisterLoaded(path, parsed);
+					return parsed as Type;
 				}
 				else
 				{
-					Console.WriteLine("No parser for type [" + type + "] for path [" + path + "]");
+					Logger("No parser for type [" + type + "] for path [" + path + "]");
 					return null;
 				}
 			}
@@ -137,18 +149,20 @@ namespace Mixki
 
 			fn = fn + ".json";
 
+			Logger("Opening file [" + fn + "]");
+
 			byte[] bytes = System.IO.File.ReadAllBytes(fn);
 			if (bytes != null)
 			{
 				MicroJson.Object file = MicroJson.Parse(bytes);
 				if (file == null)
 				{
-					Console.WriteLine("Failed to load [" + fn + "]");
+					Logger("Failed to load [" + fn + "]");
 					return;
 				}
 
 				m_raw.Add(path, file);
-				Console.WriteLine("Raw: adding main " + path);
+				Logger("Raw: adding main " + path);
 
 				object auxesObj;
 				file.Data.TryGetValue("aux", out auxesObj);
@@ -169,7 +183,7 @@ namespace Mixki
 						}
 						string refName = refObj.ToString();
 						string auxPath = refName.StartsWith("#") ? (path + refName) : refName;
-						Console.WriteLine("Raw: adding aux " + auxPath);
+						Logger("Raw: adding aux " + auxPath);
 						m_raw.Add(auxPath, ao);
 					}
 				}
