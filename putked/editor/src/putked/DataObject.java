@@ -16,6 +16,7 @@ public class DataObject
 		m_type = struct;
 		m_path = path;
 		m_root = this;
+		initData();
 	}
 
 	public DataObject(Compiler.ParsedStruct struct, DataObject root, String path)
@@ -24,6 +25,22 @@ public class DataObject
 		m_type = struct;
 		m_path = path;
 		m_root = root;
+		initData();
+	}
+
+	void initData()
+	{
+		for (Compiler.ParsedField fld : m_type.fields)
+		{
+			if (fld.isArray)
+			{
+				m_data[fld.index] = new ArrayList<Object>();
+			}
+			else if (fld.type == FieldType.STRUCT_INSTANCE)
+			{
+				m_data[fld.index] =  new DataObject(fld.resolvedRefStruct, m_root, m_path);
+			}
+		}
 	}
 
 	public DataObject getRootAsset()
@@ -37,7 +54,8 @@ public class DataObject
 		{
 			case STRUCT_INSTANCE:
 			{
-				return new DataObject(field.resolvedRefStruct, "tmp-struct");
+				// ERROR!
+				return null;
 			}
 			case UINT32:
 			case INT32:
@@ -127,12 +145,6 @@ public class DataObject
 		}
 
 		List<Object> list = (List<Object>) m_data[index];
-		if (list == null)
-		{
-			list = new java.util.ArrayList<Object>();
-			m_data[index] = list;
-		}
-
 		if (arrayIndex == list.size())
 		{
 			list.add(value);

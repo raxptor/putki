@@ -130,8 +130,8 @@ public class CSharpGenerator
 				sb.append(npfx).append("return " + struct.name + "ParseInto(loader, path, obj as MicroJson.Object, target);");
 				sb.append("\n\t\t}\n");
 				sb.append("\n\t\tstatic outki." + struct.name + " " + struct.name + "ParseInto(SourceLoader loader, string path, object src, outki." + struct.name + " target) {");
-				sb.append(npfx).append("MicroJson.Object source = src as MicroJson.Object;");
 
+				boolean first = true;
 				for (ParsedField fld : struct.fields)
 				{
 					if ((fld.domains & Compiler.DOMAIN_OUTPUT) == 0)
@@ -144,6 +144,12 @@ public class CSharpGenerator
 					}
 					String tmp = "__" + fld.name;
 					String ref = "target." + fld.name;
+
+					if (first)
+					{
+						sb.append(npfx).append("MicroJson.Object source = src as MicroJson.Object;");
+						first = false;
+					}
 
 					if (fld.isParentField)
 					{
