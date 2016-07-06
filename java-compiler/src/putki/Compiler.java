@@ -700,7 +700,7 @@ public class Compiler
 	public static void main(String [] args)
 	{
 		Compiler c = new Compiler();
-		if (!c.compile(Paths.get("/Users/dannilsson/git/putki-cleanup/tests/simple")))
+		if (!c.compile(Paths.get("/Users/dannilsson/git/neocrawler")))
 		{
 			return;
 		}
