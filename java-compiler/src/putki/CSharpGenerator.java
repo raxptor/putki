@@ -84,7 +84,7 @@ public class CSharpGenerator
 				sb.append(src + ".ToString()");
 				break;
 			case POINTER:
-				sb.append("loader.Resolve<outki." + field.refType + ">(path, " + src + ".ToString())");
+				sb.append("loader.Resolve<Outki." + field.refType + ">(path, " + src + ".ToString())");
 				break;
 			case INT32:
 				sb.append("int.Parse(" + src + ".ToString())");
@@ -102,10 +102,10 @@ public class CSharpGenerator
 				sb.append("float.Parse(" + src + ".ToString())");
 				break;
 			case STRUCT_INSTANCE:
-				sb.append(field.resolvedRefStruct.loaderName + "." + field.resolvedRefStruct.name + "Fn(loader, path, " + src + ") as outki." + field.resolvedRefStruct.name);
+				sb.append(field.resolvedRefStruct.loaderName + "." + field.resolvedRefStruct.name + "Fn(loader, path, " + src + ") as Outki." + field.resolvedRefStruct.name);
 				break;
 			case ENUM:
-				sb.append("(outki." + field.resolvedEnum.name + ")" + field.resolvedEnum.loaderName + "." + field.resolvedEnum.name + "EnumFn(loader, path, " + src + ")");
+				sb.append("(Outki." + field.resolvedEnum.name + ")" + field.resolvedEnum.loaderName + "." + field.resolvedEnum.name + "EnumFn(loader, path, " + src + ")");
 				break;
 			default:
 				sb.append("0 /* TODO: Implement me */");
@@ -124,13 +124,13 @@ public class CSharpGenerator
 					continue;
 
 				String npfx = "\n\t\t\t";
-				String outki = "outki." + struct.name;
+				String outki = "Outki." + struct.name;
 				sb.append("\n");
 				sb.append("\t\tstatic object " + struct.name + "Fn(SourceLoader loader, string path, object obj) {");
 				sb.append(npfx).append(outki + " target = new " + outki + "();");
 				sb.append(npfx).append("return " + struct.name + "ParseInto(loader, path, obj as MicroJson.Object, target);");
 				sb.append("\n\t\t}\n");
-				sb.append("\n\t\tstatic outki." + struct.name + " " + struct.name + "ParseInto(SourceLoader loader, string path, object src, outki." + struct.name + " target) {");
+				sb.append("\n\t\tstatic Outki." + struct.name + " " + struct.name + "ParseInto(SourceLoader loader, string path, object src, Outki." + struct.name + " target) {");
 
 				boolean first = true;
 				for (ParsedField fld : struct.fields)
@@ -202,10 +202,10 @@ public class CSharpGenerator
 				{
 					sb.append(npfx).append("if (tmp == \"" + v.name + "\")");
 					sb.append(npfx).append("{");
-					sb.append(npfx).append("\treturn outki." + e.name + "." + v.name + ";");
+					sb.append(npfx).append("\treturn Outki." + e.name + "." + v.name + ";");
 					sb.append(npfx).append("}");
 				}
-				sb.append(npfx).append("return outki." + e.name + "." + e.values.get(0).name + ";");
+				sb.append(npfx).append("return Outki." + e.name + "." + e.values.get(0).name + ";");
 				sb.append("\n\t\t}\n");
 			}
 		}

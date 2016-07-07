@@ -656,6 +656,27 @@ namespace putki
 		if (write_master)
 			putki::save_stream(out_base + "/" + proj->module_name + "-netki-runtime-master.cpp", netki_master);
 	}
+	
+	void write_csharp_enum(putki::parsed_file *file, putki::indentedwriter out)
+	{
+		if (file->enums.empty())
+			return;
+
+		out.line() << "// Enums";
+		for (size_t i=0; i<file->enums.size(); i++)
+		{
+			putki::parsed_enum *e = &file->enums[i];
+			out.line() << "public enum " << e->name;
+			out.line() << "{";
+			for (size_t j=0; j<e->values.size(); j++)
+			{
+				if (j > 0)
+					out.cont() << ",";
+				out.line(1) << e->values[j].name << " = " << e->values[j].value;
+			}
+			out.line() << "};";
+		}
+	}
 
 	void build_netki_project_csharp(project *proj)
 	{

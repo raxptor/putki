@@ -22,8 +22,6 @@ void generate_project(putki::project *p)
 
 	std::string outki_base(out_base + "/outki");
 	std::string inki_base(out_base + "/inki");
-	std::string csharp_outki(out_base + "/outki_csharp");
-	std::string csharp_inki(out_base + "/inki_csharp");
 	std::string java_inki(out_base + "/java/inki");
 
 	std::stringstream rt_blob_load_calls;
@@ -34,10 +32,6 @@ void generate_project(putki::project *p)
 
 	std::stringstream inki_master, runtime_master;
 
-	std::stringstream csharp_switch_case;
-	std::stringstream csharp_switch_case_resolve;
-	std::stringstream csharp_runtime, csharp_inki_code;
-	
 	std::stringstream java_inki_code;
 
 	for (int i=0;i!=p->files.size();i++)
@@ -74,13 +68,6 @@ void generate_project(putki::project *p)
 		putki::write_putki_impl(pf, putki::indentedwriter(inki_impl));
 		putki::save_stream(inki_path + ".cpp", inki_impl);
 
-		// csharp runtime
-		putki::indentedwriter casewriter(csharp_switch_case);
-		putki::indentedwriter casewriter_resolve(csharp_switch_case_resolve);
-		casewriter.indent(4);
-		putki::write_csharp_runtime_class(pf, putki::indentedwriter(csharp_runtime), casewriter, casewriter_resolve);
-		casewriter.indent(-5);
-
 		// bindings
 		putki::write_bind_decl(pf, putki::indentedwriter(bind_decl));
 		putki::write_bind_calls(pf, putki::indentedwriter(bind_calls));
@@ -88,10 +75,7 @@ void generate_project(putki::project *p)
 		inki_master << "#include \"inki/" << subpath << ".cpp\"\n";
 		runtime_master << "#include \"outki/" << subpath << ".cpp\"\n";
 
-		// csharp inki
-		putki::write_csharp_inki_class(pf, putki::indentedwriter(csharp_inki_code));
 		// java inki
-		
 		putki::indentedwriter jw(java_inki_code);
 		jw.indent(1);
 		putki::write_java_inki_class(pf, jw);
@@ -157,37 +141,6 @@ void generate_project(putki::project *p)
 	putki::save_stream(out_base + "/" + p->module_name + "-inki-master.cpp", inki_master);
 	putki::save_stream(out_base + "/" + p->module_name + "-outki-runtime-master.cpp", runtime_master);
 
-	// runtime c# switch case blob load
-	{
-		std::stringstream csharp_outki_loader;
-		putki::indentedwriter iw(csharp_outki_loader);
-		iw.line() << "namespace outki" << std::endl;
-		iw.line() << "{";
-		iw.line() << "	public class "<< p->loader_name << "DataLoader";;
-		iw.line() << "	{";
-		iw.line() << "		public static void ResolveFromPackage(int type, object obj, Putki.Package pkg)";
-		iw.line() << "		{";;
-		iw.line() << "			switch (type)";
-		iw.line() << "			{";
-		iw.line() << csharp_switch_case_resolve.str();
-		iw.line() << "				default: return;";
-		iw.line() << "			}";
-		iw.line() << "		}";
-		iw.line() << "		public static object LoadFromPackage(int type, Putki.PackageReader reader)";
-		iw.line() << "		{";
-		iw.line() << "			switch (type)";
-		iw.line() << "			{";
-		iw.line() << csharp_switch_case.str() ;
-		iw.line() << "				default: return null;";
-		iw.line() << "			}";
-		iw.line() << "		}";
-		iw.line() << "	}";
-		iw.line() << "}" ;
-		putki::save_stream(csharp_outki + "/" + p->loader_name + "DataLoader.cs", csharp_outki_loader);
-	}
-	
-	putki::save_stream(csharp_outki + "/" + p->module_name + ".cs", csharp_runtime);
-	
 	// java
 	{
 		std::stringstream java_inki_file;
@@ -215,16 +168,6 @@ void generate_project(putki::project *p)
 		iw.line() << java_inki_code.str();
 		iw.line() << "}";
 		putki::save_stream(java_inki + "/" + p->loader_name + ".java", java_inki_file);
-	}
-
-
-
-	{
-		std::stringstream ik;
-		ik << "using PutkEd;\n";
-		ik << "\n";
-		ik << csharp_inki_code.str();
-		putki::save_stream(csharp_inki + "/" + p->module_name + ".cs", ik);
 	}
 }
 
