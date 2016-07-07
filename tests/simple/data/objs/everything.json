@@ -1,0 +1,10 @@
+{
+	"type": "Everything",
+	"data": {
+		"T1": "data1",
+		"T2": "test-arrays",
+		"T3": "triply-nested"
+	},
+	"aux": [
+	]
+}

@@ -22,7 +22,7 @@ solution "Tools"
     -- Putki must always come first   --
     ------------------------------------
 
-    dofile "../libs.lua"
+    dofile "../../libs.lua"
 
     project "test-putki-lib"
         language "C++"

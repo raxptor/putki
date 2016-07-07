@@ -106,7 +106,7 @@ void generate_project(putki::project *p)
 		iw.line() << "namespace inki";
 		iw.line() << "{";
 		iw.indent(1);
-		iw.line() << "void bind_" << p->module_name << "()";
+		iw.line() << "void bind_" << putki::to_c_struct_name(p->module_name) << "()";
 		iw.line() << "{";
 		iw.indent(1);
 		iw.line();

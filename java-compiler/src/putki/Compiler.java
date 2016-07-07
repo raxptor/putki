@@ -14,6 +14,7 @@ public class Compiler
 {
 	public static int DOMAIN_INPUT  = 1;
 	public static int DOMAIN_OUTPUT = 2;
+	public static int DOMAIN_NETKI  = 4;
 
 	public enum FieldType
 	{
@@ -57,7 +58,6 @@ public class Compiler
 		public String moduleName;
 		public List<ParsedField> fields;
 		public String inlineEditor;
-		public List<String> targets;
 		public boolean isTypeRoot;
 		public boolean permitAsAux;
 		public boolean permitAsAsset;
@@ -82,7 +82,7 @@ public class Compiler
 	public class EnumValue
 	{
 		public String name;
-		public int value;
+		public Integer value;
 	}
 
 	public class ParsedEnum
@@ -382,6 +382,18 @@ public class Compiler
 						}
 						else if (curEnum != null)
 						{
+							int max = -1;
+							for (EnumValue en : curEnum.values)
+							{
+								if (en.value != null && en.value > max)
+									max = en.value;
+							}
+							for (EnumValue en : curEnum.values)
+							{
+								if (en.value == null)
+									en.value = ++max;
+							}
+
 							tmp.enums.add(curEnum);
 							curEnum = null;
 						}
@@ -488,9 +500,7 @@ public class Compiler
 					}
 					else if (pieces[j].equals("@netki"))
 					{
-						// TODO: Fixme
-						// curStruct.targets.add("netki");
-						curStruct.domains = 0;
+						curStruct.domains = DOMAIN_NETKI;
 					}
 				}
 				if (readParent)
@@ -620,7 +630,7 @@ public class Compiler
 				{
 					struct.moduleName = tree.moduleName;
 					struct.loaderName = tree.loaderName;
-					struct.uniqueId = unique_id;
+					struct.uniqueId = unique_id++;
 					allTypes.add(struct);
 					if (typesByName.put(struct.name, struct) != null)
 					{
@@ -706,13 +716,25 @@ public class Compiler
 	public static void main(String [] args)
 	{
 		Compiler c = new Compiler();
-		if (!c.compile(Paths.get("/Users/dannilsson/git/neocrawler")))
+		if (args.length > 0)
 		{
-			return;
+			if (!c.compile(Paths.get(args[0])))
+			{
+				return;
+			}
+		}
+		else
+		{
+			if (!c.compile(Paths.get(".")))
+			{
+				return;
+			}
 		}
 
 		CodeWriter writer = new CodeWriter();
 		CSharpGenerator.generateMixkiParsers(c, writer);
+		CSharpGenerator.generateOutkiStructs(c, writer);
+		CSharpGenerator.generateOutkiDataLoader(c, writer);
 		writer.write();
 	}
 }

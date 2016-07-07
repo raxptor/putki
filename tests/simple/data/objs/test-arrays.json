@@ -1,0 +1,16 @@
+{
+	"type": "TestArrays",
+	"data": {
+		"IntArray": [1234,
+		5678,
+		9012],
+		"StringArray": ["First string",
+		"SECOND STRING",
+		"third_string"],
+		"PtrArray": ["",
+		"dummy1",
+		"dummy2"]
+	},
+	"aux": [
+	]
+}

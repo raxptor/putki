@@ -6,6 +6,17 @@ enum FineEnum
 	SOMETHING_ELSE
 }
 
+Dummy
+{
+}
+
+TestArrays
+{
+	int[] IntArray
+	string[] StringArray
+	ptr[] Dummy PtrArray
+}
+
 TestStructTypes
 {
 	string TestString
@@ -15,6 +26,7 @@ TestStructTypes
 	byte TestByte
 	float TestFloat
 	enum FineEnum TestEnum
+	ptr Dummy TestPointer
 }
 
 RootStruct rtti
@@ -43,4 +55,11 @@ ThreeLevelAuxes
 	auxptr[] NestedAuxes Nested
 	auxptr[] WithAuxes WithAux
 	auxptr[] RootStruct Single
+}
+
+Everything
+{
+	ptr TestStructTypes T1
+	ptr TestArrays T2
+	ptr ThreeLevelAuxes T3
 }

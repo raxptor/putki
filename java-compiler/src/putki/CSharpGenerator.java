@@ -5,6 +5,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashSet;
 
+import putki.Compiler.FieldType;
 import putki.Compiler.ParsedEnum;
 import putki.Compiler.ParsedField;
 import putki.Compiler.ParsedFile;
@@ -53,9 +54,9 @@ public class CSharpGenerator
 				case INT32: return "int";
 				case BYTE: return "byte";
 				case STRING: return "string";
-				case POINTER: return "outki." + field.refType;
-				case STRUCT_INSTANCE: return "outki." + field.refType;
-				case ENUM: return "outki." + field.refType;
+				case POINTER: return "Outki." + field.refType;
+				case STRUCT_INSTANCE: return "Outki." + field.refType;
+				case ENUM: return "Outki." + field.refType;
 				case FILE: return "string";
 				case FLOAT: return "float";
 				case PATH: return "string";
@@ -150,7 +151,6 @@ public class CSharpGenerator
 						sb.append(npfx).append("MicroJson.Object source = src as MicroJson.Object;");
 						first = false;
 					}
-
 					if (fld.isParentField)
 					{
 						sb.append(npfx).append("object parentObj;");
@@ -215,7 +215,7 @@ public class CSharpGenerator
 	{
 		for (Compiler.ParsedTree tree : comp.allTrees())
 		{
-			Path mixki = tree.genCodeRoot.resolve("mixki");
+			Path mixki = tree.genCodeRoot.resolve("csharp").resolve("mixki");
 			Path fn = mixki.resolve(tree.loaderName + ".cs");
 
 			StringBuilder sb = new StringBuilder();
@@ -238,7 +238,385 @@ public class CSharpGenerator
 			sb.append("}\n");
 			writer.addOutput(fn, sb.toString().getBytes());
 			sb.append("\t}");
+		}
+	}
 
+    static String sizeExpr(Compiler.ParsedField field)
+    {
+        switch (field.type)
+        {
+        	case FLOAT:
+        	case ENUM:
+        	case UINT32:
+        	case INT32:
+        		return "4";
+        	case BYTE:
+                return "1";
+        	case POINTER:
+        		return "2";
+            case BOOL:
+                return "1";
+            case STRUCT_INSTANCE:
+                return field.resolvedRefStruct.name + ".SIZE";
+            case FILE:
+            case STRING:
+            case PATH:
+                return "2";
+        }
+        return "ERROR";
+    }
+
+    static int fieldSize(Compiler.ParsedField field)
+    {
+        switch (field.type)
+        {
+        	case FLOAT:
+        	case ENUM:
+        	case UINT32:
+        	case INT32:
+        		return 4;
+        	case BYTE:
+                return 1;
+        	case POINTER:
+        		return 2;
+            case BOOL:
+                return 1;
+            case FILE:
+            case STRING:
+            case PATH:
+                return 2;
+           default:
+        	   return 0;
+        }
+    }
+
+	public static void generateOutkiStructs(Compiler comp, CodeWriter writer)
+	{
+		for (Compiler.ParsedTree tree : comp.allTrees())
+		{
+			Path mixki = tree.genCodeRoot.resolve("csharp").resolve("outki");
+			Path fn = mixki.resolve(tree.moduleName + ".cs");
+
+			StringBuilder sb = new StringBuilder();
+			sb.append("using System.Collections.Generic;\n");
+			sb.append("\n");
+			sb.append("namespace Outki\n");
+			sb.append("{");
+			for (Compiler.ParsedFile file : tree.parsedFiles)
+			{
+				sb.append("\n");
+				String pfx = "\n\t";
+				for (Compiler.ParsedEnum en : file.enums)
+				{
+					sb.append(pfx).append("public enum " + en.name);
+					sb.append(pfx).append("{");
+					String sep = "";
+					for (Compiler.EnumValue value : en.values)
+					{
+						sb.append(sep + pfx).append("\t" + value.name + " = " + value.value);
+						sep = ",";
+					}
+					sb.append(pfx).append("}");
+				}
+
+				for (Compiler.ParsedStruct struct : file.structs)
+				{
+					sb.append("\n");
+					if ((struct.domains & Compiler.DOMAIN_OUTPUT) == 0)
+						continue;
+
+					sb.append(pfx).append("public class " + struct.name);
+					if (struct.resolvedParent != null)
+					{
+						sb.append(" : " + struct.resolvedParent.name);
+					}
+
+					sb.append(pfx).append("{");
+
+					String spfx = pfx + "\t";
+
+					if (struct.resolvedParent != null)
+					{
+						sb.append(spfx).append("new public const int TYPE = " + struct.uniqueId + ";");
+						sb.append(spfx).append("public " + struct.name + "()");
+						sb.append(spfx).append("{");
+						sb.append(spfx).append("\t_rtti_type = " + struct.uniqueId + ";");
+						sb.append(spfx).append("}");
+					}
+					else
+					{
+						sb.append(spfx).append("public const int TYPE = " + struct.uniqueId + ";");
+					}
+
+					if (struct.isTypeRoot)
+					{
+						sb.append(spfx).append("public int _rtti_type = " + struct.uniqueId + ";");
+					}
+
+
+					for (Compiler.ParsedField field : struct.fields)
+					{
+						if ((struct.domains & Compiler.DOMAIN_OUTPUT) == 0)
+							continue;
+						sb.append(spfx).append("public " + csharpType(field, true) + " " + field.name + ";");
+						if (field.type == FieldType.POINTER)
+						{
+							sb.append(spfx).append("public int" + (field.isArray ? "[]" : "") + " __slot_" + field.name + ";");
+						}
+					}
+					sb.append(pfx).append("}");
+				}
+			}
+
+			sb.append("\n}\n");
+			writer.addOutput(fn, sb.toString().getBytes());
+		}
+	}
+
+	public static void generateOutkiDataLoader(Compiler comp, CodeWriter writer)
+	{
+		for (Compiler.ParsedTree tree : comp.allTrees())
+		{
+			Path mixki = tree.genCodeRoot.resolve("csharp").resolve("outki");
+			Path fn = mixki.resolve(tree.moduleName + "Loader.cs");
+
+			StringBuilder sb = new StringBuilder();
+			sb.append("using System.Collections.Generic;\n");
+			sb.append("\n");
+			sb.append("namespace Outki\n");
+			sb.append("{\n");
+			sb.append("namespace Loader\n");
+			sb.append("{");
+			sb.append("\n\tpublic static class " + tree.loaderName);
+			sb.append("\n\t{");
+			for (Compiler.ParsedFile file : tree.parsedFiles)
+			{
+				String pfx = "\n\t\t";
+				for (Compiler.ParsedStruct struct : file.structs)
+				{
+					if ((struct.domains & Compiler.DOMAIN_OUTPUT) == 0)
+						continue;
+
+					sb.append(pfx).append("public static class LoadInfo_" + struct.name);
+					sb.append(pfx).append("{");
+
+					int size = 0;
+					for (Compiler.ParsedField field : struct.fields)
+					{
+						if ((field.domains & Compiler.DOMAIN_OUTPUT) == 0)
+							continue;
+						if (field.isParentField)
+							continue;
+						if (field.isArray)
+							size += 6;
+						else
+							size += fieldSize(field);
+					}
+
+					// Cannot have empty structs; putki will generate 1 byte.
+					if (size == 0)
+					{
+						size = 1;
+					}
+					if (struct.isTypeRoot)
+					{
+						size = size + 4;
+					}
+
+					if (struct.resolvedParent != null)
+					{
+						sb.append(pfx).append("\tpublic const int SIZE = " + size + " + LoadInfo_" + struct.resolvedParent.name + ".SIZE;");
+					}
+					else
+					{
+						sb.append(pfx).append("\tpublic const int SIZE = " + size + ";");
+					}
+
+					sb.append(pfx).append("}");
+
+					sb.append(pfx).append("public static " + struct.name + " LoadFromPackage_" + struct.name + "(Putki.PackageReader reader, Putki.PackageReader aux)");
+					sb.append(pfx).append("{");
+					sb.append(pfx).append("\t" + struct.name + " tmp = new " + struct.name + "();");
+					sb.append(pfx).append("\tParseFromPackage_" + struct.name + "(tmp, reader, aux);");
+					sb.append(pfx).append("\treturn tmp;");
+					sb.append(pfx).append("}");
+
+					sb.append(pfx).append("public static void ParseFromPackage_" + struct.name + "(" + struct.name + " target, Putki.PackageReader reader, Putki.PackageReader aux)");
+					sb.append(pfx).append("{");
+
+					String spfx = pfx + "\t";
+
+					if (struct.isTypeRoot)
+					{
+						sb.append(spfx).append("target._rtti_type = reader.ReadInt32();");
+					}
+
+					for (Compiler.ParsedField field : struct.fields)
+					{
+						if ((field.domains & Compiler.DOMAIN_OUTPUT) == 0)
+							continue;
+
+						String upfx = spfx;
+						String ref = "target." + field.name;
+						String contentReader = "reader";
+
+						if (field.type == FieldType.POINTER)
+						{
+							ref = "target.__slot_" + field.name;
+						}
+
+						if (field.isArray)
+						{
+							sb.append(spfx).append("{");
+							sb.append(spfx).append("\treader.ReadInt16();"); // read ptr.
+							sb.append(spfx).append("\tint count = reader.ReadInt32();");
+							if (field.type == FieldType.POINTER)
+							{
+								sb.append(spfx).append("\ttarget.__slot_" + field.name + " = new int[count];");
+							}
+							sb.append(spfx).append("\ttarget." + field.name + " = new " + csharpType(field,  false) + "[count];");
+							ref = ref + "[i]";
+							sb.append(spfx).append("\tPutki.PackageReader arrAux = aux.CloneAux(0);");
+							sb.append(spfx).append("\taux.Skip(count * " + sizeExpr(field) + ");");
+							sb.append(spfx).append("\tfor (int i=0;i!=count;i++)");
+							sb.append(spfx).append("\t{");
+							upfx = spfx + "\t\t";
+							contentReader = "arrAux";
+						}
+
+						switch (field.type)
+						{
+							case INT32:
+								sb.append(upfx).append(ref + " = " + contentReader + ".ReadInt32();");
+								break;
+							case UINT32:
+								sb.append(upfx).append(ref + " = (uint)" + contentReader + ".ReadInt32();");
+								break;
+							case BYTE:
+								sb.append(upfx).append(ref + " = " + contentReader + ".ReadByte();");
+								break;
+							case BOOL:
+								sb.append(upfx).append(ref + " = " + contentReader + ".ReadByte() != 0;");
+								break;
+							case FLOAT:
+								sb.append(upfx).append(ref + " = " + contentReader + ".ReadFloat();");
+								break;
+							case ENUM:
+								sb.append(upfx).append(ref + " = (" + field.resolvedEnum.name + ") " + contentReader + ".ReadInt32();");
+								break;
+							case STRUCT_INSTANCE:
+								sb.append(upfx).append(ref + " = LoadFromPackage_" + field.resolvedRefStruct.name + "(" + contentReader + ", aux);");
+								break;
+							case POINTER:
+								sb.append(upfx).append(ref + " = " + contentReader + ".ReadInt16();");
+								break;
+							case STRING:
+							case FILE:
+							case PATH:
+								sb.append(upfx).append(ref + " = aux.ReadString(" + contentReader + ".ReadInt16());");
+								break;
+							default:
+								sb.append(upfx).append("// god help me");
+								break;
+						}
+
+						if (field.isArray)
+						{
+							sb.append(spfx).append("\t}");
+							sb.append(spfx).append("}");
+						}
+					}
+					sb.append(pfx).append("}");
+					sb.append(pfx).append("public static void ResolveFromPackage_" + struct.name + "(" + struct.name + " target, Putki.Package pkg)");
+					sb.append(pfx).append("{");
+
+					for (Compiler.ParsedField field : struct.fields)
+					{
+						if ((field.domains & Compiler.DOMAIN_OUTPUT) == 0)
+							continue;
+						if (field.isParentField)
+							continue;
+						if (field.type != Compiler.FieldType.POINTER && field.type != Compiler.FieldType.STRUCT_INSTANCE)
+							continue;
+
+						String ref = "target." + field.name;
+						String slotRef = "target.__slot_" + field.name;
+
+						String upfx = pfx + "\t";
+						if (field.isArray)
+						{
+							sb.append(pfx).append("\tfor (int i=0;i<" + ref + ".Length;i++)");
+							sb.append(pfx).append("\t{");
+							upfx = pfx + "\t\t";
+							ref = ref + "[i]";
+							slotRef = slotRef + "[i]";
+						}
+
+						if (field.type == FieldType.POINTER)
+						{
+							sb.append(upfx).append(ref + " = (" + field.resolvedRefStruct.name + ") pkg.ResolveSlot(" + slotRef + ");");
+						}
+						else
+						{
+							sb.append(upfx).append("ResolveFromPackage_" + field.resolvedRefStruct.name + "(" + ref + ", pkg);");
+						}
+
+						if (field.isArray)
+						{
+							sb.append(pfx).append("\t}");
+							upfx = pfx + "\t";
+						}
+					}
+
+					sb.append(pfx).append("}");
+				}
+			}
+
+			sb.append("\n\t\tpublic static void ResolveFromPackage(int type, object obj, Putki.Package pkg)");
+			sb.append("\n\t\t{");
+			sb.append("\n\t\t\tswitch (type)");
+			sb.append("\n\t\t\t{");
+			for (Compiler.ParsedFile file : tree.parsedFiles)
+			{
+				String pfx = "\n\t\t\t\t";
+				for (Compiler.ParsedStruct struct : file.structs)
+				{
+					if ((struct.domains & Compiler.DOMAIN_OUTPUT) == 0)
+						continue;
+					sb.append(pfx).append("case " + struct.name + ".TYPE: ResolveFromPackage_" + struct.name + "((" + struct.name + ")obj, pkg); return;");
+				}
+			}
+			sb.append("\n\t\t\t\tdefault: return;");
+			sb.append("\n\t\t\t}");
+			sb.append("\n\t\t}");
+			sb.append("\n\t\tpublic static object LoadFromPackage(int type, Putki.PackageReader reader)");
+			sb.append("\n\t\t{");
+			sb.append("\n\t\t\tswitch (type)");
+			sb.append("\n\t\t\t{");
+			for (Compiler.ParsedFile file : tree.parsedFiles)
+			{
+				String pfx = "\n\t\t\t\t";
+				for (Compiler.ParsedStruct struct : file.structs)
+				{
+					if ((struct.domains & Compiler.DOMAIN_OUTPUT) == 0)
+						continue;
+					sb.append(pfx).append("case " + struct.name + ".TYPE:");
+					sb.append(pfx).append("{");
+					sb.append(pfx).append("\tPutki.PackageReader aux = reader.CloneAux(LoadInfo_" + struct.name + ".SIZE);");
+					sb.append(pfx).append("\tobject o = LoadFromPackage_" + struct.name + "(reader, aux);");
+					sb.append(pfx).append("\treader.MoveTo(aux);");
+					sb.append(pfx).append("\treturn o;");
+					sb.append(pfx).append("}");
+				}
+			}
+			sb.append("\n\t\t\t\tdefault: return null;");
+			sb.append("\n\t\t\t}");
+			sb.append("\n\t\t}");
+
+			sb.append("\n\t}");
+			sb.append("\n\t}");
+			sb.append("\n}\n");
+			writer.addOutput(fn, sb.toString().getBytes());
 		}
 	}
 }
