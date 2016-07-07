@@ -18,6 +18,7 @@ public class JavaGenerator
 			sb.append("\n");
 			sb.append("\nimport putked.ProxyObject;");
 			sb.append("\nimport putked.DataObject;");
+			sb.append("\nimport putked.DataHelper;");
 			sb.append("\nimport putked.EditorTypeService;");
 			sb.append("\n");
 			sb.append("\npublic class " + tree.loaderName + " implements EditorTypeService");
@@ -65,8 +66,18 @@ public class JavaGenerator
 
 					sb.append(spfx).append("public static final int TYPE = " + struct.uniqueId + ";");
 					sb.append(spfx).append("public static final String NAME = \"" + struct.name + "\";");
-					sb.append(spfx).append("public static putki.Compiler.ParsedStruct _getType() { return null; }");
-					sb.append(spfx).append("public putked.DataObject m_dataObj;");
+					sb.append(spfx).append("public putki.Compiler.ParsedStruct _getType() { return m_type; }");
+					sb.append(spfx).append("private putked.DataObject m_dataObj;");
+					sb.append(spfx).append("private putki.Compiler.ParsedStruct m_type;");
+
+					sb.append(spfx).append("public " + struct.name + "(putki.Compiler.ParsedStruct type)");
+					sb.append(spfx).append("{");
+					if (struct.resolvedParent != null)
+					{
+						sb.append(spfx).append("\tsuper(type.resolvedParent)");
+					}
+					sb.append(spfx).append("\tm_type = type;");
+					sb.append(spfx).append("}");
 
 					sb.append(spfx).append("@Override");
 					sb.append(spfx).append("public void connect(putked.DataObject obj)");
@@ -95,22 +106,27 @@ public class JavaGenerator
 						}
 
 						String stdType = null;
+						String firstType = null;
 						switch (field.type)
 						{
 							case BYTE:
 							case INT32:
 								stdType = "int";
+								firstType = "long";
 								break;
 							case UINT32:
 								stdType = "long";
+								firstType = "long";
 								break;
 							case FLOAT:
 								stdType = "float";
+								firstType = "float";
 								break;
 							case STRING:
 							case FILE:
 							case PATH:
 								stdType = "String";
+								firstType = "String";
 								break;
 							default:
 								break;
@@ -120,11 +136,11 @@ public class JavaGenerator
 						{
 							sb.append(spfx).append("public " + stdType + " get" + field.name + "(" + getFn + ")");
 							sb.append(spfx).append("{");
-							sb.append(spfx).append("\treturn (" + stdType + ")m_dataObj.getField(" + field.index + index + ");");
+							sb.append(spfx).append("\treturn (" + stdType + ")(" + firstType + ")m_dataObj.getField(" + field.index + index + ");");
 							sb.append(spfx).append("}");
 							sb.append(spfx).append("public void set" + field.name + "(" + setFn + stdType + " value)");
 							sb.append(spfx).append("{");
-							sb.append(spfx).append("\tm_dataObj.setField(" + field.index + index + ", value);");
+							sb.append(spfx).append("\tm_dataObj.setField(" + field.index + index + ",(" + firstType + ")" + "value);");
 							sb.append(spfx).append("}");
 						}
 						else if (field.type == FieldType.STRUCT_INSTANCE)
@@ -132,9 +148,7 @@ public class JavaGenerator
 							String rt = field.resolvedRefStruct.name;
 							sb.append(spfx).append("public " + rt + " get" + field.name + "(" + getFn + ")");
 							sb.append(spfx).append("{");
-							sb.append(spfx).append("\t" + rt + " proxy = new " + rt + "();");
-							sb.append(spfx).append("\tproxy.connect((DataObject)m_dataObj.getField(" + field.index + index +"));");
-							sb.append(spfx).append("\treturn proxy;");
+							sb.append(spfx).append("\treturn (" + rt + ")DataHelper.createPutkEdObj((DataObject)m_dataObj.getField(" + field.index + index +"));");
 							sb.append(spfx).append("}");
 							sb.append(spfx).append("public void set" + field.name + "(" + setFn + rt + " value)");
 							sb.append(spfx).append("{");
@@ -162,14 +176,14 @@ public class JavaGenerator
 				}
 			}
 
-			sb.append("\n\tpublic ProxyObject createProxy(String type)");
+			sb.append("\n\tpublic ProxyObject createProxy(putki.Compiler.ParsedStruct type)");
 			sb.append("\n\t{");
 			for (Compiler.ParsedFile file : tree.parsedFiles)
 			{
 				for (Compiler.ParsedStruct struct : file.structs)
 				{
-					sb.append("\n\t\tif (type.equals(\"" + struct.name + "\"))");
-					sb.append("\n\t\t\treturn new " + struct.name + "();");
+					sb.append("\n\t\tif (type.name.equals(\"" + struct.name + "\"))");
+					sb.append("\n\t\t\treturn new " + struct.name + "(type);");
 				}
 			}
 			sb.append("\n\t\treturn null;");

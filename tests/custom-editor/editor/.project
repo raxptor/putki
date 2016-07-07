@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<projectDescription>
+	<name>custom-editor</name>
+	<comment></comment>
+	<projects>
+	</projects>
+	<buildSpec>
+		<buildCommand>
+			<name>org.eclipse.jdt.core.javabuilder</name>
+			<arguments>
+			</arguments>
+		</buildCommand>
+	</buildSpec>
+	<natures>
+		<nature>org.eclipse.jdt.core.javanature</nature>
+	</natures>
+	<linkedResources>
+		<link>
+			<name>generated</name>
+			<type>2</type>
+			<location>/Users/dannilsson/git/putki-cleanup/tests/custom-editor/_gen/java</location>
+		</link>
+	</linkedResources>
+	<variableList>
+		<variable>
+			<name>JAVA_GEN_LOC</name>
+			<value>$%7BPARENT-1-PROJECT_LOC%7D/_gen/java</value>
+		</variable>
+	</variableList>
+</projectDescription>

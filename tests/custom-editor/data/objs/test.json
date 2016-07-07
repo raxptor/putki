@@ -1,0 +1,11 @@
+{
+	"type": "WithArray",
+	"data": {
+		"Name": ["Hej"],
+		"Digits": [4,
+		9,
+		10]
+	},
+	"aux": [
+	]
+}
