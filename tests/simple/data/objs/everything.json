@@ -3,8 +3,26 @@
 	"data": {
 		"T1": "data1",
 		"T2": "test-arrays",
-		"T3": "triply-nested"
+		"T3": "triply-nested",
+		"VPtr": "",
+		"VAuxPtr": "#roz9h",
+		"VTInline": {
+			"A": 3.4,
+			"B": 199,
+			"Text": "This is value type in C#",
+			"DummyPtr": "dummy2"
+		}
 	},
 	"aux": [
+		{
+			"ref": "#roz9h",
+			"type": "TestValueType",
+			"data": {
+				"A": 1234.5677,
+				"B": 666,
+				"Text": "This is a struct in C#",
+				"DummyPtr": "dummy1"
+			}
+		}
 	]
 }

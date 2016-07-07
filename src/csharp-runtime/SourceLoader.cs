@@ -42,10 +42,10 @@ namespace Mixki
 			};
 		}
 
-		public Type Resolve<Type>(string assetPath, string path) where Type : class
+		public Type Resolve<Type>(string assetPath, string path)
 		{
 			if (path == null || path == "")
-				return null;
+				return default(Type);
 			
 			if (path.StartsWith("#"))
 				return Resolve<Type>(assetPath + path);
@@ -53,10 +53,10 @@ namespace Mixki
 				return Resolve<Type>(path);
 		}
 
-		public Type Resolve<Type>(string path) where Type : class
+		public Type Resolve<Type>(string path)
 		{
 			if (path == null || path == "")
-				return null;
+				return default(Type);
 			
 			string assetPath = path;
 			int auxref = assetPath.IndexOf('#');
@@ -68,7 +68,7 @@ namespace Mixki
 			object val;
 			if (m_parsed.TryGetValue(path, out val))
 			{
-				return val as Type;
+				return (Type) val;
 			}
 			else
 			{
@@ -78,7 +78,7 @@ namespace Mixki
 					Load(assetPath);
 					if (!m_raw.TryGetValue(path, out raw))
 					{
-						return null;
+						return default(Type);
 					}
 				}
 
@@ -87,14 +87,14 @@ namespace Mixki
 				if (!ro.Data.TryGetValue("type", out typeObj))
 				{
 					Logger("Failed to read type field of [" + path + "]");
-					return null;
+					return default(Type);
 				}
 
 				object dataObj;
 				if (!ro.Data.TryGetValue("data", out dataObj))
 				{
 					Logger("Failed to read data field of [" + path + "]");
-					return null;
+					return default(Type);
 				}
 
 				string type = typeObj.ToString();
@@ -105,12 +105,12 @@ namespace Mixki
 					Logger("Parsed [" + path + "] as [" + type + "]");
 					m_parsed.Add(path, parsed);
 					Putki.PackageManager.RegisterLoaded(path, parsed);
-					return parsed as Type;
+					return (Type) parsed;
 				}
 				else
 				{
 					Logger("No parser for type [" + type + "] for path [" + path + "]");
-					return null;
+					return default(Type);
 				}
 			}
 		}

@@ -1,6 +1,7 @@
 {
 	"type": "Dummy",
 	"data": {
+		"Debug": "Dummy1"
 	},
 	"aux": [
 	]

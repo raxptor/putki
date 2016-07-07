@@ -102,7 +102,7 @@ public class CSharpGenerator
 				sb.append("float.Parse(" + src + ".ToString())");
 				break;
 			case STRUCT_INSTANCE:
-				sb.append(field.resolvedRefStruct.loaderName + "." + field.resolvedRefStruct.name + "Fn(loader, path, " + src + ") as Outki." + field.resolvedRefStruct.name);
+				sb.append("(Outki." + field.resolvedRefStruct.name + ")" + field.resolvedRefStruct.loaderName + "." + field.resolvedRefStruct.name + "Fn(loader, path, " + src + ")");
 				break;
 			case ENUM:
 				sb.append("(Outki." + field.resolvedEnum.name + ")" + field.resolvedEnum.loaderName + "." + field.resolvedEnum.name + "EnumFn(loader, path, " + src + ")");
@@ -257,7 +257,7 @@ public class CSharpGenerator
             case BOOL:
                 return "1";
             case STRUCT_INSTANCE:
-                return field.resolvedRefStruct.name + ".SIZE";
+                return "LoadInfo_" + field.resolvedRefStruct.name + ".SIZE";
             case FILE:
             case STRING:
             case PATH:
@@ -325,7 +325,11 @@ public class CSharpGenerator
 					if ((struct.domains & Compiler.DOMAIN_OUTPUT) == 0)
 						continue;
 
-					sb.append(pfx).append("public class " + struct.name);
+					if (struct.isValueType)
+						sb.append(pfx).append("public struct " + struct.name);
+					else
+						sb.append(pfx).append("public class " + struct.name);
+
 					if (struct.resolvedParent != null)
 					{
 						sb.append(" : " + struct.resolvedParent.name);
@@ -400,6 +404,7 @@ public class CSharpGenerator
 					sb.append(pfx).append("public static class LoadInfo_" + struct.name);
 					sb.append(pfx).append("{");
 
+					String sizeExtra = "";
 					int size = 0;
 					for (Compiler.ParsedField field : struct.fields)
 					{
@@ -409,8 +414,10 @@ public class CSharpGenerator
 							continue;
 						if (field.isArray)
 							size += 6;
-						else
+						else if (field.type != Compiler.FieldType.STRUCT_INSTANCE)
 							size += fieldSize(field);
+						else
+							sizeExtra = sizeExtra + " + " + sizeExpr(field);
 					}
 
 					// Cannot have empty structs; putki will generate 1 byte.
@@ -425,11 +432,11 @@ public class CSharpGenerator
 
 					if (struct.resolvedParent != null)
 					{
-						sb.append(pfx).append("\tpublic const int SIZE = " + size + " + LoadInfo_" + struct.resolvedParent.name + ".SIZE;");
+						sb.append(pfx).append("\tpublic const int SIZE = " + size + sizeExtra + " + LoadInfo_" + struct.resolvedParent.name + ".SIZE;");
 					}
 					else
 					{
-						sb.append(pfx).append("\tpublic const int SIZE = " + size + ";");
+						sb.append(pfx).append("\tpublic const int SIZE = " + size + sizeExtra + ";");
 					}
 
 					sb.append(pfx).append("}");
@@ -437,11 +444,11 @@ public class CSharpGenerator
 					sb.append(pfx).append("public static " + struct.name + " LoadFromPackage_" + struct.name + "(Putki.PackageReader reader, Putki.PackageReader aux)");
 					sb.append(pfx).append("{");
 					sb.append(pfx).append("\t" + struct.name + " tmp = new " + struct.name + "();");
-					sb.append(pfx).append("\tParseFromPackage_" + struct.name + "(tmp, reader, aux);");
+					sb.append(pfx).append("\tParseFromPackage_" + struct.name + "(ref tmp, reader, aux);");
 					sb.append(pfx).append("\treturn tmp;");
 					sb.append(pfx).append("}");
 
-					sb.append(pfx).append("public static void ParseFromPackage_" + struct.name + "(" + struct.name + " target, Putki.PackageReader reader, Putki.PackageReader aux)");
+					sb.append(pfx).append("public static void ParseFromPackage_" + struct.name + "(ref " + struct.name + " target, Putki.PackageReader reader, Putki.PackageReader aux)");
 					sb.append(pfx).append("{");
 
 					String spfx = pfx + "\t";
@@ -527,7 +534,7 @@ public class CSharpGenerator
 						}
 					}
 					sb.append(pfx).append("}");
-					sb.append(pfx).append("public static void ResolveFromPackage_" + struct.name + "(" + struct.name + " target, Putki.Package pkg)");
+					sb.append(pfx).append("public static " + struct.name + " ResolveFromPackage_" + struct.name + "(" + struct.name + " target, Putki.Package pkg)");
 					sb.append(pfx).append("{");
 
 					for (Compiler.ParsedField field : struct.fields)
@@ -554,11 +561,11 @@ public class CSharpGenerator
 
 						if (field.type == FieldType.POINTER)
 						{
-							sb.append(upfx).append(ref + " = (" + field.resolvedRefStruct.name + ") pkg.ResolveSlot(" + slotRef + ");");
+							sb.append(upfx).append(ref + " = pkg.ResolveSlot<" + field.resolvedRefStruct.name + ">(" + slotRef + ");");
 						}
 						else
 						{
-							sb.append(upfx).append("ResolveFromPackage_" + field.resolvedRefStruct.name + "(" + ref + ", pkg);");
+							sb.append(upfx).append(ref + " = ResolveFromPackage_" + field.resolvedRefStruct.name + "(" + ref + ", pkg);");
 						}
 
 						if (field.isArray)
@@ -567,12 +574,13 @@ public class CSharpGenerator
 							upfx = pfx + "\t";
 						}
 					}
+					sb.append(pfx).append("\treturn target;");
 
 					sb.append(pfx).append("}");
 				}
 			}
 
-			sb.append("\n\t\tpublic static void ResolveFromPackage(int type, object obj, Putki.Package pkg)");
+			sb.append("\n\t\tpublic static object ResolveFromPackage(int type, object obj, Putki.Package pkg)");
 			sb.append("\n\t\t{");
 			sb.append("\n\t\t\tswitch (type)");
 			sb.append("\n\t\t\t{");
@@ -583,10 +591,10 @@ public class CSharpGenerator
 				{
 					if ((struct.domains & Compiler.DOMAIN_OUTPUT) == 0)
 						continue;
-					sb.append(pfx).append("case " + struct.name + ".TYPE: ResolveFromPackage_" + struct.name + "((" + struct.name + ")obj, pkg); return;");
+					sb.append(pfx).append("case " + struct.name + ".TYPE: return ResolveFromPackage_" + struct.name + "((" + struct.name + ")obj, pkg);");
 				}
 			}
-			sb.append("\n\t\t\t\tdefault: return;");
+			sb.append("\n\t\t\t\tdefault: return obj;");
 			sb.append("\n\t\t\t}");
 			sb.append("\n\t\t}");
 			sb.append("\n\t\tpublic static object LoadFromPackage(int type, Putki.PackageReader reader)");

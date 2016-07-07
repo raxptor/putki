@@ -8,6 +8,7 @@ enum FineEnum
 
 Dummy
 {
+	string Debug
 }
 
 TestArrays
@@ -15,6 +16,14 @@ TestArrays
 	int[] IntArray
 	string[] StringArray
 	ptr[] Dummy PtrArray
+}
+
+TestValueType value-type
+{
+	float A
+	int B
+	string Text
+	ptr Dummy DummyPtr
 }
 
 TestStructTypes
@@ -57,9 +66,19 @@ ThreeLevelAuxes
 	auxptr[] RootStruct Single
 }
 
+TestConfig
+{
+	// These don't work now 
+	// string NameSingle [build-config]
+	// string[] NameMulti [build-config]
+}
+
 Everything
 {
 	ptr TestStructTypes T1
 	ptr TestArrays T2
 	ptr ThreeLevelAuxes T3
+	ptr TestValueType VPtr
+	auxptr TestValueType VAuxPtr
+	TestValueType VTInline
 }

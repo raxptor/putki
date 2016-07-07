@@ -59,6 +59,7 @@ public class Compiler
 		public List<ParsedField> fields;
 		public String inlineEditor;
 		public boolean isTypeRoot;
+		public boolean isValueType;
 		public boolean permitAsAux;
 		public boolean permitAsAsset;
 
@@ -494,6 +495,11 @@ public class Compiler
 						curStruct.permitAsAux = false;
 						curStruct.permitAsAsset = false;
 					}
+					else if (pieces[j].equals("value-type"))
+					{
+						curStruct.permitAsAsset = false;
+						curStruct.isValueType = true;
+					}
 					else if (pieces[j].equals("no-out"))
 					{
 						curStruct.domains = curStruct.domains & ~DOMAIN_OUTPUT;
@@ -516,7 +522,9 @@ public class Compiler
 
 	public void scanTree(ParsedTree tree, Path root, Path where) throws IOException
 	{
+		System.out.println("Scanning tree [" + where + "]");
 		File[] files = where.toFile().listFiles();
+
 		for (int i=0;i!=files.length;i++)
 		{
 			if (files[i].isDirectory())
@@ -613,7 +621,7 @@ public class Compiler
 		}
 		catch (java.io.IOException e)
 		{
-
+			System.out.println("Error " + e.toString());
 		}
 		return null;
 	}
@@ -628,6 +636,20 @@ public class Compiler
 			{
 				for (ParsedStruct struct : file.structs)
 				{
+					if (struct.isValueType)
+					{
+						if (struct.isTypeRoot)
+						{
+							System.out.println("Type " + struct.name + " is value type; cannot be rtti");
+							return false;
+						}
+						if (struct.resolvedParent != null)
+						{
+							System.out.println("Type " + struct.name + " is value type; cannot have a parent.");
+							return false;
+						}
+					}
+
 					struct.moduleName = tree.moduleName;
 					struct.loaderName = tree.loaderName;
 					struct.uniqueId = unique_id++;
