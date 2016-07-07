@@ -164,7 +164,7 @@ public class ObjectLibrary {
 		MenuItem newobj = new MenuItem("New object");
 		newobj.setOnAction( (actionEvt) -> {
 			TreeItem<String> ti = m_dirView.getSelectionModel().getSelectedItem();
-			String whereTo = m_dirMap.get(ti).path + "neue";
+			String whereTo = m_dirMap.get(ti).path;
 			javafx.application.Platform.runLater(new Runnable() {
 				@Override
 				public void run() {
@@ -176,7 +176,12 @@ public class ObjectLibrary {
 						Main.s_instance.askImportFinalization(fin, null);
 						if (fin.accepted)
 						{
-							DataObject obj = new DataObject(t, fin.proposedPath);
+							String pt = fin.proposedPath;
+							if (pt.startsWith("/"))
+							{
+								pt = pt.substring(1);
+							}
+							DataObject obj = new DataObject(t, pt);
 							Main.s_dataWriter.WriteObject(obj);
 							loadIndex();
 						}

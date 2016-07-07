@@ -241,6 +241,8 @@ public class DataWriter
 			}
 			p = p.resolve(path.substring(st) + ".json");
 			StringBuilder sb = writeAsset(obj);
+			Files.createDirectories(p.getParent());
+
 			Files.write(p, sb.toString().getBytes(Charset.forName("UTF-8")));
 		}
 		catch (IOException e)
