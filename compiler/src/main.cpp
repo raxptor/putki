@@ -22,7 +22,6 @@ void generate_project(putki::project *p)
 
 	std::string outki_base(out_base + "/outki");
 	std::string inki_base(out_base + "/inki");
-	std::string java_inki(out_base + "/java/inki");
 
 	std::stringstream rt_blob_load_calls;
 	std::stringstream rt_blob_load_header;
@@ -31,8 +30,6 @@ void generate_project(putki::project *p)
 	std::stringstream bind_calls;
 
 	std::stringstream inki_master, runtime_master;
-
-	std::stringstream java_inki_code;
 
 	for (int i=0;i!=p->files.size();i++)
 	{
@@ -74,11 +71,6 @@ void generate_project(putki::project *p)
 
 		inki_master << "#include \"inki/" << subpath << ".cpp\"\n";
 		runtime_master << "#include \"outki/" << subpath << ".cpp\"\n";
-
-		// java inki
-		putki::indentedwriter jw(java_inki_code);
-		jw.indent(1);
-		putki::write_java_inki_class(pf, jw);
 	}
 
 	// bind calls
@@ -140,35 +132,6 @@ void generate_project(putki::project *p)
 
 	putki::save_stream(out_base + "/" + p->module_name + "-inki-master.cpp", inki_master);
 	putki::save_stream(out_base + "/" + p->module_name + "-outki-runtime-master.cpp", runtime_master);
-
-	// java
-	{
-		std::stringstream java_inki_file;
-		putki::indentedwriter iw(java_inki_file);
-		iw.line() << "package inki;";
-		iw.line();
-		iw.line() << "import putked.*;";
-		iw.line();
-		iw.line() << "public class " << p->loader_name << " implements EditorTypeService";;
-		iw.line() << "{";
-		iw.indent(1);
-		iw.line() << "public ProxyObject createProxy(String type)";
-		iw.line() << "{";
-		iw.indent(1);
-		
-		for (int i=0;i!=p->files.size();i++)
-		{
-			write_java_proxy_creator(&p->files[i], iw);
-		}
-		
-		iw.line() << "return null;";
-		iw.indent(-1);
-		iw.line() << "}";
-		iw.indent(-1);
-		iw.line() << java_inki_code.str();
-		iw.line() << "}";
-		putki::save_stream(java_inki + "/" + p->loader_name + ".java", java_inki_file);
-	}
 }
 
 int main (int argc, char *argv[])

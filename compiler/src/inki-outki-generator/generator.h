@@ -23,9 +23,6 @@ namespace putki
 
 	void write_bind_decl(putki::parsed_file *file, putki::indentedwriter out);
 	void write_bind_calls(putki::parsed_file *file, putki::indentedwriter out);
-
-	void write_java_inki_class(putki::parsed_file *file, putki::indentedwriter out);
-	void write_java_proxy_creator(putki::parsed_file *file, putki::indentedwriter out);
 }
 
 #endif
