@@ -757,6 +757,7 @@ public class Compiler
 		CSharpGenerator.generateMixkiParsers(c, writer);
 		CSharpGenerator.generateOutkiStructs(c, writer);
 		CSharpGenerator.generateOutkiDataLoader(c, writer);
+		JavaGenerator.generateEditorProxys(c, writer);
 		writer.write();
 	}
 }
