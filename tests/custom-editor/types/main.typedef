@@ -1,0 +1,17 @@
+Main
+{
+	string Name = "Korv"
+	int Digit = 1234
+}
+
+WithArray
+{
+	string[] Name 
+	int[] Digits
+}
+
+WithStruct
+{
+	Main One
+	Main[] Many
+}

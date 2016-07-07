@@ -576,6 +576,8 @@ public class Compiler
 				}
 			}
 
+			String sourceFolder = "src";
+
 			for (int i=0;i<lines.size();i++)
 			{
 				String line = lines.get(i);
@@ -606,6 +608,10 @@ public class Compiler
 						pt.moduleName = line.substring(5);
 						pt.loaderName = line.substring(5);
 					}
+					else if (line.startsWith("src:"))
+					{
+						sourceFolder = line.substring(4);
+					}
 				}
 			}
 
@@ -615,7 +621,8 @@ public class Compiler
 				return allModules.get(pt.moduleName);
 			}
 
-			scanTree(pt, start.resolve("src"), start.resolve("src"));
+			Path startPath = start.resolve(sourceFolder);
+			scanTree(pt, startPath, startPath);
 			allTrees.add(pt);
 			return pt;
 		}
