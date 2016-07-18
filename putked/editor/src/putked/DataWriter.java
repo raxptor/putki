@@ -6,6 +6,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.Locale;
+
 import putki.Compiler;
 import putki.Compiler.FieldType;
 
@@ -85,6 +87,11 @@ public class DataWriter
 			{
 				bld.append("0");
 			}
+		}
+		else if (value.getClass() == Float.class)
+		{
+			java.text.NumberFormat nf = java.text.NumberFormat.getInstance(Locale.ENGLISH);
+			bld.append(nf.format(value));
 		}
 		else if (value.getClass() == DataObject.class)
 		{

@@ -97,7 +97,7 @@ public class CSharpGenerator
 				sb.append("int.Parse(" + src + ".ToString()) != 0");
 				break;
 			case FLOAT:
-				sb.append("float.Parse(" + src + ".ToString())");
+				sb.append("float.Parse(" + src + ".ToString(), System.Globalization.CultureInfo.InvariantCulture)");
 				break;
 			case STRUCT_INSTANCE:
 				sb.append("(Outki." + field.resolvedRefStruct.name + ")" + field.resolvedRefStruct.loaderName + "." + field.resolvedRefStruct.name + "Fn(loader, path, " + src + ")");
