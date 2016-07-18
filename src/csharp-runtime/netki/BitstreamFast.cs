@@ -2,7 +2,7 @@
 
 namespace Netki
 {
-	public static class BitstreamFast
+	public static class Bitstream
 	{
 		public class Buffer
 		{
@@ -58,7 +58,7 @@ namespace Netki
 			if (dest.BitsLeft() < source.BitsLeft())
 				return false;
 
-			BitstreamFast.Buffer tmp = new BitstreamFast.Buffer();
+			Bitstream.Buffer tmp = new Bitstream.Buffer();
 			Copy(tmp, source);
 
 			while (tmp.BitsLeft() > 0)
@@ -68,16 +68,16 @@ namespace Netki
 					int bits = 8 - tmp.bitpos;
 					if (bits > tmp.BitsLeft())
 						bits = tmp.BitsLeft();
-					BitstreamFast.PutBits(dest, bits, BitstreamFast.ReadBits(tmp, bits));
+					Bitstream.PutBits(dest, bits, Bitstream.ReadBits(tmp, bits));
 				}
 				if (tmp.BitsLeft() > 32)
-					BitstreamFast.PutBits(dest, 32, BitstreamFast.ReadBits(tmp, 32));
+					Bitstream.PutBits(dest, 32, Bitstream.ReadBits(tmp, 32));
 
 				int left = tmp.BitsLeft();
 				if (left >= 8)
-					BitstreamFast.PutBits(dest, 8, BitstreamFast.ReadBits(tmp, 8));
+					Bitstream.PutBits(dest, 8, Bitstream.ReadBits(tmp, 8));
 				else if (left > 0)
-					BitstreamFast.PutBits(dest, left, BitstreamFast.ReadBits(tmp, left));
+					Bitstream.PutBits(dest, left, Bitstream.ReadBits(tmp, left));
 			}
 			return true;
 		}
@@ -159,7 +159,7 @@ namespace Netki
 		public static bool PutBytes(Buffer buf, byte[] data)
 		{
             for (int i=0;i<data.Length;i++)
-                BitstreamFast.PutBits(buf, 8, data[i]);
+                Bitstream.PutBits(buf, 8, data[i]);
             return buf.error != 0;
 		}
 	
@@ -313,7 +313,7 @@ namespace Netki
 		{
 			byte[] dst = new byte[count];
             for (int i=0;i<count;i++)
-                dst[i] = (byte)BitstreamFast.ReadBits(buf, 8);
+                dst[i] = (byte)Bitstream.ReadBits(buf, 8);
 			return dst;
 		}
 
@@ -321,7 +321,7 @@ namespace Netki
 		{
 			if (value == null)
 			{
-				BitstreamFast.PutCompressedInt(buf, -1);
+				Bitstream.PutCompressedInt(buf, -1);
 				return;
 			}
 
