@@ -84,55 +84,58 @@ namespace Netki
 
 		class CheatEntry
 		{
-			public CheatEntry(byte _byteofs, byte _count, byte _s0, byte _m0, byte _s1, byte _m1, byte _s2, byte _m2, byte _s3, byte _m3, byte _s4, byte _m4)
+			public CheatEntry(byte _byteofs, byte _bitpos, byte _count, byte _s0, byte _s1, byte _s2, byte _s3, byte _s4, byte _mfirst, byte _mlast)
 			{
 				byteofs = _byteofs;
+				bitpos = _bitpos;
 				count = _count;
 				s0 = _s0;
-				m0 = _m0;
 				s1 = _s1;
-				m1 = _m1;
 				s2 = _s2;
-				m2 = _m2;
 				s3 = _s3;
-				m3 = _m3;
 				s4 = _s4;
-				m4 = _m4;
+				mfirst = _mfirst;
+				mlast = _mlast;
 			}
-			public byte byteofs, count;
-			public byte s0, m0;
-			public byte s1, m1;
-			public byte s2, m2;
-			public byte s3, m3;
-			public byte s4, m4;
+			public byte byteofs, bitpos, count;
+			public byte s0, s1;
+			public byte s2, s3;
+			public byte s4;
+			public byte mfirst, mlast;
 		}
 
-		static CheatEntry[] CheatTable = new CheatEntry[] {new CheatEntry(0,0,0,0,0,0,0,0,0,0,0,0),new CheatEntry(0,0,0,0,0,0,0,0,0,0,0,0),new CheatEntry(0,0,0,0,0,0,0,0,0,0,0,0),new CheatEntry(0,0,0,0,0,0,0,0,0,0,0,0),new CheatEntry(0,0,0,0,0,0,0,0,0,0,0,0),new CheatEntry(0,0,0,0,0,0,0,0,0,0,0,0),new CheatEntry(0,0,0,0,0,0,0,0,0,0,0,0),new CheatEntry(0,0,0,0,0,0,0,0,0,0,0,0),new CheatEntry(0,1,0,1,0,0,0,0,0,0,0,0),new CheatEntry(0,1,1,2,0,0,0,0,0,0,0,0),new CheatEntry(0,1,2,4,0,0,0,0,0,0,0,0),new CheatEntry(0,1,3,8,0,0,0,0,0,0,0,0),new CheatEntry(0,1,4,16,0,0,0,0,0,0,0,0),new CheatEntry(0,1,5,32,0,0,0,0,0,0,0,0),new CheatEntry(0,1,6,64,0,0,0,0,0,0,0,0),new CheatEntry(1,1,7,128,0,0,0,0,0,0,0,0),new CheatEntry(0,1,0,3,0,0,0,0,0,0,0,0),new CheatEntry(0,1,1,6,0,0,0,0,0,0,0,0),new CheatEntry(0,1,2,12,0,0,0,0,0,0,0,0),new CheatEntry(0,1,3,24,0,0,0,0,0,0,0,0),new CheatEntry(0,1,4,48,0,0,0,0,0,0,0,0),new CheatEntry(0,1,5,96,0,0,0,0,0,0,0,0),new CheatEntry(1,1,6,192,0,0,0,0,0,0,0,0),new CheatEntry(1,2,7,128,1,1,0,0,0,0,0,0),new CheatEntry(0,1,0,7,0,0,0,0,0,0,0,0),new CheatEntry(0,1,1,14,0,0,0,0,0,0,0,0),new CheatEntry(0,1,2,28,0,0,0,0,0,0,0,0),new CheatEntry(0,1,3,56,0,0,0,0,0,0,0,0),new CheatEntry(0,1,4,112,0,0,0,0,0,0,0,0),new CheatEntry(1,1,5,224,0,0,0,0,0,0,0,0),new CheatEntry(1,2,6,192,2,1,0,0,0,0,0,0),new CheatEntry(1,2,7,128,1,3,0,0,0,0,0,0),new CheatEntry(0,1,0,15,0,0,0,0,0,0,0,0),new CheatEntry(0,1,1,30,0,0,0,0,0,0,0,0),new CheatEntry(0,1,2,60,0,0,0,0,0,0,0,0),new CheatEntry(0,1,3,120,0,0,0,0,0,0,0,0),new CheatEntry(1,1,4,240,0,0,0,0,0,0,0,0),new CheatEntry(1,2,5,224,3,1,0,0,0,0,0,0),new CheatEntry(1,2,6,192,2,3,0,0,0,0,0,0),new CheatEntry(1,2,7,128,1,7,0,0,0,0,0,0),new CheatEntry(0,1,0,31,0,0,0,0,0,0,0,0),new CheatEntry(0,1,1,62,0,0,0,0,0,0,0,0),new CheatEntry(0,1,2,124,0,0,0,0,0,0,0,0),new CheatEntry(1,1,3,248,0,0,0,0,0,0,0,0),new CheatEntry(1,2,4,240,4,1,0,0,0,0,0,0),new CheatEntry(1,2,5,224,3,3,0,0,0,0,0,0),new CheatEntry(1,2,6,192,2,7,0,0,0,0,0,0),new CheatEntry(1,2,7,128,1,15,0,0,0,0,0,0),new CheatEntry(0,1,0,63,0,0,0,0,0,0,0,0),new CheatEntry(0,1,1,126,0,0,0,0,0,0,0,0),new CheatEntry(1,1,2,252,0,0,0,0,0,0,0,0),new CheatEntry(1,2,3,248,5,1,0,0,0,0,0,0),new CheatEntry(1,2,4,240,4,3,0,0,0,0,0,0),new CheatEntry(1,2,5,224,3,7,0,0,0,0,0,0),new CheatEntry(1,2,6,192,2,15,0,0,0,0,0,0),new CheatEntry(1,2,7,128,1,31,0,0,0,0,0,0),new CheatEntry(0,1,0,127,0,0,0,0,0,0,0,0),new CheatEntry(1,1,1,254,0,0,0,0,0,0,0,0),new CheatEntry(1,2,2,252,6,1,0,0,0,0,0,0),new CheatEntry(1,2,3,248,5,3,0,0,0,0,0,0),new CheatEntry(1,2,4,240,4,7,0,0,0,0,0,0),new CheatEntry(1,2,5,224,3,15,0,0,0,0,0,0),new CheatEntry(1,2,6,192,2,31,0,0,0,0,0,0),new CheatEntry(1,2,7,128,1,63,0,0,0,0,0,0),new CheatEntry(1,1,0,255,0,0,0,0,0,0,0,0),new CheatEntry(1,2,1,254,7,1,0,0,0,0,0,0),new CheatEntry(1,2,2,252,6,3,0,0,0,0,0,0),new CheatEntry(1,2,3,248,5,7,0,0,0,0,0,0),new CheatEntry(1,2,4,240,4,15,0,0,0,0,0,0),new CheatEntry(1,2,5,224,3,31,0,0,0,0,0,0),new CheatEntry(1,2,6,192,2,63,0,0,0,0,0,0),new CheatEntry(1,2,7,128,1,127,0,0,0,0,0,0),new CheatEntry(1,2,0,255,8,1,0,0,0,0,0,0),new CheatEntry(1,2,1,254,7,3,0,0,0,0,0,0),new CheatEntry(1,2,2,252,6,7,0,0,0,0,0,0),new CheatEntry(1,2,3,248,5,15,0,0,0,0,0,0),new CheatEntry(1,2,4,240,4,31,0,0,0,0,0,0),new CheatEntry(1,2,5,224,3,63,0,0,0,0,0,0),new CheatEntry(1,2,6,192,2,127,0,0,0,0,0,0),new CheatEntry(2,2,7,128,1,255,0,0,0,0,0,0),new CheatEntry(1,2,0,255,8,3,0,0,0,0,0,0),new CheatEntry(1,2,1,254,7,7,0,0,0,0,0,0),new CheatEntry(1,2,2,252,6,15,0,0,0,0,0,0),new CheatEntry(1,2,3,248,5,31,0,0,0,0,0,0),new CheatEntry(1,2,4,240,4,63,0,0,0,0,0,0),new CheatEntry(1,2,5,224,3,127,0,0,0,0,0,0),new CheatEntry(2,2,6,192,2,255,0,0,0,0,0,0),new CheatEntry(2,3,7,128,1,255,9,1,0,0,0,0),new CheatEntry(1,2,0,255,8,7,0,0,0,0,0,0),new CheatEntry(1,2,1,254,7,15,0,0,0,0,0,0),new CheatEntry(1,2,2,252,6,31,0,0,0,0,0,0),new CheatEntry(1,2,3,248,5,63,0,0,0,0,0,0),new CheatEntry(1,2,4,240,4,127,0,0,0,0,0,0),new CheatEntry(2,2,5,224,3,255,0,0,0,0,0,0),new CheatEntry(2,3,6,192,2,255,10,1,0,0,0,0),new CheatEntry(2,3,7,128,1,255,9,3,0,0,0,0),new CheatEntry(1,2,0,255,8,15,0,0,0,0,0,0),new CheatEntry(1,2,1,254,7,31,0,0,0,0,0,0),new CheatEntry(1,2,2,252,6,63,0,0,0,0,0,0),new CheatEntry(1,2,3,248,5,127,0,0,0,0,0,0),new CheatEntry(2,2,4,240,4,255,0,0,0,0,0,0),new CheatEntry(2,3,5,224,3,255,11,1,0,0,0,0),new CheatEntry(2,3,6,192,2,255,10,3,0,0,0,0),new CheatEntry(2,3,7,128,1,255,9,7,0,0,0,0),new CheatEntry(1,2,0,255,8,31,0,0,0,0,0,0),new CheatEntry(1,2,1,254,7,63,0,0,0,0,0,0),new CheatEntry(1,2,2,252,6,127,0,0,0,0,0,0),new CheatEntry(2,2,3,248,5,255,0,0,0,0,0,0),new CheatEntry(2,3,4,240,4,255,12,1,0,0,0,0),new CheatEntry(2,3,5,224,3,255,11,3,0,0,0,0),new CheatEntry(2,3,6,192,2,255,10,7,0,0,0,0),new CheatEntry(2,3,7,128,1,255,9,15,0,0,0,0),new CheatEntry(1,2,0,255,8,63,0,0,0,0,0,0),new CheatEntry(1,2,1,254,7,127,0,0,0,0,0,0),new CheatEntry(2,2,2,252,6,255,0,0,0,0,0,0),new CheatEntry(2,3,3,248,5,255,13,1,0,0,0,0),new CheatEntry(2,3,4,240,4,255,12,3,0,0,0,0),new CheatEntry(2,3,5,224,3,255,11,7,0,0,0,0),new CheatEntry(2,3,6,192,2,255,10,15,0,0,0,0),new CheatEntry(2,3,7,128,1,255,9,31,0,0,0,0),new CheatEntry(1,2,0,255,8,127,0,0,0,0,0,0),new CheatEntry(2,2,1,254,7,255,0,0,0,0,0,0),new CheatEntry(2,3,2,252,6,255,14,1,0,0,0,0),new CheatEntry(2,3,3,248,5,255,13,3,0,0,0,0),new CheatEntry(2,3,4,240,4,255,12,7,0,0,0,0),new CheatEntry(2,3,5,224,3,255,11,15,0,0,0,0),new CheatEntry(2,3,6,192,2,255,10,31,0,0,0,0),new CheatEntry(2,3,7,128,1,255,9,63,0,0,0,0),new CheatEntry(2,2,0,255,8,255,0,0,0,0,0,0),new CheatEntry(2,3,1,254,7,255,15,1,0,0,0,0),new CheatEntry(2,3,2,252,6,255,14,3,0,0,0,0),new CheatEntry(2,3,3,248,5,255,13,7,0,0,0,0),new CheatEntry(2,3,4,240,4,255,12,15,0,0,0,0),new CheatEntry(2,3,5,224,3,255,11,31,0,0,0,0),new CheatEntry(2,3,6,192,2,255,10,63,0,0,0,0),new CheatEntry(2,3,7,128,1,255,9,127,0,0,0,0),new CheatEntry(2,3,0,255,8,255,16,1,0,0,0,0),new CheatEntry(2,3,1,254,7,255,15,3,0,0,0,0),new CheatEntry(2,3,2,252,6,255,14,7,0,0,0,0),new CheatEntry(2,3,3,248,5,255,13,15,0,0,0,0),new CheatEntry(2,3,4,240,4,255,12,31,0,0,0,0),new CheatEntry(2,3,5,224,3,255,11,63,0,0,0,0),new CheatEntry(2,3,6,192,2,255,10,127,0,0,0,0),new CheatEntry(3,3,7,128,1,255,9,255,0,0,0,0),new CheatEntry(2,3,0,255,8,255,16,3,0,0,0,0),new CheatEntry(2,3,1,254,7,255,15,7,0,0,0,0),new CheatEntry(2,3,2,252,6,255,14,15,0,0,0,0),new CheatEntry(2,3,3,248,5,255,13,31,0,0,0,0),new CheatEntry(2,3,4,240,4,255,12,63,0,0,0,0),new CheatEntry(2,3,5,224,3,255,11,127,0,0,0,0),new CheatEntry(3,3,6,192,2,255,10,255,0,0,0,0),new CheatEntry(3,4,7,128,1,255,9,255,17,1,0,0),new CheatEntry(2,3,0,255,8,255,16,7,0,0,0,0),new CheatEntry(2,3,1,254,7,255,15,15,0,0,0,0),new CheatEntry(2,3,2,252,6,255,14,31,0,0,0,0),new CheatEntry(2,3,3,248,5,255,13,63,0,0,0,0),new CheatEntry(2,3,4,240,4,255,12,127,0,0,0,0),new CheatEntry(3,3,5,224,3,255,11,255,0,0,0,0),new CheatEntry(3,4,6,192,2,255,10,255,18,1,0,0),new CheatEntry(3,4,7,128,1,255,9,255,17,3,0,0),new CheatEntry(2,3,0,255,8,255,16,15,0,0,0,0),new CheatEntry(2,3,1,254,7,255,15,31,0,0,0,0),new CheatEntry(2,3,2,252,6,255,14,63,0,0,0,0),new CheatEntry(2,3,3,248,5,255,13,127,0,0,0,0),new CheatEntry(3,3,4,240,4,255,12,255,0,0,0,0),new CheatEntry(3,4,5,224,3,255,11,255,19,1,0,0),new CheatEntry(3,4,6,192,2,255,10,255,18,3,0,0),new CheatEntry(3,4,7,128,1,255,9,255,17,7,0,0),new CheatEntry(2,3,0,255,8,255,16,31,0,0,0,0),new CheatEntry(2,3,1,254,7,255,15,63,0,0,0,0),new CheatEntry(2,3,2,252,6,255,14,127,0,0,0,0),new CheatEntry(3,3,3,248,5,255,13,255,0,0,0,0),new CheatEntry(3,4,4,240,4,255,12,255,20,1,0,0),new CheatEntry(3,4,5,224,3,255,11,255,19,3,0,0),new CheatEntry(3,4,6,192,2,255,10,255,18,7,0,0),new CheatEntry(3,4,7,128,1,255,9,255,17,15,0,0),new CheatEntry(2,3,0,255,8,255,16,63,0,0,0,0),new CheatEntry(2,3,1,254,7,255,15,127,0,0,0,0),new CheatEntry(3,3,2,252,6,255,14,255,0,0,0,0),new CheatEntry(3,4,3,248,5,255,13,255,21,1,0,0),new CheatEntry(3,4,4,240,4,255,12,255,20,3,0,0),new CheatEntry(3,4,5,224,3,255,11,255,19,7,0,0),new CheatEntry(3,4,6,192,2,255,10,255,18,15,0,0),new CheatEntry(3,4,7,128,1,255,9,255,17,31,0,0),new CheatEntry(2,3,0,255,8,255,16,127,0,0,0,0),new CheatEntry(3,3,1,254,7,255,15,255,0,0,0,0),new CheatEntry(3,4,2,252,6,255,14,255,22,1,0,0),new CheatEntry(3,4,3,248,5,255,13,255,21,3,0,0),new CheatEntry(3,4,4,240,4,255,12,255,20,7,0,0),new CheatEntry(3,4,5,224,3,255,11,255,19,15,0,0),new CheatEntry(3,4,6,192,2,255,10,255,18,31,0,0),new CheatEntry(3,4,7,128,1,255,9,255,17,63,0,0),new CheatEntry(3,3,0,255,8,255,16,255,0,0,0,0),new CheatEntry(3,4,1,254,7,255,15,255,23,1,0,0),new CheatEntry(3,4,2,252,6,255,14,255,22,3,0,0),new CheatEntry(3,4,3,248,5,255,13,255,21,7,0,0),new CheatEntry(3,4,4,240,4,255,12,255,20,15,0,0),new CheatEntry(3,4,5,224,3,255,11,255,19,31,0,0),new CheatEntry(3,4,6,192,2,255,10,255,18,63,0,0),new CheatEntry(3,4,7,128,1,255,9,255,17,127,0,0),new CheatEntry(3,4,0,255,8,255,16,255,24,1,0,0),new CheatEntry(3,4,1,254,7,255,15,255,23,3,0,0),new CheatEntry(3,4,2,252,6,255,14,255,22,7,0,0),new CheatEntry(3,4,3,248,5,255,13,255,21,15,0,0),new CheatEntry(3,4,4,240,4,255,12,255,20,31,0,0),new CheatEntry(3,4,5,224,3,255,11,255,19,63,0,0),new CheatEntry(3,4,6,192,2,255,10,255,18,127,0,0),new CheatEntry(4,4,7,128,1,255,9,255,17,255,0,0),new CheatEntry(3,4,0,255,8,255,16,255,24,3,0,0),new CheatEntry(3,4,1,254,7,255,15,255,23,7,0,0),new CheatEntry(3,4,2,252,6,255,14,255,22,15,0,0),new CheatEntry(3,4,3,248,5,255,13,255,21,31,0,0),new CheatEntry(3,4,4,240,4,255,12,255,20,63,0,0),new CheatEntry(3,4,5,224,3,255,11,255,19,127,0,0),new CheatEntry(4,4,6,192,2,255,10,255,18,255,0,0),new CheatEntry(4,5,7,128,1,255,9,255,17,255,25,1),new CheatEntry(3,4,0,255,8,255,16,255,24,7,0,0),new CheatEntry(3,4,1,254,7,255,15,255,23,15,0,0),new CheatEntry(3,4,2,252,6,255,14,255,22,31,0,0),new CheatEntry(3,4,3,248,5,255,13,255,21,63,0,0),new CheatEntry(3,4,4,240,4,255,12,255,20,127,0,0),new CheatEntry(4,4,5,224,3,255,11,255,19,255,0,0),new CheatEntry(4,5,6,192,2,255,10,255,18,255,26,1),new CheatEntry(4,5,7,128,1,255,9,255,17,255,25,3),new CheatEntry(3,4,0,255,8,255,16,255,24,15,0,0),new CheatEntry(3,4,1,254,7,255,15,255,23,31,0,0),new CheatEntry(3,4,2,252,6,255,14,255,22,63,0,0),new CheatEntry(3,4,3,248,5,255,13,255,21,127,0,0),new CheatEntry(4,4,4,240,4,255,12,255,20,255,0,0),new CheatEntry(4,5,5,224,3,255,11,255,19,255,27,1),new CheatEntry(4,5,6,192,2,255,10,255,18,255,26,3),new CheatEntry(4,5,7,128,1,255,9,255,17,255,25,7),new CheatEntry(3,4,0,255,8,255,16,255,24,31,0,0),new CheatEntry(3,4,1,254,7,255,15,255,23,63,0,0),new CheatEntry(3,4,2,252,6,255,14,255,22,127,0,0),new CheatEntry(4,4,3,248,5,255,13,255,21,255,0,0),new CheatEntry(4,5,4,240,4,255,12,255,20,255,28,1),new CheatEntry(4,5,5,224,3,255,11,255,19,255,27,3),new CheatEntry(4,5,6,192,2,255,10,255,18,255,26,7),new CheatEntry(4,5,7,128,1,255,9,255,17,255,25,15),new CheatEntry(3,4,0,255,8,255,16,255,24,63,0,0),new CheatEntry(3,4,1,254,7,255,15,255,23,127,0,0),new CheatEntry(4,4,2,252,6,255,14,255,22,255,0,0),new CheatEntry(4,5,3,248,5,255,13,255,21,255,29,1),new CheatEntry(4,5,4,240,4,255,12,255,20,255,28,3),new CheatEntry(4,5,5,224,3,255,11,255,19,255,27,7),new CheatEntry(4,5,6,192,2,255,10,255,18,255,26,15),new CheatEntry(4,5,7,128,1,255,9,255,17,255,25,31),new CheatEntry(3,4,0,255,8,255,16,255,24,127,0,0),new CheatEntry(4,4,1,254,7,255,15,255,23,255,0,0),new CheatEntry(4,5,2,252,6,255,14,255,22,255,30,1),new CheatEntry(4,5,3,248,5,255,13,255,21,255,29,3),new CheatEntry(4,5,4,240,4,255,12,255,20,255,28,7),new CheatEntry(4,5,5,224,3,255,11,255,19,255,27,15),new CheatEntry(4,5,6,192,2,255,10,255,18,255,26,31),new CheatEntry(4,5,7,128,1,255,9,255,17,255,25,63),new CheatEntry(4,4,0,255,8,255,16,255,24,255,0,0),new CheatEntry(4,5,1,254,7,255,15,255,23,255,31,1),new CheatEntry(4,5,2,252,6,255,14,255,22,255,30,3),new CheatEntry(4,5,3,248,5,255,13,255,21,255,29,7),new CheatEntry(4,5,4,240,4,255,12,255,20,255,28,15),new CheatEntry(4,5,5,224,3,255,11,255,19,255,27,31),new CheatEntry(4,5,6,192,2,255,10,255,18,255,26,63),new CheatEntry(4,5,7,128,1,255,9,255,17,255,25,127)};
+		static CheatEntry[] CheatTable = new CheatEntry[] {new CheatEntry(0,0,0,0,0,0,0,0,0,0),new CheatEntry(0,1,0,0,0,0,0,0,0,0),new CheatEntry(0,2,0,0,0,0,0,0,0,0),new CheatEntry(0,3,0,0,0,0,0,0,0,0),new CheatEntry(0,4,0,0,0,0,0,0,0,0),new CheatEntry(0,5,0,0,0,0,0,0,0,0),new CheatEntry(0,6,0,0,0,0,0,0,0,0),new CheatEntry(0,7,0,0,0,0,0,0,0,0),new CheatEntry(0,1,1,0,0,0,0,0,1,1),new CheatEntry(0,2,1,1,0,0,0,0,2,2),new CheatEntry(0,3,1,2,0,0,0,0,4,4),new CheatEntry(0,4,1,3,0,0,0,0,8,8),new CheatEntry(0,5,1,4,0,0,0,0,16,16),new CheatEntry(0,6,1,5,0,0,0,0,32,32),new CheatEntry(0,7,1,6,0,0,0,0,64,64),new CheatEntry(1,0,1,7,0,0,0,0,128,128),new CheatEntry(0,2,1,0,0,0,0,0,3,3),new CheatEntry(0,3,1,1,0,0,0,0,6,6),new CheatEntry(0,4,1,2,0,0,0,0,12,12),new CheatEntry(0,5,1,3,0,0,0,0,24,24),new CheatEntry(0,6,1,4,0,0,0,0,48,48),new CheatEntry(0,7,1,5,0,0,0,0,96,96),new CheatEntry(1,0,1,6,0,0,0,0,192,192),new CheatEntry(1,1,2,7,1,0,0,0,128,1),new CheatEntry(0,3,1,0,0,0,0,0,7,7),new CheatEntry(0,4,1,1,0,0,0,0,14,14),new CheatEntry(0,5,1,2,0,0,0,0,28,28),new CheatEntry(0,6,1,3,0,0,0,0,56,56),new CheatEntry(0,7,1,4,0,0,0,0,112,112),new CheatEntry(1,0,1,5,0,0,0,0,224,224),new CheatEntry(1,1,2,6,2,0,0,0,192,1),new CheatEntry(1,2,2,7,1,0,0,0,128,3),new CheatEntry(0,4,1,0,0,0,0,0,15,15),new CheatEntry(0,5,1,1,0,0,0,0,30,30),new CheatEntry(0,6,1,2,0,0,0,0,60,60),new CheatEntry(0,7,1,3,0,0,0,0,120,120),new CheatEntry(1,0,1,4,0,0,0,0,240,240),new CheatEntry(1,1,2,5,3,0,0,0,224,1),new CheatEntry(1,2,2,6,2,0,0,0,192,3),new CheatEntry(1,3,2,7,1,0,0,0,128,7),new CheatEntry(0,5,1,0,0,0,0,0,31,31),new CheatEntry(0,6,1,1,0,0,0,0,62,62),new CheatEntry(0,7,1,2,0,0,0,0,124,124),new CheatEntry(1,0,1,3,0,0,0,0,248,248),new CheatEntry(1,1,2,4,4,0,0,0,240,1),new CheatEntry(1,2,2,5,3,0,0,0,224,3),new CheatEntry(1,3,2,6,2,0,0,0,192,7),new CheatEntry(1,4,2,7,1,0,0,0,128,15),new CheatEntry(0,6,1,0,0,0,0,0,63,63),new CheatEntry(0,7,1,1,0,0,0,0,126,126),new CheatEntry(1,0,1,2,0,0,0,0,252,252),new CheatEntry(1,1,2,3,5,0,0,0,248,1),new CheatEntry(1,2,2,4,4,0,0,0,240,3),new CheatEntry(1,3,2,5,3,0,0,0,224,7),new CheatEntry(1,4,2,6,2,0,0,0,192,15),new CheatEntry(1,5,2,7,1,0,0,0,128,31),new CheatEntry(0,7,1,0,0,0,0,0,127,127),new CheatEntry(1,0,1,1,0,0,0,0,254,254),new CheatEntry(1,1,2,2,6,0,0,0,252,1),new CheatEntry(1,2,2,3,5,0,0,0,248,3),new CheatEntry(1,3,2,4,4,0,0,0,240,7),new CheatEntry(1,4,2,5,3,0,0,0,224,15),new CheatEntry(1,5,2,6,2,0,0,0,192,31),new CheatEntry(1,6,2,7,1,0,0,0,128,63),new CheatEntry(1,0,1,0,0,0,0,0,255,255),new CheatEntry(1,1,2,1,7,0,0,0,254,1),new CheatEntry(1,2,2,2,6,0,0,0,252,3),new CheatEntry(1,3,2,3,5,0,0,0,248,7),new CheatEntry(1,4,2,4,4,0,0,0,240,15),new CheatEntry(1,5,2,5,3,0,0,0,224,31),new CheatEntry(1,6,2,6,2,0,0,0,192,63),new CheatEntry(1,7,2,7,1,0,0,0,128,127),new CheatEntry(1,1,2,0,8,0,0,0,255,1),new CheatEntry(1,2,2,1,7,0,0,0,254,3),new CheatEntry(1,3,2,2,6,0,0,0,252,7),new CheatEntry(1,4,2,3,5,0,0,0,248,15),new CheatEntry(1,5,2,4,4,0,0,0,240,31),new CheatEntry(1,6,2,5,3,0,0,0,224,63),new CheatEntry(1,7,2,6,2,0,0,0,192,127),new CheatEntry(2,0,2,7,1,0,0,0,128,255),new CheatEntry(1,2,2,0,8,0,0,0,255,3),new CheatEntry(1,3,2,1,7,0,0,0,254,7),new CheatEntry(1,4,2,2,6,0,0,0,252,15),new CheatEntry(1,5,2,3,5,0,0,0,248,31),new CheatEntry(1,6,2,4,4,0,0,0,240,63),new CheatEntry(1,7,2,5,3,0,0,0,224,127),new CheatEntry(2,0,2,6,2,0,0,0,192,255),new CheatEntry(2,1,3,7,1,9,0,0,128,1),new CheatEntry(1,3,2,0,8,0,0,0,255,7),new CheatEntry(1,4,2,1,7,0,0,0,254,15),new CheatEntry(1,5,2,2,6,0,0,0,252,31),new CheatEntry(1,6,2,3,5,0,0,0,248,63),new CheatEntry(1,7,2,4,4,0,0,0,240,127),new CheatEntry(2,0,2,5,3,0,0,0,224,255),new CheatEntry(2,1,3,6,2,10,0,0,192,1),new CheatEntry(2,2,3,7,1,9,0,0,128,3),new CheatEntry(1,4,2,0,8,0,0,0,255,15),new CheatEntry(1,5,2,1,7,0,0,0,254,31),new CheatEntry(1,6,2,2,6,0,0,0,252,63),new CheatEntry(1,7,2,3,5,0,0,0,248,127),new CheatEntry(2,0,2,4,4,0,0,0,240,255),new CheatEntry(2,1,3,5,3,11,0,0,224,1),new CheatEntry(2,2,3,6,2,10,0,0,192,3),new CheatEntry(2,3,3,7,1,9,0,0,128,7),new CheatEntry(1,5,2,0,8,0,0,0,255,31),new CheatEntry(1,6,2,1,7,0,0,0,254,63),new CheatEntry(1,7,2,2,6,0,0,0,252,127),new CheatEntry(2,0,2,3,5,0,0,0,248,255),new CheatEntry(2,1,3,4,4,12,0,0,240,1),new CheatEntry(2,2,3,5,3,11,0,0,224,3),new CheatEntry(2,3,3,6,2,10,0,0,192,7),new CheatEntry(2,4,3,7,1,9,0,0,128,15),new CheatEntry(1,6,2,0,8,0,0,0,255,63),new CheatEntry(1,7,2,1,7,0,0,0,254,127),new CheatEntry(2,0,2,2,6,0,0,0,252,255),new CheatEntry(2,1,3,3,5,13,0,0,248,1),new CheatEntry(2,2,3,4,4,12,0,0,240,3),new CheatEntry(2,3,3,5,3,11,0,0,224,7),new CheatEntry(2,4,3,6,2,10,0,0,192,15),new CheatEntry(2,5,3,7,1,9,0,0,128,31),new CheatEntry(1,7,2,0,8,0,0,0,255,127),new CheatEntry(2,0,2,1,7,0,0,0,254,255),new CheatEntry(2,1,3,2,6,14,0,0,252,1),new CheatEntry(2,2,3,3,5,13,0,0,248,3),new CheatEntry(2,3,3,4,4,12,0,0,240,7),new CheatEntry(2,4,3,5,3,11,0,0,224,15),new CheatEntry(2,5,3,6,2,10,0,0,192,31),new CheatEntry(2,6,3,7,1,9,0,0,128,63),new CheatEntry(2,0,2,0,8,0,0,0,255,255),new CheatEntry(2,1,3,1,7,15,0,0,254,1),new CheatEntry(2,2,3,2,6,14,0,0,252,3),new CheatEntry(2,3,3,3,5,13,0,0,248,7),new CheatEntry(2,4,3,4,4,12,0,0,240,15),new CheatEntry(2,5,3,5,3,11,0,0,224,31),new CheatEntry(2,6,3,6,2,10,0,0,192,63),new CheatEntry(2,7,3,7,1,9,0,0,128,127),new CheatEntry(2,1,3,0,8,16,0,0,255,1),new CheatEntry(2,2,3,1,7,15,0,0,254,3),new CheatEntry(2,3,3,2,6,14,0,0,252,7),new CheatEntry(2,4,3,3,5,13,0,0,248,15),new CheatEntry(2,5,3,4,4,12,0,0,240,31),new CheatEntry(2,6,3,5,3,11,0,0,224,63),new CheatEntry(2,7,3,6,2,10,0,0,192,127),new CheatEntry(3,0,3,7,1,9,0,0,128,255),new CheatEntry(2,2,3,0,8,16,0,0,255,3),new CheatEntry(2,3,3,1,7,15,0,0,254,7),new CheatEntry(2,4,3,2,6,14,0,0,252,15),new CheatEntry(2,5,3,3,5,13,0,0,248,31),new CheatEntry(2,6,3,4,4,12,0,0,240,63),new CheatEntry(2,7,3,5,3,11,0,0,224,127),new CheatEntry(3,0,3,6,2,10,0,0,192,255),new CheatEntry(3,1,4,7,1,9,17,0,128,1),new CheatEntry(2,3,3,0,8,16,0,0,255,7),new CheatEntry(2,4,3,1,7,15,0,0,254,15),new CheatEntry(2,5,3,2,6,14,0,0,252,31),new CheatEntry(2,6,3,3,5,13,0,0,248,63),new CheatEntry(2,7,3,4,4,12,0,0,240,127),new CheatEntry(3,0,3,5,3,11,0,0,224,255),new CheatEntry(3,1,4,6,2,10,18,0,192,1),new CheatEntry(3,2,4,7,1,9,17,0,128,3),new CheatEntry(2,4,3,0,8,16,0,0,255,15),new CheatEntry(2,5,3,1,7,15,0,0,254,31),new CheatEntry(2,6,3,2,6,14,0,0,252,63),new CheatEntry(2,7,3,3,5,13,0,0,248,127),new CheatEntry(3,0,3,4,4,12,0,0,240,255),new CheatEntry(3,1,4,5,3,11,19,0,224,1),new CheatEntry(3,2,4,6,2,10,18,0,192,3),new CheatEntry(3,3,4,7,1,9,17,0,128,7),new CheatEntry(2,5,3,0,8,16,0,0,255,31),new CheatEntry(2,6,3,1,7,15,0,0,254,63),new CheatEntry(2,7,3,2,6,14,0,0,252,127),new CheatEntry(3,0,3,3,5,13,0,0,248,255),new CheatEntry(3,1,4,4,4,12,20,0,240,1),new CheatEntry(3,2,4,5,3,11,19,0,224,3),new CheatEntry(3,3,4,6,2,10,18,0,192,7),new CheatEntry(3,4,4,7,1,9,17,0,128,15),new CheatEntry(2,6,3,0,8,16,0,0,255,63),new CheatEntry(2,7,3,1,7,15,0,0,254,127),new CheatEntry(3,0,3,2,6,14,0,0,252,255),new CheatEntry(3,1,4,3,5,13,21,0,248,1),new CheatEntry(3,2,4,4,4,12,20,0,240,3),new CheatEntry(3,3,4,5,3,11,19,0,224,7),new CheatEntry(3,4,4,6,2,10,18,0,192,15),new CheatEntry(3,5,4,7,1,9,17,0,128,31),new CheatEntry(2,7,3,0,8,16,0,0,255,127),new CheatEntry(3,0,3,1,7,15,0,0,254,255),new CheatEntry(3,1,4,2,6,14,22,0,252,1),new CheatEntry(3,2,4,3,5,13,21,0,248,3),new CheatEntry(3,3,4,4,4,12,20,0,240,7),new CheatEntry(3,4,4,5,3,11,19,0,224,15),new CheatEntry(3,5,4,6,2,10,18,0,192,31),new CheatEntry(3,6,4,7,1,9,17,0,128,63),new CheatEntry(3,0,3,0,8,16,0,0,255,255),new CheatEntry(3,1,4,1,7,15,23,0,254,1),new CheatEntry(3,2,4,2,6,14,22,0,252,3),new CheatEntry(3,3,4,3,5,13,21,0,248,7),new CheatEntry(3,4,4,4,4,12,20,0,240,15),new CheatEntry(3,5,4,5,3,11,19,0,224,31),new CheatEntry(3,6,4,6,2,10,18,0,192,63),new CheatEntry(3,7,4,7,1,9,17,0,128,127),new CheatEntry(3,1,4,0,8,16,24,0,255,1),new CheatEntry(3,2,4,1,7,15,23,0,254,3),new CheatEntry(3,3,4,2,6,14,22,0,252,7),new CheatEntry(3,4,4,3,5,13,21,0,248,15),new CheatEntry(3,5,4,4,4,12,20,0,240,31),new CheatEntry(3,6,4,5,3,11,19,0,224,63),new CheatEntry(3,7,4,6,2,10,18,0,192,127),new CheatEntry(4,0,4,7,1,9,17,0,128,255),new CheatEntry(3,2,4,0,8,16,24,0,255,3),new CheatEntry(3,3,4,1,7,15,23,0,254,7),new CheatEntry(3,4,4,2,6,14,22,0,252,15),new CheatEntry(3,5,4,3,5,13,21,0,248,31),new CheatEntry(3,6,4,4,4,12,20,0,240,63),new CheatEntry(3,7,4,5,3,11,19,0,224,127),new CheatEntry(4,0,4,6,2,10,18,0,192,255),new CheatEntry(4,1,5,7,1,9,17,25,128,1),new CheatEntry(3,3,4,0,8,16,24,0,255,7),new CheatEntry(3,4,4,1,7,15,23,0,254,15),new CheatEntry(3,5,4,2,6,14,22,0,252,31),new CheatEntry(3,6,4,3,5,13,21,0,248,63),new CheatEntry(3,7,4,4,4,12,20,0,240,127),new CheatEntry(4,0,4,5,3,11,19,0,224,255),new CheatEntry(4,1,5,6,2,10,18,26,192,1),new CheatEntry(4,2,5,7,1,9,17,25,128,3),new CheatEntry(3,4,4,0,8,16,24,0,255,15),new CheatEntry(3,5,4,1,7,15,23,0,254,31),new CheatEntry(3,6,4,2,6,14,22,0,252,63),new CheatEntry(3,7,4,3,5,13,21,0,248,127),new CheatEntry(4,0,4,4,4,12,20,0,240,255),new CheatEntry(4,1,5,5,3,11,19,27,224,1),new CheatEntry(4,2,5,6,2,10,18,26,192,3),new CheatEntry(4,3,5,7,1,9,17,25,128,7),new CheatEntry(3,5,4,0,8,16,24,0,255,31),new CheatEntry(3,6,4,1,7,15,23,0,254,63),new CheatEntry(3,7,4,2,6,14,22,0,252,127),new CheatEntry(4,0,4,3,5,13,21,0,248,255),new CheatEntry(4,1,5,4,4,12,20,28,240,1),new CheatEntry(4,2,5,5,3,11,19,27,224,3),new CheatEntry(4,3,5,6,2,10,18,26,192,7),new CheatEntry(4,4,5,7,1,9,17,25,128,15),new CheatEntry(3,6,4,0,8,16,24,0,255,63),new CheatEntry(3,7,4,1,7,15,23,0,254,127),new CheatEntry(4,0,4,2,6,14,22,0,252,255),new CheatEntry(4,1,5,3,5,13,21,29,248,1),new CheatEntry(4,2,5,4,4,12,20,28,240,3),new CheatEntry(4,3,5,5,3,11,19,27,224,7),new CheatEntry(4,4,5,6,2,10,18,26,192,15),new CheatEntry(4,5,5,7,1,9,17,25,128,31),new CheatEntry(3,7,4,0,8,16,24,0,255,127),new CheatEntry(4,0,4,1,7,15,23,0,254,255),new CheatEntry(4,1,5,2,6,14,22,30,252,1),new CheatEntry(4,2,5,3,5,13,21,29,248,3),new CheatEntry(4,3,5,4,4,12,20,28,240,7),new CheatEntry(4,4,5,5,3,11,19,27,224,15),new CheatEntry(4,5,5,6,2,10,18,26,192,31),new CheatEntry(4,6,5,7,1,9,17,25,128,63),new CheatEntry(4,0,4,0,8,16,24,0,255,255),new CheatEntry(4,1,5,1,7,15,23,31,254,1),new CheatEntry(4,2,5,2,6,14,22,30,252,3),new CheatEntry(4,3,5,3,5,13,21,29,248,7),new CheatEntry(4,4,5,4,4,12,20,28,240,15),new CheatEntry(4,5,5,5,3,11,19,27,224,31),new CheatEntry(4,6,5,6,2,10,18,26,192,63),new CheatEntry(4,7,5,7,1,9,17,25,128,127)};
 
-		public static void PutBitsU(Buffer buf, int bits, UInt32 value)
+		public static void PutBitsJumpU(Buffer buf, int bits, UInt32 value)
 		{
 			CheatEntry ce = CheatTable[bits * 8 + buf.bitpos];
-			byte first = (byte)(((byte)value << ce.s0) & ce.m0);
 			int dpos = buf.bytepos;
 			byte[] data = buf.buf;
-			byte old = 0;
-			if (buf.bitpos != 0)
-				old = data[dpos];
-			buf.bitpos = (int)((buf.bitpos + bits) & 7);
-			buf.bytepos = buf.bytepos + ce.byteofs;
-			data[dpos] = (byte)(old | first);
-			if (ce.count == 1)
-				return;
-			data[dpos+1] = (byte)((value >> ce.s1) & ce.m1);
+			buf.bitpos = ce.bitpos;
+			buf.bytepos = dpos + ce.byteofs;
+			data[dpos] = (byte)(data[dpos] | ((value << ce.s0) & ce.mfirst));
 			if (ce.count == 2)
-				return;
-			data[dpos+2] = (byte)((value >> ce.s2) & ce.m2);
-			if (ce.count == 3)
-				return;
-			data[dpos+3] = (byte)((value >> ce.s3) & ce.m3);
-			if (ce.count == 4)
-				return;
-			data[dpos+4] = (byte)((value >> ce.s4) & ce.m4);
+			{
+				data[dpos+1] = (byte)((value >> ce.s1) & ce.mlast);
+			}
+			else if (ce.count == 3)
+			{
+				data[dpos+1] = (byte)(value >> ce.s1);
+				data[dpos+2] = (byte)((value >> ce.s2) & ce.mlast);
+			}
+			else if (ce.count == 4)
+			{
+				data[dpos+1] = (byte)(value >> ce.s1);
+				data[dpos+2] = (byte)(value >> ce.s2);
+				data[dpos+3] = (byte)((value >> ce.s3) & ce.mlast);
+			}
+			else if (ce.count == 5)
+			{
+				data[dpos+1] = (byte)(value >> ce.s1);
+				data[dpos+2] = (byte)(value >> ce.s2);
+				data[dpos+3] = (byte)(value >> ce.s3);
+				data[dpos+4] = (byte)((value >> ce.s4) & ce.mlast);
+			}
 		}
 
 		public static bool PutBits(Buffer buf, int bits, UInt32 value)
@@ -143,7 +146,7 @@ namespace Netki
 				return false;
 			}
 
-			PutBitsU(buf, bits, value);
+			PutBitsJumpU(buf, bits, value);
 			return true;
 		}
 
@@ -269,28 +272,35 @@ namespace Netki
 				buf.error = 1;
 				return 0;
 			}
-
 			CheatEntry ce = CheatTable[bits * 8 + buf.bitpos];
-			uint value = 0;
-
 			int dpos = buf.bytepos;
 			byte[] data = buf.buf;
-			buf.bitpos = (int)((buf.bitpos + bits) & 7);
-			buf.bytepos = buf.bytepos + ce.byteofs;
-
-			value = ((uint)data[dpos] & ce.m0) >> ce.s0;
-			if (ce.count == 1)
-				return value;
-			value = value | ((uint)(data[dpos+1] & ce.m1) << ce.s1);
+			buf.bitpos = ce.bitpos;
+			buf.bytepos = dpos + ce.byteofs;
+			uint value = ((uint)data[dpos] & ce.mfirst) >> ce.s0;
 			if (ce.count == 2)
-				return value;
-			value = value | ((uint)(data[dpos+2] & ce.m2) << ce.s2);
-			if (ce.count == 3)
-				return value;
-			value = value | ((uint)(data[dpos+3] & ce.m3) << ce.s3);
-			if (ce.count == 4)
-				return value;
-			return value | ((uint)(data[dpos+4] & ce.m4) << ce.s4);
+			{ 
+				return value | ((uint)(data[dpos+1] & ce.mlast) << ce.s1);
+			}
+			else if (ce.count == 3)
+			{ 
+				return value | ((uint)(data[dpos+1]) << ce.s1)
+				             | ((uint)(data[dpos+2] & ce.mlast) << ce.s2);
+			}
+			else if (ce.count == 4)
+			{ 
+				return value | ((uint)(data[dpos+1]) << ce.s1)
+				             | ((uint)(data[dpos+2]) << ce.s2)
+				             | ((uint)(data[dpos+3] & ce.mlast) << ce.s3);
+			}
+			else if (ce.count == 5)
+			{ 
+				return value | ((uint)(data[dpos+1]) << ce.s1)
+				             | ((uint)(data[dpos+2]) << ce.s2)
+				             | ((uint)(data[dpos+3]) << ce.s3)
+				             | ((uint)(data[dpos+4] & ce.mlast) << ce.s4);
+			}
+			return value;
 		}
 
 		public static byte[] ReadBytes(Buffer buf, int count)
