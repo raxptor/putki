@@ -111,9 +111,15 @@ namespace Netki
 			CheatEntry ce = CheatTable[bits * 8 + buf.bitpos];
 			int dpos = buf.bytepos;
 			byte[] data = buf.buf;
+			
+			if (buf.bitpos != 0)
+				data[dpos] = (byte)(data[dpos] | ((value << ce.s0) & ce.mfirst));
+			else
+				data[dpos] = (byte)((value << ce.s0) & ce.mfirst);
+
 			buf.bitpos = ce.bitpos;
 			buf.bytepos = dpos + ce.byteofs;
-			data[dpos] = (byte)(data[dpos] | ((value << ce.s0) & ce.mfirst));
+
 			if (ce.count == 2)
 			{
 				data[dpos+1] = (byte)((value >> ce.s1) & ce.mlast);
