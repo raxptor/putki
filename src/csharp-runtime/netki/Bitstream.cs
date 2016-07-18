@@ -4,8 +4,6 @@ namespace Netki
 {
 	public static class Bitstream
 	{
-		public static UInt32[] s_bitmask = new UInt32[] {0x00, 0x1, 0x3, 0x7, 0xf, 0x1f, 0x3f, 0x7f, 0xff};
-
 		public class Buffer
 		{
 			public byte[] buf;
@@ -84,46 +82,68 @@ namespace Netki
 			return true;
 		}
 
-		public static void PutBitU(Buffer buf, UInt32 value)
+		class CheatEntry
 		{
-			UInt32 bit = (value & 1) << buf.bitpos;
-			UInt32 mask = s_bitmask[buf.bitpos];
-			UInt32 old = buf.buf[buf.bytepos];
-			buf.buf[buf.bytepos] = (byte)((old & mask) | bit);
+			public CheatEntry(byte _byteofs, byte _bitpos, byte _count, byte _s0, byte _s1, byte _s2, byte _s3, byte _s4, byte _mfirst, byte _mlast)
+			{
+				byteofs = _byteofs;
+				bitpos = _bitpos;
+				count = _count;
+				s0 = _s0;
+				s1 = _s1;
+				s2 = _s2;
+				s3 = _s3;
+				s4 = _s4;
+				mfirst = _mfirst;
+				mlast = _mlast;
+			}
+			public byte byteofs, bitpos, count;
+			public byte s0, s1;
+			public byte s2, s3;
+			public byte s4;
+			public byte mfirst, mlast;
 		}
 
-		public static void PutBitsMax8U(Buffer buf, int bits, UInt32 value)
+		static CheatEntry[] CheatTable = new CheatEntry[] {new CheatEntry(0,0,0,0,0,0,0,0,0,0),new CheatEntry(0,1,0,0,0,0,0,0,0,0),new CheatEntry(0,2,0,0,0,0,0,0,0,0),new CheatEntry(0,3,0,0,0,0,0,0,0,0),new CheatEntry(0,4,0,0,0,0,0,0,0,0),new CheatEntry(0,5,0,0,0,0,0,0,0,0),new CheatEntry(0,6,0,0,0,0,0,0,0,0),new CheatEntry(0,7,0,0,0,0,0,0,0,0),new CheatEntry(0,1,1,0,0,0,0,0,1,1),new CheatEntry(0,2,1,1,0,0,0,0,2,2),new CheatEntry(0,3,1,2,0,0,0,0,4,4),new CheatEntry(0,4,1,3,0,0,0,0,8,8),new CheatEntry(0,5,1,4,0,0,0,0,16,16),new CheatEntry(0,6,1,5,0,0,0,0,32,32),new CheatEntry(0,7,1,6,0,0,0,0,64,64),new CheatEntry(1,0,1,7,0,0,0,0,128,128),new CheatEntry(0,2,1,0,0,0,0,0,3,3),new CheatEntry(0,3,1,1,0,0,0,0,6,6),new CheatEntry(0,4,1,2,0,0,0,0,12,12),new CheatEntry(0,5,1,3,0,0,0,0,24,24),new CheatEntry(0,6,1,4,0,0,0,0,48,48),new CheatEntry(0,7,1,5,0,0,0,0,96,96),new CheatEntry(1,0,1,6,0,0,0,0,192,192),new CheatEntry(1,1,2,7,1,0,0,0,128,1),new CheatEntry(0,3,1,0,0,0,0,0,7,7),new CheatEntry(0,4,1,1,0,0,0,0,14,14),new CheatEntry(0,5,1,2,0,0,0,0,28,28),new CheatEntry(0,6,1,3,0,0,0,0,56,56),new CheatEntry(0,7,1,4,0,0,0,0,112,112),new CheatEntry(1,0,1,5,0,0,0,0,224,224),new CheatEntry(1,1,2,6,2,0,0,0,192,1),new CheatEntry(1,2,2,7,1,0,0,0,128,3),new CheatEntry(0,4,1,0,0,0,0,0,15,15),new CheatEntry(0,5,1,1,0,0,0,0,30,30),new CheatEntry(0,6,1,2,0,0,0,0,60,60),new CheatEntry(0,7,1,3,0,0,0,0,120,120),new CheatEntry(1,0,1,4,0,0,0,0,240,240),new CheatEntry(1,1,2,5,3,0,0,0,224,1),new CheatEntry(1,2,2,6,2,0,0,0,192,3),new CheatEntry(1,3,2,7,1,0,0,0,128,7),new CheatEntry(0,5,1,0,0,0,0,0,31,31),new CheatEntry(0,6,1,1,0,0,0,0,62,62),new CheatEntry(0,7,1,2,0,0,0,0,124,124),new CheatEntry(1,0,1,3,0,0,0,0,248,248),new CheatEntry(1,1,2,4,4,0,0,0,240,1),new CheatEntry(1,2,2,5,3,0,0,0,224,3),new CheatEntry(1,3,2,6,2,0,0,0,192,7),new CheatEntry(1,4,2,7,1,0,0,0,128,15),new CheatEntry(0,6,1,0,0,0,0,0,63,63),new CheatEntry(0,7,1,1,0,0,0,0,126,126),new CheatEntry(1,0,1,2,0,0,0,0,252,252),new CheatEntry(1,1,2,3,5,0,0,0,248,1),new CheatEntry(1,2,2,4,4,0,0,0,240,3),new CheatEntry(1,3,2,5,3,0,0,0,224,7),new CheatEntry(1,4,2,6,2,0,0,0,192,15),new CheatEntry(1,5,2,7,1,0,0,0,128,31),new CheatEntry(0,7,1,0,0,0,0,0,127,127),new CheatEntry(1,0,1,1,0,0,0,0,254,254),new CheatEntry(1,1,2,2,6,0,0,0,252,1),new CheatEntry(1,2,2,3,5,0,0,0,248,3),new CheatEntry(1,3,2,4,4,0,0,0,240,7),new CheatEntry(1,4,2,5,3,0,0,0,224,15),new CheatEntry(1,5,2,6,2,0,0,0,192,31),new CheatEntry(1,6,2,7,1,0,0,0,128,63),new CheatEntry(1,0,1,0,0,0,0,0,255,255),new CheatEntry(1,1,2,1,7,0,0,0,254,1),new CheatEntry(1,2,2,2,6,0,0,0,252,3),new CheatEntry(1,3,2,3,5,0,0,0,248,7),new CheatEntry(1,4,2,4,4,0,0,0,240,15),new CheatEntry(1,5,2,5,3,0,0,0,224,31),new CheatEntry(1,6,2,6,2,0,0,0,192,63),new CheatEntry(1,7,2,7,1,0,0,0,128,127),new CheatEntry(1,1,2,0,8,0,0,0,255,1),new CheatEntry(1,2,2,1,7,0,0,0,254,3),new CheatEntry(1,3,2,2,6,0,0,0,252,7),new CheatEntry(1,4,2,3,5,0,0,0,248,15),new CheatEntry(1,5,2,4,4,0,0,0,240,31),new CheatEntry(1,6,2,5,3,0,0,0,224,63),new CheatEntry(1,7,2,6,2,0,0,0,192,127),new CheatEntry(2,0,2,7,1,0,0,0,128,255),new CheatEntry(1,2,2,0,8,0,0,0,255,3),new CheatEntry(1,3,2,1,7,0,0,0,254,7),new CheatEntry(1,4,2,2,6,0,0,0,252,15),new CheatEntry(1,5,2,3,5,0,0,0,248,31),new CheatEntry(1,6,2,4,4,0,0,0,240,63),new CheatEntry(1,7,2,5,3,0,0,0,224,127),new CheatEntry(2,0,2,6,2,0,0,0,192,255),new CheatEntry(2,1,3,7,1,9,0,0,128,1),new CheatEntry(1,3,2,0,8,0,0,0,255,7),new CheatEntry(1,4,2,1,7,0,0,0,254,15),new CheatEntry(1,5,2,2,6,0,0,0,252,31),new CheatEntry(1,6,2,3,5,0,0,0,248,63),new CheatEntry(1,7,2,4,4,0,0,0,240,127),new CheatEntry(2,0,2,5,3,0,0,0,224,255),new CheatEntry(2,1,3,6,2,10,0,0,192,1),new CheatEntry(2,2,3,7,1,9,0,0,128,3),new CheatEntry(1,4,2,0,8,0,0,0,255,15),new CheatEntry(1,5,2,1,7,0,0,0,254,31),new CheatEntry(1,6,2,2,6,0,0,0,252,63),new CheatEntry(1,7,2,3,5,0,0,0,248,127),new CheatEntry(2,0,2,4,4,0,0,0,240,255),new CheatEntry(2,1,3,5,3,11,0,0,224,1),new CheatEntry(2,2,3,6,2,10,0,0,192,3),new CheatEntry(2,3,3,7,1,9,0,0,128,7),new CheatEntry(1,5,2,0,8,0,0,0,255,31),new CheatEntry(1,6,2,1,7,0,0,0,254,63),new CheatEntry(1,7,2,2,6,0,0,0,252,127),new CheatEntry(2,0,2,3,5,0,0,0,248,255),new CheatEntry(2,1,3,4,4,12,0,0,240,1),new CheatEntry(2,2,3,5,3,11,0,0,224,3),new CheatEntry(2,3,3,6,2,10,0,0,192,7),new CheatEntry(2,4,3,7,1,9,0,0,128,15),new CheatEntry(1,6,2,0,8,0,0,0,255,63),new CheatEntry(1,7,2,1,7,0,0,0,254,127),new CheatEntry(2,0,2,2,6,0,0,0,252,255),new CheatEntry(2,1,3,3,5,13,0,0,248,1),new CheatEntry(2,2,3,4,4,12,0,0,240,3),new CheatEntry(2,3,3,5,3,11,0,0,224,7),new CheatEntry(2,4,3,6,2,10,0,0,192,15),new CheatEntry(2,5,3,7,1,9,0,0,128,31),new CheatEntry(1,7,2,0,8,0,0,0,255,127),new CheatEntry(2,0,2,1,7,0,0,0,254,255),new CheatEntry(2,1,3,2,6,14,0,0,252,1),new CheatEntry(2,2,3,3,5,13,0,0,248,3),new CheatEntry(2,3,3,4,4,12,0,0,240,7),new CheatEntry(2,4,3,5,3,11,0,0,224,15),new CheatEntry(2,5,3,6,2,10,0,0,192,31),new CheatEntry(2,6,3,7,1,9,0,0,128,63),new CheatEntry(2,0,2,0,8,0,0,0,255,255),new CheatEntry(2,1,3,1,7,15,0,0,254,1),new CheatEntry(2,2,3,2,6,14,0,0,252,3),new CheatEntry(2,3,3,3,5,13,0,0,248,7),new CheatEntry(2,4,3,4,4,12,0,0,240,15),new CheatEntry(2,5,3,5,3,11,0,0,224,31),new CheatEntry(2,6,3,6,2,10,0,0,192,63),new CheatEntry(2,7,3,7,1,9,0,0,128,127),new CheatEntry(2,1,3,0,8,16,0,0,255,1),new CheatEntry(2,2,3,1,7,15,0,0,254,3),new CheatEntry(2,3,3,2,6,14,0,0,252,7),new CheatEntry(2,4,3,3,5,13,0,0,248,15),new CheatEntry(2,5,3,4,4,12,0,0,240,31),new CheatEntry(2,6,3,5,3,11,0,0,224,63),new CheatEntry(2,7,3,6,2,10,0,0,192,127),new CheatEntry(3,0,3,7,1,9,0,0,128,255),new CheatEntry(2,2,3,0,8,16,0,0,255,3),new CheatEntry(2,3,3,1,7,15,0,0,254,7),new CheatEntry(2,4,3,2,6,14,0,0,252,15),new CheatEntry(2,5,3,3,5,13,0,0,248,31),new CheatEntry(2,6,3,4,4,12,0,0,240,63),new CheatEntry(2,7,3,5,3,11,0,0,224,127),new CheatEntry(3,0,3,6,2,10,0,0,192,255),new CheatEntry(3,1,4,7,1,9,17,0,128,1),new CheatEntry(2,3,3,0,8,16,0,0,255,7),new CheatEntry(2,4,3,1,7,15,0,0,254,15),new CheatEntry(2,5,3,2,6,14,0,0,252,31),new CheatEntry(2,6,3,3,5,13,0,0,248,63),new CheatEntry(2,7,3,4,4,12,0,0,240,127),new CheatEntry(3,0,3,5,3,11,0,0,224,255),new CheatEntry(3,1,4,6,2,10,18,0,192,1),new CheatEntry(3,2,4,7,1,9,17,0,128,3),new CheatEntry(2,4,3,0,8,16,0,0,255,15),new CheatEntry(2,5,3,1,7,15,0,0,254,31),new CheatEntry(2,6,3,2,6,14,0,0,252,63),new CheatEntry(2,7,3,3,5,13,0,0,248,127),new CheatEntry(3,0,3,4,4,12,0,0,240,255),new CheatEntry(3,1,4,5,3,11,19,0,224,1),new CheatEntry(3,2,4,6,2,10,18,0,192,3),new CheatEntry(3,3,4,7,1,9,17,0,128,7),new CheatEntry(2,5,3,0,8,16,0,0,255,31),new CheatEntry(2,6,3,1,7,15,0,0,254,63),new CheatEntry(2,7,3,2,6,14,0,0,252,127),new CheatEntry(3,0,3,3,5,13,0,0,248,255),new CheatEntry(3,1,4,4,4,12,20,0,240,1),new CheatEntry(3,2,4,5,3,11,19,0,224,3),new CheatEntry(3,3,4,6,2,10,18,0,192,7),new CheatEntry(3,4,4,7,1,9,17,0,128,15),new CheatEntry(2,6,3,0,8,16,0,0,255,63),new CheatEntry(2,7,3,1,7,15,0,0,254,127),new CheatEntry(3,0,3,2,6,14,0,0,252,255),new CheatEntry(3,1,4,3,5,13,21,0,248,1),new CheatEntry(3,2,4,4,4,12,20,0,240,3),new CheatEntry(3,3,4,5,3,11,19,0,224,7),new CheatEntry(3,4,4,6,2,10,18,0,192,15),new CheatEntry(3,5,4,7,1,9,17,0,128,31),new CheatEntry(2,7,3,0,8,16,0,0,255,127),new CheatEntry(3,0,3,1,7,15,0,0,254,255),new CheatEntry(3,1,4,2,6,14,22,0,252,1),new CheatEntry(3,2,4,3,5,13,21,0,248,3),new CheatEntry(3,3,4,4,4,12,20,0,240,7),new CheatEntry(3,4,4,5,3,11,19,0,224,15),new CheatEntry(3,5,4,6,2,10,18,0,192,31),new CheatEntry(3,6,4,7,1,9,17,0,128,63),new CheatEntry(3,0,3,0,8,16,0,0,255,255),new CheatEntry(3,1,4,1,7,15,23,0,254,1),new CheatEntry(3,2,4,2,6,14,22,0,252,3),new CheatEntry(3,3,4,3,5,13,21,0,248,7),new CheatEntry(3,4,4,4,4,12,20,0,240,15),new CheatEntry(3,5,4,5,3,11,19,0,224,31),new CheatEntry(3,6,4,6,2,10,18,0,192,63),new CheatEntry(3,7,4,7,1,9,17,0,128,127),new CheatEntry(3,1,4,0,8,16,24,0,255,1),new CheatEntry(3,2,4,1,7,15,23,0,254,3),new CheatEntry(3,3,4,2,6,14,22,0,252,7),new CheatEntry(3,4,4,3,5,13,21,0,248,15),new CheatEntry(3,5,4,4,4,12,20,0,240,31),new CheatEntry(3,6,4,5,3,11,19,0,224,63),new CheatEntry(3,7,4,6,2,10,18,0,192,127),new CheatEntry(4,0,4,7,1,9,17,0,128,255),new CheatEntry(3,2,4,0,8,16,24,0,255,3),new CheatEntry(3,3,4,1,7,15,23,0,254,7),new CheatEntry(3,4,4,2,6,14,22,0,252,15),new CheatEntry(3,5,4,3,5,13,21,0,248,31),new CheatEntry(3,6,4,4,4,12,20,0,240,63),new CheatEntry(3,7,4,5,3,11,19,0,224,127),new CheatEntry(4,0,4,6,2,10,18,0,192,255),new CheatEntry(4,1,5,7,1,9,17,25,128,1),new CheatEntry(3,3,4,0,8,16,24,0,255,7),new CheatEntry(3,4,4,1,7,15,23,0,254,15),new CheatEntry(3,5,4,2,6,14,22,0,252,31),new CheatEntry(3,6,4,3,5,13,21,0,248,63),new CheatEntry(3,7,4,4,4,12,20,0,240,127),new CheatEntry(4,0,4,5,3,11,19,0,224,255),new CheatEntry(4,1,5,6,2,10,18,26,192,1),new CheatEntry(4,2,5,7,1,9,17,25,128,3),new CheatEntry(3,4,4,0,8,16,24,0,255,15),new CheatEntry(3,5,4,1,7,15,23,0,254,31),new CheatEntry(3,6,4,2,6,14,22,0,252,63),new CheatEntry(3,7,4,3,5,13,21,0,248,127),new CheatEntry(4,0,4,4,4,12,20,0,240,255),new CheatEntry(4,1,5,5,3,11,19,27,224,1),new CheatEntry(4,2,5,6,2,10,18,26,192,3),new CheatEntry(4,3,5,7,1,9,17,25,128,7),new CheatEntry(3,5,4,0,8,16,24,0,255,31),new CheatEntry(3,6,4,1,7,15,23,0,254,63),new CheatEntry(3,7,4,2,6,14,22,0,252,127),new CheatEntry(4,0,4,3,5,13,21,0,248,255),new CheatEntry(4,1,5,4,4,12,20,28,240,1),new CheatEntry(4,2,5,5,3,11,19,27,224,3),new CheatEntry(4,3,5,6,2,10,18,26,192,7),new CheatEntry(4,4,5,7,1,9,17,25,128,15),new CheatEntry(3,6,4,0,8,16,24,0,255,63),new CheatEntry(3,7,4,1,7,15,23,0,254,127),new CheatEntry(4,0,4,2,6,14,22,0,252,255),new CheatEntry(4,1,5,3,5,13,21,29,248,1),new CheatEntry(4,2,5,4,4,12,20,28,240,3),new CheatEntry(4,3,5,5,3,11,19,27,224,7),new CheatEntry(4,4,5,6,2,10,18,26,192,15),new CheatEntry(4,5,5,7,1,9,17,25,128,31),new CheatEntry(3,7,4,0,8,16,24,0,255,127),new CheatEntry(4,0,4,1,7,15,23,0,254,255),new CheatEntry(4,1,5,2,6,14,22,30,252,1),new CheatEntry(4,2,5,3,5,13,21,29,248,3),new CheatEntry(4,3,5,4,4,12,20,28,240,7),new CheatEntry(4,4,5,5,3,11,19,27,224,15),new CheatEntry(4,5,5,6,2,10,18,26,192,31),new CheatEntry(4,6,5,7,1,9,17,25,128,63),new CheatEntry(4,0,4,0,8,16,24,0,255,255),new CheatEntry(4,1,5,1,7,15,23,31,254,1),new CheatEntry(4,2,5,2,6,14,22,30,252,3),new CheatEntry(4,3,5,3,5,13,21,29,248,7),new CheatEntry(4,4,5,4,4,12,20,28,240,15),new CheatEntry(4,5,5,5,3,11,19,27,224,31),new CheatEntry(4,6,5,6,2,10,18,26,192,63),new CheatEntry(4,7,5,7,1,9,17,25,128,127)};
+
+		public static void PutBitsJumpU(Buffer buf, int bits, UInt32 value)
 		{
-			if (buf.bitpos == 0)
-			{
-				buf.buf[buf.bytepos] = (byte)(value & s_bitmask[bits]);
-				if (bits == 8)
-					buf.bytepos++;
-				else
-					buf.bitpos = bits;
-			}
+			CheatEntry ce = CheatTable[bits * 8 + buf.bitpos];
+			int dpos = buf.bytepos;
+			byte[] data = buf.buf;
+			
+			if (buf.bitpos != 0)
+				data[dpos] = (byte)(data[dpos] | ((value << ce.s0) & ce.mfirst));
 			else
+				data[dpos] = (byte)((value << ce.s0) & ce.mfirst);
+
+			buf.bitpos = ce.bitpos;
+			buf.bytepos = dpos + ce.byteofs;
+
+			if (ce.count == 2)
 			{
-				int room = 8 - buf.bitpos;
-				if (bits <= room)
-				{
-					byte mixin = (byte)((value & s_bitmask[bits]) << buf.bitpos);
-					buf.buf[buf.bytepos] = (byte)(buf.buf[buf.bytepos] | mixin);
-					buf.bitpos += bits;
-					if (buf.bitpos == 8)
-					{
-						buf.bitpos = 0;
-						buf.bytepos++;
-					}
-				}
-				else
-				{
-					PutBitsMax8U(buf, room, value);
-					PutBitsMax8U(buf, bits - room, value >> room);
-				}
+				data[dpos+1] = (byte)((value >> ce.s1) & ce.mlast);
+			}
+			else if (ce.count == 3)
+			{
+				data[dpos+1] = (byte)(value >> ce.s1);
+				data[dpos+2] = (byte)((value >> ce.s2) & ce.mlast);
+			}
+			else if (ce.count == 4)
+			{
+				data[dpos+1] = (byte)(value >> ce.s1);
+				data[dpos+2] = (byte)(value >> ce.s2);
+				data[dpos+3] = (byte)((value >> ce.s3) & ce.mlast);
+			}
+			else if (ce.count == 5)
+			{
+				data[dpos+1] = (byte)(value >> ce.s1);
+				data[dpos+2] = (byte)(value >> ce.s2);
+				data[dpos+3] = (byte)(value >> ce.s3);
+				data[dpos+4] = (byte)((value >> ce.s4) & ce.mlast);
 			}
 		}
-		
+
 		public static bool PutBits(Buffer buf, int bits, UInt32 value)
 		{
 			if (buf.BitsLeft() < bits)
@@ -132,41 +152,7 @@ namespace Netki
 				return false;
 			}
 
-			if (bits > 8)
-			{
-				PutBitsMax8U(buf, 8, value & 0xff);
-				PutBits(buf, bits - 8, value >> 8);
-				return true;
-			}
-
-			if (buf.bitpos == 0)
-			{
-				buf.buf[buf.bytepos] = (byte)(value & s_bitmask[bits]);
-				if (bits == 8)
-					buf.bytepos++;
-				else
-					buf.bitpos = bits;
-			}
-			else
-			{
-				int room = 8 - buf.bitpos;
-				if (bits <= room)
-				{
-					byte mixin = (byte)((value & s_bitmask[bits]) << buf.bitpos);
-					buf.buf[buf.bytepos] = (byte)(buf.buf[buf.bytepos] | mixin);
-					buf.bitpos += bits;
-					if (buf.bitpos == 8)
-					{
-						buf.bitpos = 0;
-						buf.bytepos++;
-					}
-				}
-				else
-				{
-					PutBitsMax8U(buf, room, value);
-					PutBitsMax8U(buf, bits - room, value >> room);
-				}
-			}
+			PutBitsJumpU(buf, bits, value);
 			return true;
 		}
 
@@ -264,12 +250,8 @@ namespace Netki
 			if (buf.BitsLeft () < 32) {
 				return 0;
 			}
-			
-			byte[] tmp = new byte[4];
-			for (int i = 0; i != 4; i++) {
-				tmp[i] = (byte) ReadBits(buf, 8);
-			}
-
+			UInt32[] tmp = new UInt32[1];
+			tmp[0] = ReadBits(buf, 32);
 			float[] f = new float[1];
 			System.Buffer.BlockCopy(tmp, 0, f, 0, 4);
 			return f[0];
@@ -278,11 +260,10 @@ namespace Netki
 		public static void PutFloat(Buffer buf, float value)
 		{
 			float[] f = new float[1] { value };
-			byte[] v = new byte[4];
+			UInt32[] v = new UInt32[1];
 			f[0] = value;
 			System.Buffer.BlockCopy(f, 0, v, 0, 4);
-			for (int i = 0; i != 4; i++)
-				PutBits(buf, 8, v[i]);			
+			PutBits(buf, 32, v[0]);
 		}
 		
 		public static UInt32 ReadBits(Buffer buf, int bits)
@@ -292,21 +273,35 @@ namespace Netki
 				buf.error = 1;
 				return 0;
 			}
-
-			int max = 8 - buf.bitpos;
-			if (bits <= max)
-			{
-				UInt32 val = ((UInt32)(buf.buf[buf.bytepos] >> buf.bitpos)) & s_bitmask[bits];
-				buf.bitpos += bits;
-				if (buf.bitpos == 8)
-				{
-					buf.bitpos = 0;
-					buf.bytepos++;
-				}
-				return val;
+			CheatEntry ce = CheatTable[bits * 8 + buf.bitpos];
+			int dpos = buf.bytepos;
+			byte[] data = buf.buf;
+			buf.bitpos = ce.bitpos;
+			buf.bytepos = dpos + ce.byteofs;
+			uint value = ((uint)data[dpos] & ce.mfirst) >> ce.s0;
+			if (ce.count == 2)
+			{ 
+				return value | ((uint)(data[dpos+1] & ce.mlast) << ce.s1);
 			}
-
-			return ReadBits(buf, max) | (ReadBits(buf, bits - max) << max);
+			else if (ce.count == 3)
+			{ 
+				return value | ((uint)(data[dpos+1]) << ce.s1)
+				             | ((uint)(data[dpos+2] & ce.mlast) << ce.s2);
+			}
+			else if (ce.count == 4)
+			{ 
+				return value | ((uint)(data[dpos+1]) << ce.s1)
+				             | ((uint)(data[dpos+2]) << ce.s2)
+				             | ((uint)(data[dpos+3] & ce.mlast) << ce.s3);
+			}
+			else if (ce.count == 5)
+			{ 
+				return value | ((uint)(data[dpos+1]) << ce.s1)
+				             | ((uint)(data[dpos+2]) << ce.s2)
+				             | ((uint)(data[dpos+3]) << ce.s3)
+				             | ((uint)(data[dpos+4] & ce.mlast) << ce.s4);
+			}
+			return value;
 		}
 
 		public static byte[] ReadBytes(Buffer buf, int count)
