@@ -14,10 +14,6 @@ namespace Netki
 			public byte bitpos;
 			public byte error;
 
-			// This can be used for application specific pooling.
-			// It is provided as user data.
-			public byte pool; 
-
 			public void Reset()
 			{
 				error = bitpos = bitsize = 0;
@@ -45,15 +41,6 @@ namespace Netki
 				bitsize = bitpos;
 				bytepos = 0;
 				bitpos = 0;
-			}
-
-			public void Return()
-			{
-				if (pool != 0)
-				{
-					
-
-				}
 			}
 		}
 
