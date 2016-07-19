@@ -10,11 +10,9 @@ namespace Netki
 		public Bitstream.Buffer Buffer;
 	}
 
-	public interface PacketLane
-	{		
-		void Incoming(Bitstream.Buffer stream, DateTime timestamp);
-		void Send(Bitstream.Buffer stream);
-		bool Update(float dt, PacketLaneOutput outputFn, ref LanePacket incoming);
-		float ComputePacketLoss();
+	public interface BufferFactory
+	{
+		Bitstream.Buffer GetBuffer(uint minSize);
+		void ReturnBuffer(Bitstream.Buffer buf);
 	}
 }

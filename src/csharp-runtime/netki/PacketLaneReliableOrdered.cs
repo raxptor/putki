@@ -2,7 +2,7 @@ using System;
 
 namespace Netki
 {
-	public class PacketLaneReliableOrdered : PacketLane
+	public class PacketLaneReliableOrdered
 	{
 		Bitstream.Buffer[] _sent = new Bitstream.Buffer[256];
 		Bitstream.Buffer[] _recv = new Bitstream.Buffer[256];
@@ -19,14 +19,16 @@ namespace Netki
 		byte _recvPos = 0, _recvPending = 0;
 
 		uint _sentTotal = 0, _resentTotal = 0;
+		BufferFactory _bufferFactory;
 
-		public PacketLaneReliableOrdered()
+		public PacketLaneReliableOrdered(BufferFactory factory)
 		{
 			for (int i = 0; i < 256; i++)
 			{
 				_sent[i] = new Bitstream.Buffer();
 				_recv[i] = new Bitstream.Buffer();
 			}
+			_bufferFactory = factory;
 		}
 
 		public void Incoming(Bitstream.Buffer stream, DateTime timestamp)
@@ -97,8 +99,8 @@ namespace Netki
 
 			if (src != null)
 			{
-				int bytepos = src.bytepos;
-				int bitpos = src.bitpos;
+				uint bytepos = src.bytepos;
+				byte bitpos = src.bitpos;
 				Bitstream.PutBits(dest, 8, seq);
 				Bitstream.Insert(dest, src);
 				src.bytepos = bytepos;
@@ -136,7 +138,7 @@ namespace Netki
 				// If pending sends
 				if (_sendTimer[i] <= 0.0f)
 				{
-					Bitstream.Buffer buf = Bitstream.Buffer.Make(new byte[16*1024]);
+					Bitstream.Buffer buf = _bufferFactory.GetBuffer(_sent[i].bytepos + 16);
 					WrapOut(buf, _sent[i], i);
 					buf.Flip();
 					outputFn(buf);
@@ -165,7 +167,7 @@ namespace Netki
 				_ackFlushTimer += dt;
 				if (_ackFlushTimer > 0.30f * _resendTime || count > 32)
 				{
-					Bitstream.Buffer buf = Bitstream.Buffer.Make(new byte[1024]);
+					Bitstream.Buffer buf = _bufferFactory.GetBuffer(64);
 					WrapOut(buf, null, 0);
 					buf.Flip();
 					outputFn(buf);

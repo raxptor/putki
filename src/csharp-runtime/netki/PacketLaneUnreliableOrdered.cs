@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace Netki
 {
-	public class PacketLaneUnreliableOrdered : PacketLane
+	public class PacketLaneUnreliableOrdered
 	{
 		Bitstream.Buffer[] _recv = new Bitstream.Buffer[256];
 		List<Bitstream.Buffer> _send = new List<Bitstream.Buffer>();
@@ -13,11 +13,13 @@ namespace Netki
 		byte _sendPos = 0;
 		int _recvTotal = 0;
 		int _recvGaps = 0;
+		BufferFactory _bufferFactory;
 
-		public PacketLaneUnreliableOrdered()
+		public PacketLaneUnreliableOrdered(BufferFactory factory)
 		{
 			for (int i = 0; i < 256; i++)
 				_recv[i] = new Bitstream.Buffer();
+			_bufferFactory = factory;
 		}
 			
 		public void Incoming(Bitstream.Buffer stream, DateTime timestamp)
@@ -52,7 +54,7 @@ namespace Netki
 
 		public void Send(Bitstream.Buffer stream)
 		{
-			Bitstream.Buffer buf = Bitstream.Buffer.Make(new byte[stream.bytesize + 8]);
+			Bitstream.Buffer buf = _bufferFactory.GetBuffer(stream.bytesize + 8);
 			Bitstream.PutBits(buf, 8, _sendPos++);
 			Bitstream.Insert(buf, stream);
             Bitstream.SyncByte(buf);
