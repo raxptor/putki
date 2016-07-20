@@ -77,7 +77,7 @@ namespace Netki
 		public class Lane
 		{
 			// id is user data.
-			public Lane(int id, int slots)
+			public Lane(ulong id, int slots)
 			{
 				Out = new PendingOut[slots];
 				Progress = new InProgress[slots];
@@ -88,7 +88,7 @@ namespace Netki
 				ResendMs = 200;
 			}
 
-			public int Id;
+			public ulong Id;
 
 			public PendingOut[] Out;
 			public ushort OutCount;
@@ -127,6 +127,7 @@ namespace Netki
 			public Bitstream.Buffer Packet;
 			public DateTime ArrivalTime;
 			public IncomingInternal Internal;
+			public bool CanKeepData;
 		}
 
 		public struct LaneSetup
@@ -134,16 +135,29 @@ namespace Netki
 			public BufferFactory Factory;
 			public uint MaxPacketSize;
 			public uint ReservedHeaderBytes;
+			public uint MinResendTimeMs;
 		}
 
 		// This will start reading from the buffers and modify the incoming array.
 		public static void HandleIncomingPackets(LaneSetup setup, Incoming[] packets, uint packetsCount)
 		{
+			// Zero pass make own buffers.
+			for (uint i=0;i<packetsCount;i++)
+			{
+				if (!packets[i].CanKeepData)
+				{
+					Bitstream.Buffer tmp = packets[i].Packet;
+					Bitstream.Buffer copy = setup.Factory.GetBuffer((uint)tmp.buf.Length);
+					Bitstream.Insert(copy, tmp);
+					copy.Flip();
+					packets[i].Packet = copy;
+				}
+			}
+
 			// First pass extract.
-			for (int i=0;i<packets.Length;i++)
+			for (uint i=0;i<packetsCount;i++)
 			{
 				Bitstream.Buffer tmp = packets[i].Packet;
-
 				Lane lane = packets[i].Lane;
 				lane.Stats.RecvCount++;
 				lane.Stats.RecvBytes += tmp.BitsLeft() / 8;
@@ -184,18 +198,28 @@ namespace Netki
 							{								
 								if (lane.Out[j].SeqId == seqAck)
 								{
-									Console.WriteLine(lane.Id + " => Got ack " + seqAck);
 									double msLag = (packets[i].ArrivalTime - lane.Out[j].InitialSendTime).TotalMilliseconds;
 									if (msLag > 0)
 									{
 										uint ms = (uint) msLag;
 										if (ms < lane.LagMsMin || lane.LagMsMin == 0)
 										{
-											lane.LagMsMin = ms;
-											lane.ResendMs = 2 * ms;
+											if (ms >= setup.MinResendTimeMs)
+											{
+												lane.LagMsMin = ms;
+												lane.ResendMs = 2 * ms;
+											}
 										}
 									}
-									lane.Out[j].Source = null;
+
+									if (lane.Out[j].Source != null)
+									{
+										if (--lane.Out[j].Source.userdata == 0)
+										{
+											setup.Factory.ReturnBuffer(lane.Out[j].Source);
+										}
+										lane.Out[j].Source = null;
+									}
 								}
 							}
 							continue;
@@ -296,11 +320,8 @@ namespace Netki
 						lane.Stats.SendCount++;
 						if (lane.Out[j].SendTime != lane.Out[j].InitialSendTime)
 						{
-							Console.WriteLine("Aah send time " + (lane.Out[j].SendTime - lane.Out[j].InitialSendTime).TotalMilliseconds + " " + lane.ResendMs + " lag=" + lane.LagMsMin);
 							lane.Stats.SendResends++;
 						}
-
-						Console.WriteLine(lane.Id + " => send " + lane.Out[j].SeqId);
 
 						lane.Out[j].SendTime = lane.Out[j].SendTime.AddMilliseconds(lane.ResendMs);
 
@@ -318,7 +339,6 @@ namespace Netki
 							int wrote = 0;
 							for (int k=0;k<lane.AckCount && k < 4;k++)
 							{
-								Console.WriteLine(lane.Id + " + ack " + lane.Acks[k]);
 								Bitstream.PutCompressedUint(tmp, lane.Acks[k]);
 								wrote++;
 							}
@@ -388,12 +408,10 @@ namespace Netki
 					for (int k=0;k<lane.AckCount;k++)
 					{
 						Bitstream.PutCompressedUint(tmp, lane.Acks[k]);
-						Console.WriteLine(lane.Id + " + ackonly " + lane.Acks[k]);
 					}
 
 					Bitstream.PutCompressedUint(tmp, 0);
 					lane.AckCount = 0;
-
 					Bitstream.SyncByte(tmp);
 					tmp.Flip();
 					output[numOut].Data = tmp;
@@ -414,7 +432,7 @@ namespace Netki
 		}
 
 		// Will hold the buffers until they are sent
-		public static void ScheduleSend(LaneSetup setup, DateTime now, ToSend[] tosend, int count)
+		public static void ScheduleSend(LaneSetup setup, DateTime now, ToSend[] tosend, uint count)
 		{
 			for (uint i=0;i<count;i++)
 			{
@@ -457,6 +475,8 @@ namespace Netki
 						lane.Out[target].Source.Flip();
 					}
 
+					lane.Out[target].Source.userdata = 1; // refcount
+
 					lane.Out[target].Begin = 0;
 					lane.Out[target].End = tosend[i].Data.bytesize;
 					lane.Out[target].IsFinalPiece = true;
@@ -469,7 +489,7 @@ namespace Netki
 				{
 					uint segmentSize = setup.MaxPacketSize - 32 - setup.ReservedHeaderBytes;
 					uint numSegments = (uint)(((tosend[i].Data.bytesize - tosend[i].Data.bytepos) + segmentSize - 1) / segmentSize);
-					uint[] outSlots = new uint[64];
+					uint[] outSlots = new uint[256];
 					if (numSegments == 0 || numSegments > outSlots.Length)
 					{
 						continue;
@@ -508,6 +528,7 @@ namespace Netki
 						source.Flip();
 					}
 
+					source.userdata = 0;
 					uint RangeBegin = 0;
 					for (uint k=0;k<numSegments;k++)
 					{
@@ -519,6 +540,7 @@ namespace Netki
 						}
 						uint toWrite = bytesLeft < segmentSize ? bytesLeft : segmentSize;
 						uint slot = outSlots[k];
+						source.userdata++;
 						lane.Out[slot].Source = source;
 						lane.Out[slot].Begin = RangeBegin;
 						lane.Out[slot].End = RangeBegin + toWrite;
@@ -626,7 +648,6 @@ namespace Netki
 							output[numOut].SeqId = lane.Progress[idx].SeqId;
 							output[numOut].Data = lane.Progress[idx].Data;
 							output[numOut].Lane = lane;
-							Console.WriteLine(lane.Id + " dequeued done packet seq=" + lane.Progress[idx].SeqId);
 							lane.Progress[idx].SeqId = 0;
 							lane.ReliableSeq = next;
 							tail = tail + 1;

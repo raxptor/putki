@@ -13,11 +13,14 @@ namespace Netki
 			public byte bitsize;
 			public byte bitpos;
 			public byte error;
+			public uint userdata;
 
 			public void Reset()
 			{
 				error = bitpos = bitsize = 0;
+				bytepos = 0;
 				bytesize = (uint)buf.Length;
+				userdata = 0;
 				error = 0;
 			}
 
