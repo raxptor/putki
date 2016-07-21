@@ -5,7 +5,8 @@ using System.Collections.Generic;
 
 namespace Netki
 {
-	public delegate void OnDatagramDelegate(byte[] data, uint length, ulong EndPoint);
+	// Returns buffer for reading the next time.
+	public delegate byte[] OnDatagramDelegate(byte[] data, uint length, ulong EndPoint);
 
 	public class PacketDatagramServer
 	{
@@ -43,32 +44,35 @@ namespace Netki
 		private void ReadLoop()
 		{
 			EndPoint ep = new IPEndPoint(IPAddress.Any, 0);
-            try
-            {             
+			try
+			{
+				byte[] _recvBuf = new byte[4096];
     			while (true)
-    			{                
-    				byte[] _recvBuf = new byte[4096];
-    				int bytes = _listener.ReceiveFrom(_recvBuf, ref ep);
-    				if (bytes > 0)
-    				{
-    					IPEndPoint ipep = (IPEndPoint)ep;
-    					byte[] addr = ipep.Address.GetAddressBytes();
-
-    					ulong port = (uint)ipep.Port;
-    					ulong addr_portion = ((ulong)addr[3] << 24) | ((ulong)addr[2] << 16) | ((ulong)addr[1] << 8) | (ulong)addr[0];
-    					ulong endpoint = addr_portion | (port << 32);
-    					_pkt(_recvBuf, (uint)bytes, endpoint);
-    				}
+    			{
+					try
+					{
+	    				int bytes = _listener.ReceiveFrom(_recvBuf, ref ep);
+	    				if (bytes > 0)
+	    				{
+	    					IPEndPoint ipep = (IPEndPoint)ep;
+	    					byte[] addr = ipep.Address.GetAddressBytes();
+	    					ulong port = (uint)ipep.Port;
+	    					ulong addr_portion = ((ulong)addr[3] << 24) | ((ulong)addr[2] << 16) | ((ulong)addr[1] << 8) | (ulong)addr[0];
+	    					ulong endpoint = addr_portion | (port << 32);
+	    					_recvBuf = _pkt(_recvBuf, (uint)bytes, endpoint);
+						}
+					}
+					catch (SocketException)
+					{
+						// Ignore and continue...
+					}
     			}
-            }
-            catch (SocketException)
-            {
+			}
 
-            }
-            catch (ObjectDisposedException)
-            {
+			catch (ObjectDisposedException)
+			{
 
-            }
+			}
 		}
 
 		public void Send(byte[] data, int offset, int length, ulong endpoint)

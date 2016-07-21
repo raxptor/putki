@@ -19,6 +19,7 @@ namespace Netki
 			public uint Begin, End;
 			public DateTime SendTime;
 			public DateTime InitialSendTime;
+			public uint SendCount;
 		}
 
 		public struct PendingIn
@@ -318,12 +319,19 @@ namespace Netki
 					if (lane.Out[j].SendTime <= now)
 					{
 						lane.Stats.SendCount++;
-						if (lane.Out[j].SendTime != lane.Out[j].InitialSendTime)
+						lane.Out[j].SendCount++;
+						if (lane.Out[j].SendCount > 1)
 						{
 							lane.Stats.SendResends++;
 						}
 
-						lane.Out[j].SendTime = lane.Out[j].SendTime.AddMilliseconds(lane.ResendMs);
+						uint resendMsAdd = lane.Out[j].SendCount * lane.Out[j].SendCount * lane.ResendMs;
+						if (resendMsAdd > 5000)
+						{
+							resendMsAdd = 5000;
+						}
+
+						lane.Out[j].SendTime = lane.Out[j].SendTime.AddMilliseconds(resendMsAdd);
 
 						Bitstream.Buffer tmp = setup.Factory.GetBuffer(setup.MaxPacketSize);
 						tmp.bytepos = setup.ReservedHeaderBytes;
@@ -482,6 +490,7 @@ namespace Netki
 					lane.Out[target].IsFinalPiece = true;
 					lane.Out[target].SendTime = now;
 					lane.Out[target].InitialSendTime = now;
+					lane.Out[target].SendCount = 0;
 					lane.Out[target].SeqId = ++lane.OutgoingSeqUnreliable;
 					lane.Out[target].Reliable = false;
 				}
@@ -547,6 +556,7 @@ namespace Netki
 						lane.Out[slot].IsFinalPiece = k == (numSegments-1);
 						lane.Out[slot].SendTime = now;
 						lane.Out[slot].InitialSendTime = now;
+						lane.Out[slot].SendCount = 0;
 						lane.Out[slot].Reliable = true;
 						lane.Out[slot].SeqId = ++lane.OutgoingSeqReliable;
 						RangeBegin = RangeBegin + toWrite;
