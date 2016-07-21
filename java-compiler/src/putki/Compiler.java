@@ -457,7 +457,7 @@ public class Compiler
 					{
 						curStruct = new ParsedStruct();
 						curStruct.name = pieces[j];
-						curStruct.domains = 0xff;
+						curStruct.domains = DOMAIN_INPUT | DOMAIN_OUTPUT;
 						curStruct.fields = new ArrayList<ParsedField>();
 						curStruct.permitAsAsset = true;
 						curStruct.permitAsAux = true;
@@ -764,6 +764,7 @@ public class Compiler
 		CSharpGenerator.generateMixkiParsers(c, writer);
 		CSharpGenerator.generateOutkiStructs(c, writer);
 		CSharpGenerator.generateOutkiDataLoader(c, writer);
+		CSharpGenerator.generateNetkiStructs(c, writer);
 		JavaGenerator.generateEditorProxys(c, writer);
 		writer.write();
 	}

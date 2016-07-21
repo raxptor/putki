@@ -335,7 +335,7 @@ namespace Netki
 			return dst;
 		}
 
-		public static void PutStringDumb(Buffer buf, string value)
+		public static void PutString(Buffer buf, string value)
 		{
 			if (value == null)
 			{
@@ -348,7 +348,7 @@ namespace Netki
 			PutBytes(buf, bytes);
 		}
 
-		public static string ReadStringDumb(Buffer buf)
+		public static string ReadString(Buffer buf)
 		{
 			int len = ReadCompressedInt(buf);
 			if (len > 65536)
