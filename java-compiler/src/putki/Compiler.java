@@ -766,6 +766,7 @@ public class Compiler
 		CSharpGenerator.generateOutkiDataLoader(c, writer);
 		CSharpGenerator.generateNetkiStructs(c, writer);
 		JavaGenerator.generateEditorProxys(c, writer);
+		CppGenerator.generateInkiHeader(c, writer);
 		writer.write();
 	}
 }
