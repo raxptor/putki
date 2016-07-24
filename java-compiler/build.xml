@@ -1,0 +1,35 @@
+<project name="com.rarh.putki-compiler" default="dist" basedir=".">
+  <description>
+  	Putked
+  </description>
+    
+  <property name="build" location="build"/>
+  <property name="dist"  location="dist"/>
+
+  <target name="init">
+    <tstamp/>
+    <mkdir dir="${build}"/>
+  </target>
+
+  <target name="compile" depends="init">
+    <javac destdir="${build}" includeantruntime="false">
+    <classpath>
+      <pathelement path="${classpath}" />
+    </classpath>
+    <src path="src" />
+    </javac>
+  </target>
+  <target name="dist" depends="compile">
+    <mkdir dir="${dist}" />
+    <jar jarfile="${dist}/putki-compiler.jar" basedir="${build}">
+      <manifest>
+        <attribute name="Main-Class" value="putki.Compiler"/>
+      </manifest>    
+    </jar>
+  </target>
+
+  <target name="clean">
+    <delete dir="${build}"/>
+    <delete dir="${dist}"/>
+  </target>
+</project>
