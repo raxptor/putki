@@ -1,0 +1,4 @@
+BuildConfigTest
+{
+	string BuildName [build-config]
+}

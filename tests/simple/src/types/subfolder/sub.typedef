@@ -1,0 +1,7 @@
+TestStructSub
+{
+	int NotUsed = 666
+	string DefValue = "1234"
+	string NoDefValue
+	string[] Strings
+}

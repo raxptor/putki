@@ -1,0 +1,10 @@
+{
+	"type": "BuildConfigTest",
+	"data": {
+		"BuildName": "",
+		"BuildNameFirstConfig": "First Config",
+		"BuildNameSecondConfig": "Second Config"
+	},
+	"aux": [
+	]
+}

@@ -1,6 +1,7 @@
-solution "Tools"
+solution "Test"
 
     configurations {"Release"}
+    platforms {"x64"}
 
     flags { "Symbols" }
 
@@ -22,7 +23,8 @@ solution "Tools"
     -- Putki must always come first   --
     ------------------------------------
 
-    dofile "../../libs.lua"
+    dofile "../../runtime/premake.lua"
+	dofile "../../builder/premake.lua"
 
     project "test-putki-lib"
         language "C++"
@@ -44,3 +46,12 @@ solution "Tools"
         
         putki_use_builder_lib()
         putki_typedefs_builder("src/types", false)
+
+    project "test-runtime"
+        kind "ConsoleApp"
+        language "C++"
+        targetname "test-runtime"
+        files { "src/runtime/main.cpp" }
+        putki_use_runtime_lib()
+        putki_typedefs_runtime("src/types", true)
+

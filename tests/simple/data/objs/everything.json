@@ -5,21 +5,24 @@
 		"T2": "test-arrays",
 		"T3": "triply-nested",
 		"VPtr": "",
+		"RootStructs": ["subsubstruct",
+		"root1"],
 		"VAuxPtr": "#roz9h",
 		"VTInline": {
 			"A": 3.4,
 			"B": 199,
 			"Text": "This is value type in C#",
 			"DummyPtr": "dummy2"
-		}
+		},
+		"BuildConfiguration": "buildconfig"
 	},
 	"aux": [
 		{
 			"ref": "#roz9h",
 			"type": "TestValueType",
 			"data": {
-				"A": 1234.5677,
-				"B": 666,
+				"A": 1,
+				"B": 0,
 				"Text": "This is a struct in C#",
 				"DummyPtr": "dummy1"
 			}

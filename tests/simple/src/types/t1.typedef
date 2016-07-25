@@ -1,6 +1,8 @@
+%include types/t2.typedef
 
 enum FineEnum
 {
+	DEFAULT = 0
 	VALUE_100 = 100
 	VALUE_500 = 500
 	SOMETHING_ELSE
@@ -9,6 +11,7 @@ enum FineEnum
 Dummy
 {
 	string Debug
+	enum FineEnum EnumValue = VALUE_100
 }
 
 TestArrays
@@ -16,6 +19,8 @@ TestArrays
 	int[] IntArray
 	string[] StringArray
 	ptr[] Dummy PtrArray
+	byte[] ByteArray
+	enum[] FineEnum EnumArray
 }
 
 TestValueType value-type
@@ -46,7 +51,17 @@ RootStruct rtti
 
 SubStruct1 : RootStruct
 {
-	string SubName
+	string SubName1
+}
+
+SubSubStruct1 : SubStruct1
+{
+	string SubName2
+}
+
+SubSubSubStruct1 : SubSubStruct1
+{
+	string SubName3
 }
 
 WithAuxes
@@ -66,19 +81,14 @@ ThreeLevelAuxes
 	auxptr[] RootStruct Single
 }
 
-TestConfig
-{
-	// These don't work now 
-	// string NameSingle [build-config]
-	// string[] NameMulti [build-config]
-}
-
 Everything
 {
 	ptr TestStructTypes T1
 	ptr TestArrays T2
 	ptr ThreeLevelAuxes T3
 	ptr TestValueType VPtr
+	ptr[] RootStruct RootStructs
 	auxptr TestValueType VAuxPtr
-	TestValueType VTInline
+	TestValueType VTInline	
+	ptr BuildConfigTest BuildConfiguration
 }

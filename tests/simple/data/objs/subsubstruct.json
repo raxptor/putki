@@ -1,0 +1,18 @@
+{
+	"type": "SubSubSubStruct1",
+	"data": {
+		"parent": {
+			"parent": {
+				"parent": {
+					"Name": "NAME",
+					"DebugName": "Debug"
+				},
+				"SubName1": "Subname1"
+			},
+			"SubName2": "Subname2"
+		},
+		"SubName3": "Subname3"
+	},
+	"aux": [
+	]
+}
