@@ -130,6 +130,43 @@ namespace Mixki
 			}
 		}
 
+		public void InsertRawData(string path, byte[] bytes)
+		{
+			MicroJson.Object file = MicroJson.Parse(bytes);
+			if (file == null)
+			{
+				Logger("Failed to load [" + path + "]");
+				return;
+			}
+
+			m_raw.Add(path, file);
+			Logger("Raw: adding main " + path);
+
+			object auxesObj;
+			file.Data.TryGetValue("aux", out auxesObj);
+			MicroJson.Array auxesArr = auxesObj as MicroJson.Array;
+			if (auxesArr != null)
+			{
+				for (int i=0;i<auxesArr.Data.Count;i++)
+				{
+					MicroJson.Object ao = auxesArr.Data[i] as MicroJson.Object;
+					if (ao == null)
+					{
+						continue;
+					}
+					object refObj;
+					if (!ao.Data.TryGetValue("ref", out refObj))
+					{
+						continue;
+					}
+					string refName = refObj.ToString();
+					string auxPath = refName.StartsWith("#") ? (path + refName) : refName;
+					Logger("Raw: adding aux " + auxPath);
+					m_raw.Add(auxPath, ao);
+				}
+			}
+		}
+
 		void Load(string path)
 		{
 			string fn = m_root;
@@ -150,43 +187,10 @@ namespace Mixki
 			fn = fn + ".json";
 
 			Logger("Opening file [" + fn + "]");
-
 			byte[] bytes = System.IO.File.ReadAllBytes(fn);
 			if (bytes != null)
 			{
-				MicroJson.Object file = MicroJson.Parse(bytes);
-				if (file == null)
-				{
-					Logger("Failed to load [" + fn + "]");
-					return;
-				}
-
-				m_raw.Add(path, file);
-				Logger("Raw: adding main " + path);
-
-				object auxesObj;
-				file.Data.TryGetValue("aux", out auxesObj);
-				MicroJson.Array auxesArr = auxesObj as MicroJson.Array;
-				if (auxesArr != null)
-				{
-					for (int i=0;i<auxesArr.Data.Count;i++)
-					{
-						MicroJson.Object ao = auxesArr.Data[i] as MicroJson.Object;
-						if (ao == null)
-						{
-							continue;
-						}
-						object refObj;
-						if (!ao.Data.TryGetValue("ref", out refObj))
-						{
-							continue;
-						}
-						string refName = refObj.ToString();
-						string auxPath = refName.StartsWith("#") ? (path + refName) : refName;
-						Logger("Raw: adding aux " + auxPath);
-						m_raw.Add(auxPath, ao);
-					}
-				}
+				InsertRawData(path, bytes);
 			}
 		}
 	}
