@@ -728,11 +728,12 @@ public class CSharpGenerator
                     	String ref = field.name;
                     	if (field.isArray)
                     	{
-                    		sb.append(spfx).append("{");
-                    		sb.append(spfx).append("Bitstream.PutCompressedUint(buf, count);");
-                    		sb.append(spfx).append("for (uint i=0;i!=count;i++)");
-                    		sb.append(spfx).append("{");
-                    		p = spfx + "\t\t";
+                    		sb.append(spfx).append("\t{");
+                    		sb.append(spfx).append("\t\tuint count = (uint)" + ref + ".Length;");
+                    		sb.append(spfx).append("\t\tBitstream.PutCompressedUint(buf, count);");
+                    		sb.append(spfx).append("\t\tfor (uint i=0;i!=count;i++)");
+                    		sb.append(spfx).append("\t\t{");
+                    		p = spfx + "\t\t\t";
                     		ref = ref + "[i]";
                     	}
 
@@ -770,7 +771,8 @@ public class CSharpGenerator
 
                     	if (field.isArray)
                     	{
-                    		sb.append(spfx).append("}");
+                    		sb.append(spfx).append("\t\t}");
+                    		sb.append(spfx).append("\t}");
                     	}
                     }
                     sb.append(spfx).append("}");
@@ -782,13 +784,13 @@ public class CSharpGenerator
                     	String ref = field.name;
                     	if (field.isArray)
                     	{
-                    		sb.append(spfx).append("{");
-                    		sb.append(spfx).append("uint count = Bitstream.ReadCompressedUint(buf);");
-                    		sb.append(spfx).append("if (buf.error != 0) count = 0;");
-                    		sb.append(spfx).append(ref + " = new " + csharpType(field, "Netki", false) + "[count]");
-                    		sb.append(spfx).append("for (uint i=0;i!=count;i++)");
-                    		sb.append(spfx).append("{");
-                    		p = spfx + "\t\t";
+                    		sb.append(spfx).append("\t{");
+                    		sb.append(spfx).append("\t\tuint count = Bitstream.ReadCompressedUint(buf);");
+                    		sb.append(spfx).append("\t\tif (buf.error != 0) count = 0;");
+                    		sb.append(spfx).append("\t\t" + ref + " = new " + csharpType(field, "Netki", false) + "[count];");
+                    		sb.append(spfx).append("\t\tfor (uint i=0;i!=count;i++)");
+                    		sb.append(spfx).append("\t\t{");
+                    		p = spfx + "\t\t\t";
                     		ref = ref + "[i]";
                     	}
 
@@ -798,7 +800,7 @@ public class CSharpGenerator
                     			sb.append(p).append(ref + " = Bitstream.ReadBits(buf, 1) == 1;");
                     			break;
                     		case BYTE:
-                    			sb.append(p).append(ref + " = Bitstream.ReadBits(buf, 8);");
+                    			sb.append(p).append(ref + " = (byte)Bitstream.ReadBits(buf, 8);");
                     			break;
                     		case FLOAT:
                     			sb.append(p).append(ref + " = Bitstream.ReadFloat(buf);");
@@ -826,7 +828,8 @@ public class CSharpGenerator
                     	}
                     	if (field.isArray)
                     	{
-                    		sb.append(spfx).append("}");
+                    		sb.append(spfx).append("\t\t}");
+                    		sb.append(spfx).append("\t}");
                     	}
                     }
                     sb.append(spfx2).append("return buf.error == 0;");
