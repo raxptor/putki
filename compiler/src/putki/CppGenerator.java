@@ -527,6 +527,8 @@ public class CppGenerator
 		if (struct.isTypeRoot)
 		{
 			sb.append(p0).append("inline int rtti_type_id() { return " + rttiField() + "; }");
+			sb.append(p0).append("template<typename T>");
+			sb.append(p0).append("inline T* exact_cast() { if (T::TYPE_ID == rtti_type_id()) return (T*)this; else return 0; }");
 		}
 
 		for (Compiler.ParsedField field : struct.fields)
@@ -1134,7 +1136,7 @@ public class CppGenerator
 
 	            for (String include : file.includes)
 	            {
-	            	sb.append("#include <outki/" + include + ".h>\n");
+	            	sb.append("#include \"" + include.replace("$PFX$", "outki/") + ".h\"\n");
 	            }
 
 	            sb.append("\n");
@@ -1199,6 +1201,9 @@ public class CppGenerator
         	{
 	        	for (Compiler.ParsedStruct struct : file.structs)
     	    	{
+                    if ((struct.domains & Compiler.DOMAIN_OUTPUT) == 0)
+                        continue;
+
     	    		String p0 = "\n\t";
     	    		String p1 = "\n\t\t";
     	    		master.append(p0).append("char* " + outkiPostBlobLoader(struct) + "(void* object, char* beg, char* end)");
@@ -1314,6 +1319,8 @@ public class CppGenerator
         	{
 	        	for (Compiler.ParsedStruct struct : file.structs)
     	    	{
+                    if ((struct.domains & Compiler.DOMAIN_OUTPUT) == 0)
+                        continue;
     	    		master.append("\n\t\t\t{" + struct.uniqueId + ", sizeof(" + structName(struct) + "), " + outkiPostBlobLoader(struct) + ", " + outkiPtrWalker(struct) + "},");
 				}
 			}
