@@ -11,14 +11,14 @@ Types
 You define your own data structures and store your input data in JSON, then get them packaged in binary for very efficient lodaing. Here is one example:
 
 ```
-Globalsettings
+GlobalSettings
 {
-	string windowtitle
-	u32 window_width
-	u32 window_height
-	ptr Texture icon
-	ptr ShaderProgram shader_solid
-	ptr ShaderProgram shader_texture
+	string WindowTitle
+	u32 WindowWidth
+	u32 WindowHeight
+	ptr Texture Icon
+	ptr ShaderProgram ShaderSolid
+	ptr ShaderProgram Shadertexture
 }
 ```
 
@@ -72,8 +72,8 @@ From the definition
 ```
 Example
 {
-   string txt
-   byte[] data
+   string Txt
+   byte[] SomeData
 }
 ```
 
@@ -83,8 +83,8 @@ would then be generated
 struct Example
 {
    const char *txt
-   unsigned char *data;
-   unsigned int data_size
+   unsigned char *some_data;
+   unsigned int some_data_size;
 }
 ```
 
