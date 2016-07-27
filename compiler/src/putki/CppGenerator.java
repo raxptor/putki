@@ -540,7 +540,14 @@ public class CppGenerator
 			if (field.isArray)
 			{
 				sb.append(p0).append(outkiArraySizeType(runtime) + " " + fieldName(field) + "_size;");
-				sb.append(p0).append(outkiFieldType(runtime, field) + "* " + fieldName(field) + ";");
+				if (runtime == null)
+				{
+					sb.append(p0).append(outkiFieldType(runtime, field) + "* " + fieldName(field) + ";");
+				}
+				else
+				{
+					sb.append(p0).append(inkiOutkiInt(runtime.ptrSize) + " " + fieldName(field) + ";");
+				}
 			}
 			else
 			{
@@ -579,6 +586,7 @@ public class CppGenerator
 				String szExpr = refIn + ".size()";
 				String outType = inkiOutkiFieldtype(runtime, field);
 				sb.append(indent).append("{");
+				sb.append(indent).append("\t" + refOut + " = 0;");
 				sb.append(indent).append("\t" + refOut + "_size = (" + outkiArraySizeType(runtime) + ")" + szExpr +";");
 				sb.append(indent).append("\t" + outType + "* outp = reinterpret_cast<" + outType + "*>(out_beg);");
 				sb.append(indent).append("\tout_beg += " + szExpr + " * sizeof(" + outType + ");");
@@ -1241,6 +1249,8 @@ public class CppGenerator
 
     	    			switch (field.type)
     	    			{
+    	    				case FILE:
+    	    				case PATH:
     	    				case STRING:
 								master.append(indent).append("beg = putki::post_blob_load_string(&" + ref + ", beg, end);");
 								break;
