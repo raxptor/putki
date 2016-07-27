@@ -285,6 +285,16 @@ public class Compiler
 					readRefType = true;
 					gotType = true;
 				}
+				else if (typeName.equals("file"))
+				{
+					next.type = FieldType.FILE;
+					gotType = true;
+				}
+				else if (typeName.equals("path"))
+				{
+					next.type = FieldType.FILE;
+					gotType = true;
+				}
 				else if (!gotType)
 				{
 					next.type = FieldType.STRUCT_INSTANCE;
@@ -308,7 +318,7 @@ public class Compiler
 			}
 			else
 			{
-				System.out.println("Unexpected token when parsing field. Line [" + line + "]");
+				System.out.println("Unexpected token when parsing field. Line [" + line + "] piece=[" + pieces[k] + "]");
 				return false;
 			}
 		}
@@ -379,9 +389,20 @@ public class Compiler
 				int lastDot = inc.lastIndexOf('.');
 				if (lastDot != -1)
 					inc = inc.substring(0, lastDot);
+				tmp.includes.add("$PFX$" + inc);
+				continue;
+			}
+
+			if (line.startsWith("#include"))
+			{
+				String inc = line.substring(9);
+				int lastDot = inc.lastIndexOf('.');
+				if (lastDot != -1)
+					inc = inc.substring(0, lastDot);
 				tmp.includes.add(inc);
 				continue;
 			}
+
 
 			if (curEnum != null || curStruct != null)
 			{
@@ -590,8 +611,6 @@ public class Compiler
 			pt.genCodeRoot = start.resolve("_gen");
 			pt.deps = new HashMap<>();
 
-			buildConfigs.add("Default");
-
 			if (lines.size() > 0 && !lines.get(0).trim().equals("version:1.0"))
 			{
 				if (lines.size() > 1)
@@ -794,6 +813,7 @@ public class Compiler
 
 	public boolean compile(Path start)
 	{
+		buildConfigs.add("Default");
 		ParsedTree root = scanModule(start);
 		if (root == null)
 			return false;

@@ -48,14 +48,46 @@ public class CppGenerator
 			upc[i] = Character.isUpperCase(input.charAt(i));
 		}
 
+		int inrow = 0;
+		for (int i=0;i<input.length();i++)
+		{
+			if (upc[i])
+			{
+				inrow++;
+			}
+			else
+			{
+				if (inrow > 2)
+				{
+					for (int k=0;k<(inrow-2);k++)
+					{
+						upc[i-2-k] = false;
+					}
+				}
+				inrow = 0;
+			}
+		}
+
+		boolean added = false;
 		for (int i=0;i<input.length();i++)
 		{
 			if (i > 0 && upc[i])
 			{
-				sb.append('_');
+				if (sb.length() > 0 && sb.charAt(sb.length()-1) != '_')
+					sb.append('_');
+			}
+			else
+			{
+				added = false;
 			}
 
 			char c = input.charAt(i);
+			if (c == '_')
+			{
+				if (sb.length() > 0 && sb.charAt(sb.length()-1) == '_')
+					continue;
+			}
+
 			if (caps)
 			{
 				sb.append(Character.toUpperCase(c));
@@ -85,7 +117,24 @@ public class CppGenerator
 
 	public static String enumValue(Compiler.EnumValue s)
 	{
-		return s.name.toUpperCase();
+		return enumValue(s.name);
+	}
+
+	public static String enumValue(String s)
+	{
+		// god help us.
+		int lower = 0;
+		int upper = 0;
+		int underscore = 0;
+		for (int i=0;i<s.length();i++)
+		{
+			if (s.charAt(i) == '_') underscore++;
+			else if (Character.isUpperCase(s.charAt(i))) upper++;
+			else if (Character.isLowerCase(s.charAt(i))) lower++;
+		}
+		if (upper > 0 && underscore > 0 && lower == 0)
+			return s;
+		return withUnderscore(s).toUpperCase();
 	}
 
 	public static String outkiNsName(Platform pf)
@@ -194,6 +243,17 @@ public class CppGenerator
 				return inkiOutkiInt(p.enumSize);
 			default:
 				return "<error>";
+		}
+	}
+
+	static String inkiOutkiFieldtype(Platform p, Compiler.ParsedField f)
+	{
+		switch (f.type)
+		{
+			case STRUCT_INSTANCE:
+				return outkiNsName(p) + "::" + structName(f.resolvedRefStruct);
+			default:
+				return inkiOutkiFieldtypePod(p, f.type);
 		}
 	}
 
@@ -372,8 +432,11 @@ public class CppGenerator
 			{
 				continue;
 			}
-
 			if (field.type == FieldType.STRUCT_INSTANCE)
+			{
+				continue;
+			}
+			if (field.isBuildConfig)
 			{
 				continue;
 			}
@@ -394,7 +457,7 @@ public class CppGenerator
 
 			if (field.type == FieldType.ENUM)
 			{
-				sb.append(p1).append(fieldName(field) + " = (" + enumName(field.resolvedEnum) + ") " + defValue + ";");
+				sb.append(p1).append(fieldName(field) + " = (" + enumName(field.resolvedEnum) + ") " + enumValue(defValue) + ";");
 			}
 			else
 			{
@@ -512,7 +575,7 @@ public class CppGenerator
 			if (field.isArray)
 			{
 				String szExpr = refIn + ".size()";
-				String outType = inkiOutkiFieldtypePod(runtime, field.type);
+				String outType = inkiOutkiFieldtype(runtime, field);
 				sb.append(indent).append("{");
 				sb.append(indent).append("\t" + refOut + "_size = (" + outkiArraySizeType(runtime) + ")" + szExpr +";");
 				sb.append(indent).append("\t" + outType + "* outp = reinterpret_cast<" + outType + "*>(out_beg);");
@@ -603,7 +666,7 @@ public class CppGenerator
 	            sb.append("\n");
 	            for (String include : file.includes)
 	            {
-	            	sb.append("#include <inki/" + include + ".h>\n");
+	            	sb.append("#include \"" + include.replace("$PFX$", "inki/") + ".h\"\n");
 	            }
 	            sb.append("\n");
 	            sb.append("namespace inki\n");
@@ -688,6 +751,9 @@ public class CppGenerator
 
             	for (Compiler.ParsedStruct struct : file.structs)
             	{
+                    if ((struct.domains & (Compiler.DOMAIN_OUTPUT | Compiler.DOMAIN_INPUT)) == 0)
+                        continue;
+
             		String sn = structName(struct);
             		String thn = "s_typeHandler" + struct.uniqueId;
             		String pfx0 = "\n\t";
@@ -725,9 +791,9 @@ public class CppGenerator
             		boolean first = true;
 	                for (Compiler.ParsedField field : struct.fields)
 	                {
-	                    if ((struct.domains & Compiler.DOMAIN_INPUT) == 0)
+	                    if (field.isBuildConfig)
 	                    {
-	                        continue;
+	                    	continue;
 	                    }
 	                    if (field.isParentField)
 	                    {
@@ -737,19 +803,29 @@ public class CppGenerator
 	                    {
 	                    	continue;
 	                    }
+
 	                    if (first)
 	                    {
             				sb.append(pfx2).append(sn + "* obj = (" + sn + "*) source;");
             				first = false;
             			}
 
-            			String indent = pfx2;
+	                	String bpfx = pfx2;
+	                	boolean has_if = false;
+	                    if ((struct.domains & Compiler.DOMAIN_OUTPUT) == 0)
+	                    {
+	                    	sb.append(bpfx).append("if (!skip_input_only) {");
+	                    	bpfx = bpfx + "\t";
+	                    	has_if = true;
+	                    }
+
+            			String indent = bpfx;
 	                    String ref = "obj->" + fieldName(field);
 
             			if (field.isArray)
             			{
-							sb.append(pfx2).append("for (size_t i=0;i<" + ref + ".size();i++)");
-							sb.append(pfx2).append("{");
+							sb.append(bpfx).append("for (size_t i=0;i<" + ref + ".size();i++)");
+							sb.append(bpfx).append("{");
 							ref = ref + "[i]";
 							indent = pfx2 + "\t";
             			}
@@ -774,12 +850,18 @@ public class CppGenerator
 
 						if (field.isArray)
             			{
-							sb.append(pfx2).append("}");
+							sb.append(bpfx).append("}");
             			}
+
+						if (has_if)
+						{
+							sb.append(pfx2).append("}");
+						}
 	                }
 
             		sb.append(pfx1).append("}");
             		sb.append(pfx1).append("void write_json(putki::db::data *ref_source, putki::instance_t source, putki::sstream & out, int indent) {");
+
             		boolean firstJson = true;
 
             		ArrayList<Compiler.ParsedField> tmp = new ArrayList<Compiler.ParsedField>();
@@ -992,10 +1074,13 @@ public class CppGenerator
             		sb.append(pfx1).append("}");
             		sb.append(pfx1).append("char* write_into_buffer(putki::runtime::descptr rt, putki::instance_t source, char *beg, char *end) {");
 
-            		for (Platform p : s_platforms)
+            		if ((struct.domains & Compiler.DOMAIN_OUTPUT) != 0)
             		{
-            			sb.append(pfx2).append("if (rt->ptr_size == " + p.ptrSize + " && rt->array_size == " + p.arraySize + " && rt->bool_size == " + p.boolSize + " && rt->enum_size == " + p.enumSize + " && rt->struct_align == " + p.structAlign + ")");
-            			sb.append(pfx2).append("\treturn " + outkiNsName(p) + "::" + writeIntoBlob(struct) + "((" + sn + "*) source, beg, end);");
+	            		for (Platform p : s_platforms)
+	            		{
+	            			sb.append(pfx2).append("if (rt->ptr_size == " + p.ptrSize + " && rt->array_size == " + p.arraySize + " && rt->bool_size == " + p.boolSize + " && rt->enum_size == " + p.enumSize + " && rt->struct_align == " + p.structAlign + ")");
+	            			sb.append(pfx2).append("\treturn " + outkiNsName(p) + "::" + writeIntoBlob(struct) + "((" + sn + "*) source, beg, end);");
+	            		}
             		}
 
             		sb.append(pfx2).append("return 0;");
@@ -1019,6 +1104,8 @@ public class CppGenerator
         	{
 	        	for (Compiler.ParsedStruct struct : file.structs)
     	    	{
+                    if ((struct.domains & (Compiler.DOMAIN_OUTPUT | Compiler.DOMAIN_INPUT)) == 0)
+                        continue;
     	    		master.append("\n\t\tputki::typereg_register(\"" + struct.name + "\", " + getTypeHandlerFn(struct) + "());");
 				}
 			}
