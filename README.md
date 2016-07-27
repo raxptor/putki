@@ -70,7 +70,7 @@ In the runtime, all the strings are no longer std::strings as in the build step,
 From the definition
 
 ```
-Example
+ExampleStruct
 {
    string Txt
    byte[] SomeData
@@ -80,7 +80,7 @@ Example
 would then be generated
 
 ```
-struct Example
+struct example_struct
 {
    const char *txt
    unsigned char *some_data;
