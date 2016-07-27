@@ -3,7 +3,7 @@ Putki
 
 ![Putki](misc/putkico-5.png)
 
-Putki - Generic data system with C++ and C# support, with Mono/GTK-based editor too.
+Putki - Generic data system with C++ and C# support, with a JavaFx based data editor.
 
 Types
 -----
