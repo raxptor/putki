@@ -163,6 +163,25 @@ public class DataLoader
 				pos++;
 				continue;
 			}
+			if (b == '\"')
+			{
+				if (!quoted)
+				{
+					quoted = true;
+					status.pos = pos + 1;
+				}
+				else
+				{
+					String value = decodeString(status.data, status.pos, pos);
+					status.pos = pos + 1;
+					status.lastValue = value;
+					return value;
+				}
+			}
+			else if (quoted)
+			{
+				continue;
+			}
 			if (b == '[')
 			{
 				status.pos = pos;
@@ -186,25 +205,6 @@ public class DataLoader
 					}
 				});
 				return null;
-			}
-			if (b == '\"')
-			{
-				if (!quoted)
-				{
-					quoted = true;
-					status.pos = pos + 1;
-				}
-				else
-				{
-					String value = decodeString(status.data, status.pos, pos);
-					status.pos = pos + 1;
-					status.lastValue = value;
-					return value;
-				}
-			}
-			else if (quoted)
-			{
-				continue;
 			}
 			if (Character.isDigit(b) || b == '.')
 			{

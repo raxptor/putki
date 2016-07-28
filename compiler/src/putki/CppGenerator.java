@@ -604,6 +604,7 @@ public class CppGenerator
 					sb.append(indent).append("putki::pack_int32_field((char*)&" + refOut + ", " + refIn + ");");
 					break;
 				case BYTE:
+				case FLOAT:
 					sb.append(indent).append(refOut + " = " + refIn + ";");
 					break;
 				case ENUM:
@@ -1043,6 +1044,9 @@ public class CppGenerator
 	                    	case PATH:
 	                    		sb.append(indent3).append(ref + " = putki::parse::get_value_string(n);");
 	                    		break;
+	                    	case FLOAT:
+	                    		sb.append(indent3).append(ref + " = atof(putki::parse::get_value_string(n));");
+	                    		break;
 	                    	case UINT32:
 	                    	case INT32:
 	                    	case BYTE:
@@ -1221,7 +1225,6 @@ public class CppGenerator
 	    			if (struct.resolvedParent != null)
 	    			{
 						master.append(p1).append("beg = " + outkiPostBlobLoader(struct.resolvedParent) + "(object, beg, end);");
-						master.append(p1).append("obj->" + rttiField() + " = " +structName(struct) + "::TYPE_ID;");
 	    			}
 
     	    		for (Compiler.ParsedField field : struct.fields)
@@ -1266,6 +1269,12 @@ public class CppGenerator
     	    				master.append(p1).append("}");
     	    			}
     	    		}
+
+    	    		if (struct.isTypeRoot || struct.resolvedParent != null)
+    	    		{
+    	    			master.append(p1).append("obj->" + rttiField() + " = " + structName(struct) + "::TYPE_ID;");
+    	    		}
+
     	    		master.append(p0).append("\treturn beg;");
     	    		master.append(p0).append("}");
     	    		master.append(p0).append("void " + outkiPtrWalker(struct) + "(void* data, putki::depwalker_i* walker)");
