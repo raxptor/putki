@@ -496,7 +496,6 @@ namespace putki
 			{
 				APP_WARNING("Failed to fetch [" << path << "] for meta data insertion")
 			}
-
 		}
 
 		struct deplist

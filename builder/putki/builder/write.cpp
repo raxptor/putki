@@ -72,48 +72,7 @@ namespace putki
 			out << "	type: "<< json_str(th->name()) << ",\n";
 			out << "	data: {\n";
 			th->write_json(ref_source, obj, out, 1);
-			out << "	},\n";
-
-			// collect all aux objects.
-			std::vector<std::string> paths;
-
-			auxwriter aw;
-			aw.th = th;
-			aw.base = obj;
-			aw.start = obj;
-			aw.ref_source = ref_source;
-			th->walk_dependencies(obj, &aw, false);
-
-			// merge
-			for (unsigned int i=0; i<aw.subpaths.size(); i++)
-				aw.paths.push_back(aw.subpaths[i]);
-
-			out << "	aux: [\n";
-			for (unsigned int i=0; i<aw.paths.size(); i++)
-			{
-				if (i > 0) {
-					out << "		,\n";
-				}
-
-				type_handler_i *th;
-				instance_t obj;
-				db::fetch(ref_source, aw.paths[i].c_str(), &th, &obj);
-
-				int sp = (int)aw.paths[i].find_first_of('#');
-
-				out << "		{\n";
-				out << "			ref: \""<< aw.paths[i].substr(sp, aw.paths[i].size() - sp) << "\",\n";
-				out << "			type: "<< json_str(th->name()) << ",\n";
-				out << "			data: {\n";
-				th->write_json(ref_source, obj, out, 4);
-				out << "			}\n";
-				out << "		}\n";
-			}
-
-			out << "	]\n";
-
-			// now all the aux
-
+			out << "	}\n";
 			out << "}\n";
 		}
 
