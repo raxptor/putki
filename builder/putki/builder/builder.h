@@ -66,15 +66,15 @@ namespace putki
 		
 		// App specific callbacks for setting up & packaging.
 		typedef void (*builder_setup_fn)(builder::data *builder);
-		typedef void (*packaging_fn)(putki::db::data *out, putki::build::packaging_config *pconf);
-		typedef void (*reporting_fn)(putki::db::data *out, putki::build::packaging_config *pconf);
+		typedef void (*packaging_fn)(putki::objstore::data *out, putki::build::packaging_config *pconf);
+		typedef void (*reporting_fn)(putki::objstore::data *out, putki::build::packaging_config *pconf);
 
 		void set_builder_configurator(builder_setup_fn fn);
 		void set_packager(packaging_fn fn);
 		void set_reporting_fn(reporting_fn fn);
 
-		void invoke_packager(putki::db::data *out, putki::build::packaging_config *pconf);
-		void invoke_reporting(putki::db::data *out, putki::build::packaging_config *pconf);
+		void invoke_packager(objstore::data* built, build::packaging_config *pconf);
+		void invoke_reporting(objstore::data *out, putki::build::packaging_config *pconf);
 
 		void write_build_db(builder::data *);
 		build_db::data *get_build_db(builder::data *);

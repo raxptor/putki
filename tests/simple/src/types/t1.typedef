@@ -81,6 +81,12 @@ ThreeLevelAuxes
 	auxptr[] RootStruct Single
 }
 
+BuiltAsset non-instantiable
+{
+	string BuildConfig
+	string OtherData
+}
+
 Everything
 {
 	ptr TestStructTypes T1
@@ -91,4 +97,7 @@ Everything
 	auxptr TestValueType VAuxPtr
 	TestValueType VTInline	
 	ptr BuildConfigTest BuildConfiguration
+	[hidden] ptr BuiltAsset Built	
 }
+
+

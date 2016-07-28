@@ -199,7 +199,7 @@ namespace putki
 		if (succ)
 		{
 			APP_DEBUG("Resolving object.")
-			build::resolve_object(db, path);
+			//build::resolve_object(db, path);
 		}
 		
 		return succ;

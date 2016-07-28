@@ -7,12 +7,13 @@ namespace putki
 {
 	namespace db { struct data; }
 	namespace build_db { struct data; }
+	namespace objstore { struct data; }
 
 	namespace package
 	{
 		struct data;
 
-		data * create(db::data *db);
+		data * create(objstore::data* store);
 		void free(data *);
 
 		// need storepath = true to be able to look it up from the package in runtime.

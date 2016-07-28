@@ -104,15 +104,15 @@ namespace putki
 			s_reporting_fn = fn;
 		}
 
-		void invoke_packager(db::data *out, build::packaging_config *pconf)
+		void invoke_packager(objstore::data* built, build::packaging_config *pconf)
 		{
 			if (s_packaging_fn)
 			{
-				s_packaging_fn(out, pconf);
+				s_packaging_fn(built, pconf);
 			}
 		}
 
-		void invoke_reporting(putki::db::data *out, putki::build::packaging_config *pconf)
+		void invoke_reporting(putki::objstore::data* out, putki::build::packaging_config *pconf)
 		{
 			if (s_reporting_fn)
 			{
@@ -284,7 +284,7 @@ namespace putki
 		{
 			// add input object to tmp
 			db::insert(ctx->tmp, path, type, obj);
-			putki::build_db::add_output(record, path, handler_version);
+			putki::build_db::add_output(record, path, handler_version, "<invalid>");
 		}
 
 		void touched_temp_resource(data *builder, const char *path)
@@ -568,10 +568,10 @@ namespace putki
 
 			for (unsigned int i=0;i<ad.aux_outs.size();i++)
 			{
-				build_db::add_output(record, ad.aux_outs[i].c_str(), default_name);
+				build_db::add_output(record, ad.aux_outs[i].c_str(), default_name, "invalid");
 			}
 
-			build_db::add_output(record, path, default_name);
+			build_db::add_output(record, path, default_name, "invalid");
 			return true;
 		}
 
@@ -761,8 +761,8 @@ namespace putki
 
 			if (!context->builder->liveupdates)
 			{
-				if (!from_cache)
-					build_db::insert_metadata(builder::get_build_db(context->builder), context->output, item->path.c_str());
+				//if (!from_cache)
+					//build_db::insert_metadata(builder::get_build_db(context->builder), context->output, item->path.c_str());
 
 				context_add_build_record_pointers(context, item->path.c_str());
 			}
@@ -864,32 +864,7 @@ namespace putki
 
 		void build_source_object(data *builder, db::data *input, db::data *tmp, db::data *output, const char *path)
 		{
-			work_item *wi = new work_item();
-			
-			if (db::exists(input, path))
-			{
-				wi->input = input;
-			}
-			else if (db::exists(tmp, path))
-			{
-				wi->input = tmp;
-			}
-			else
-			{
-				APP_WARNING("Tried to build object not in input or tmp! [" << path << "]")
-				delete wi;
-				return;
-			}
-			
-			wi->path = path;
-			
-			build_context *ctx = create_context(builder, input, tmp, output);
-			ctx->items.push_back(wi);
-			
-			context_finalize(ctx);
-			context_build(ctx);
-			build::post_build_ptr_update(input, output);
-			context_destroy(ctx);
+
 		}
 
 		const char* context_get_built_object(build_context *context, unsigned int i)

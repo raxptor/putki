@@ -59,7 +59,7 @@ namespace putki
 					if (!db::fetch(out_db, actual.c_str(), &th, ptr))
 					{
 						paths.insert(actual.c_str());
-						*ptr = db::create_unresolved_pointer(tmp_db, path);
+						*ptr = db::create_unresolved_pointer(tmp_db, actual.c_str());
 						APP_WARNING("ptr[" << (*ptr) << "] = " << actual);
 					}
 				}
@@ -84,13 +84,10 @@ namespace putki
 						APP_WARNING("ptr[" << ptr << "] already resolved?!?!");
 						return true;
 					}
-					std::string actual;
-					actual = (path[0] == '#') ? (self_path + path) : std::string(path);
-
 					putki::type_handler_i* th;
-					if (!db::fetch(db, actual.c_str(), &th, ptr))
+					if (!db::fetch(db, path, &th, ptr))
 					{
-						LoadedMapT::iterator i = loaded->find(actual.c_str());
+						LoadedMapT::iterator i = loaded->find(path);
 						if (i == loaded->end())
 						{
 							*ptr = 0;
@@ -115,7 +112,7 @@ namespace putki
 			LoadedMapT loaded;
 		};
 
-		bool process_load(load_data* ld, const char* path, type_handler_i** _th, instance_t* _obj)
+		bool process_load(load_data* ld, const char* path, type_handler_i** _th, instance_t* _obj, bool load_deps)
 		{
 			APP_DEBUG("Process load [" << path << "]");
 			if (db::fetch(ld->out_db, path, _th, _obj))
@@ -129,22 +126,27 @@ namespace putki
 				return false;
 			}
 
-			APP_DEBUG("\tprocess_load/fetch [" << path << "]");
+			objstore::object_info info;
+			if (!objstore::query_object(ld->d->store, path, &info))
+			{
+				return false;
+			}
+			
+			APP_DEBUG("\tprocess_load/fetch [" << path << "] sig = [" << info.signature << "]");
 			objstore::fetch_result fr;
-			if (!objstore::fetch_object(ld->d->store, path, &fr))
+			if (!objstore::fetch_object(ld->d->store, path, info.signature.c_str(), &fr))
 			{
 				return false;
 			}
 
 			APP_DEBUG("\tprocess_load/alloc&fill [" << path << "]");
-			resolve res;
-
 			char self[1024];
 			if (!db::base_asset_path(path, self, 1024))
 			{
 				strcpy(self, path);
 			}
 
+			resolve res;
 			res.self_path = self;
 			res.tmp_db = ld->tmp_db;
 			res.out_db = ld->out_db;
@@ -156,12 +158,15 @@ namespace putki
 			l.th = fr.th;
 			ld->loaded.insert(std::make_pair(std::string(path), l));
 
-			APP_DEBUG("\tprocess_load/load_deps(" << res.paths.size() << ") [" << path << "]");
-			std::set<std::string>::iterator i = res.paths.begin();
-			while (i != res.paths.end())
+			if (load_deps)
 			{
-				process_load(ld, i->c_str(), 0, 0);
-				i++;
+				APP_DEBUG("\tprocess_load/load_deps(" << res.paths.size() << ") [" << path << "]");
+				std::set<std::string>::iterator i = res.paths.begin();
+				while (i != res.paths.end())
+				{
+					process_load(ld, i->c_str(), 0, 0, true);
+					i++;
+				}
 			}
 
 			if (_th && _obj)
@@ -169,6 +174,30 @@ namespace putki
 				*_th = fr.th;
 				*_obj = obj;
 			}
+			return true;
+		}
+
+		bool load_into_nodeps(data* d, db::data* db, const char* path)
+		{
+			if (db::exists(db, path))
+			{
+				return true;
+			}
+
+			load_data ld;
+			ld.d = d;
+			ld.tmp_db = db;
+			ld.out_db = db;
+
+			type_handler_i* th;
+			instance_t obj;
+			if (!process_load(&ld, path, &th, &obj, false))
+			{
+				APP_WARNING("Failed to load object[" << path << "]!");
+				return false;
+			}
+
+			db::insert(db, path, th, obj);
 			return true;
 		}
 
@@ -186,7 +215,7 @@ namespace putki
 
 			type_handler_i* th;
 			instance_t obj;
-			if (!process_load(&ld, path, &th, &obj))
+			if (!process_load(&ld, path, &th, &obj, true))
 			{
 				APP_WARNING("Failed to load object[" << path << "]!");
 				return false;

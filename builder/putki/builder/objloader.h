@@ -14,6 +14,7 @@ namespace putki
 		data* create(objstore::data* store);
 		void free(data *d);
 		bool load_into(data* d, db::data* db, const char* path);
+		bool load_into_nodeps(data* d, db::data* db, const char* path);
 	}
 }
 

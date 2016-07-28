@@ -25,12 +25,12 @@ namespace putki
 			file_entry* file;
 			std::string path;
 			std::string signature;
-
+			bool cached;
 			type_handler_i* th;
 			parse::node* node;
 		};
 
-		typedef std::map<std::string, object_entry> ObjMap;
+		typedef std::multimap<std::string, object_entry> ObjMap;
 
 		struct data
 		{
@@ -45,9 +45,11 @@ namespace putki
 			struct make_unresolved : public load_resolver_i
 			{
 				db::data* db;
+				std::string base_path;
 				void resolve_pointer(instance_t *ptr, const char *path)
 				{
-					*ptr = (instance_t)db::create_unresolved_pointer(db, path);
+					std::string p = path[0] == '#' ? (base_path + path) : std::string(path);
+					*ptr = (instance_t)db::create_unresolved_pointer(db, p.c_str());
 				}
 			};
 		}
@@ -75,7 +77,21 @@ namespace putki
 			{
 				return;
 			}
-			std::string objname = fn.substr(0, pos);
+			
+			std::string fn2 = fn.substr(0, pos);
+			std::string objname;
+			bool is_cached = false;
+
+			size_t sig = fn2.find_last_of('.');
+			if (sig != std::string::npos)
+			{
+				objname = fn.substr(0, sig);
+				is_cached = true;
+			}
+			else
+			{ 
+				objname = fn2;
+			}
 
 			parse::data *pd = parse::parse(fullname);
 			if (!pd)
@@ -88,6 +104,10 @@ namespace putki
 			fe->path = fullname;
 			d->files.push_back(fe);
 
+			// clear() please.
+			db::free(d->db);
+			d->db = db::create();
+
 			parse::node *root = parse::get_root(pd);
 			std::string objtype = parse::get_value_string(parse::get_object_item(root, "type"));
 			type_handler_i *th = typereg_get_handler(objtype.c_str());
@@ -96,11 +116,13 @@ namespace putki
 				instance_t obj = th->alloc();
 				make_unresolved mur;
 				mur.db = d->db;
+				mur.base_path = objname;
 				th->fill_from_parsed(parse::get_object_item(root, "data"), obj, &mur);
 				db::insert(d->db, objname.c_str(), th, obj);
 				object_entry e;
 				e.file = fe;
 				e.path = objname;
+				e.cached = is_cached;
 				char buf[64];
 				e.signature = db::signature(d->db, objname.c_str(), buf);
 				e.node = parse::get_object_item(root, "data");
@@ -130,12 +152,14 @@ namespace putki
 						instance_t obj = th->alloc();
 						make_unresolved mur;
 						mur.db = d->db;
+						mur.base_path = objname;
 						th->fill_from_parsed(parse::get_object_item(aux_obj, "data"), obj, &mur);
 						db::insert(d->db, auxpath.c_str(), th, obj);
 						object_entry e;
 						e.file = fe;
 						e.path = auxpath;
 						e.node = parse::get_object_item(aux_obj, "data");
+						e.cached = is_cached;
 						e.th = th;
 						char buf[64];
 						e.signature = db::signature(d->db, auxpath.c_str(), buf);
@@ -170,34 +194,58 @@ namespace putki
 			delete d;
 		}
 
-		bool fetch_object(data* d, const char* path, fetch_result* result)
+		bool fetch_object(data* d, const char* path, const char* signature, fetch_result* result)
 		{
-			ObjMap::iterator i = d->objects.find(path);
-			if (i == d->objects.end())
+			std::pair<ObjMap::iterator, ObjMap::iterator> range = d->objects.equal_range(path);
+			for (ObjMap::iterator i = range.first; i != range.second; i++)
 			{
-				return false;
+				if (!strcmp(i->second.signature.c_str(), signature))
+				{
+					result->node = i->second.node;
+					result->th = i->second.th;
+					return true;
+				}
 			}
-			else
-			{
-				result->node = i->second.node;
-				result->th = i->second.th;
-				return true;
-			}
+			return false;
 		}
 
 		bool query_object(data* d, const char *path, object_info* result)
 		{
-			ObjMap::iterator i = d->objects.find(path);
-			if (i == d->objects.end())
+			std::pair<ObjMap::iterator, ObjMap::iterator> range = d->objects.equal_range(path);
+			for (ObjMap::iterator i = range.first; i != range.second; i++)
 			{
-				return false;
+				if (!i->second.cached)
+				{
+					result->signature = i->second.signature;
+					result->th = i->second.th;
+					return true;
+				}
 			}
-			else
+			return false;
+		}
+
+		bool transfer_and_uncache_into(data* dest, data* source, const char *path, const char *signature)
+		{
+			std::pair<ObjMap::iterator, ObjMap::iterator> range = source->objects.equal_range(path);
+			for (ObjMap::iterator i = range.first; i != range.second; i++)
 			{
-				result->signature = i->second.signature;
-				result->th = i->second.th;
-				return true;
+				if (i->second.cached && !strcmp(i->second.signature.c_str(), signature))
+				{
+					file_entry* f = new file_entry();
+					f->path = i->second.file->path;
+					dest->files.push_back(f);
+					object_entry oe;
+					oe.file = f;
+					oe.node = 0;
+					oe.path = path;
+					oe.cached = false;
+					oe.th = i->second.th;
+					oe.signature = signature;
+					dest->objects.insert(std::make_pair(path, oe));
+					return true;
+				}
 			}
+			return false;
 		}
 
 		bool store_object(data* d, const char *path, db::data* ref_source, type_handler_i* th, instance_t obj, const char *signature)
@@ -205,6 +253,8 @@ namespace putki
 			std::string out_path(d->root);
 			out_path.append("/objs/");
 			out_path.append(path);
+			out_path.append(".");
+			out_path.append(signature);
 			out_path.append(".json");
 			putki::sstream ts;
 			write::write_object_into_stream(ts, ref_source, th, obj);
@@ -215,9 +265,16 @@ namespace putki
 			}
 
 			std::string fn(path);
+			fn.append(".");
+			fn.append(signature);
 			fn.append(".json");
 			examine_file(out_path.c_str(), fn.c_str(), d);
-			return true;
+
+			bool succ = transfer_and_uncache_into(d, d, path, signature);
+
+			// TODO: Unresolve the pointers in 'obj' and cache it, should we happen to store and then try to load it in the same session.
+			th->free(obj);
+			return succ;
 		}
 
 		void fetch_object_free(data* d, fetch_result* result)

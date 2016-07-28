@@ -22,6 +22,7 @@ namespace putki
 
 		record *create_record(const char *input_path, const char *input_sig, const char *builder = 0);
 		
+		record *find(data *d, const char *path, const char *signature, const char *builder);
 		record *find(data *d, const char *output_path);
 		const char *get_pointer(record *r, unsigned int index);
 		const char *get_type(record *r);
@@ -34,10 +35,10 @@ namespace putki
 		void set_builder(record *r, const char *builder);
 		void set_parent(record *r, const char *parent);
 
-		void add_output(record *r, const char *output_path, const char *builder);
+		void add_output(record *r, const char *output_path, const char *builder, const char *signature);
 		void add_input_dependency(record *r, const char *dependency, const char *signature=0);
 		void add_external_resource_dependency(record *r, const char *filepath, const char *signature);
-		void insert_metadata(data *data, db::data *db, const char *path);
+		void insert_metadata(record* rec, db::data *db, const char *path);
 		void record_log(record *r, LogType type, const char *msg);
 		void flush_log(record *r);
 		
@@ -49,6 +50,7 @@ namespace putki
 		void append_extra_outputs(record *target, record *source);
 
 		const char *enum_outputs(record *r, unsigned int pos);
+		const char *get_output_signature(record *r, int index);
 
 		deplist* inputdeps_get(data *d, const char *path);
 

@@ -27,10 +27,13 @@ namespace putki
 			type_handler_i* th;
 		};
 
-		bool fetch_object(data* d, const char* path, fetch_result* result);
+		bool fetch_object(data* d, const char* path, const char* signature, fetch_result* result);
 		void fetch_object_free(data* d, fetch_result* result);
 		bool query_object(data* d, const char *path, object_info* result);
+
+		// This function will destroy the object.
 		bool store_object(data* d, const char *path, db::data* ref_source, type_handler_i* th, instance_t obj, const char *signature);
+		bool transfer_and_uncache_into(data* dest, data* source, const char *path, const char *signature);
 	}
 }
 

@@ -475,6 +475,7 @@ namespace putki
 		
 		void* client_thread(void *arg)
 		{
+			/*
 			const char *sourcepath = ".";
 			
 			thr_info *ptr = (thr_info *) arg;
@@ -795,6 +796,7 @@ namespace putki
 			db::free_and_destroy_objs(tmp_db);
 	
 			delete ptr;
+			*/
 			return 0;
 		}
 		

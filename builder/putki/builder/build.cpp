@@ -192,7 +192,6 @@ namespace putki
 			std::string package_path;
 			runtime::descptr rt;
 			build_db::data *bdb;
-			builder::build_context *context;
 			std::vector<pkg_conf> packages;
 			bool make_patch;
 		};
@@ -332,28 +331,37 @@ namespace putki
 			ptr.close();
 		}
 
-		void do_build(putki::builder::data *builder, const char *single_asset, bool make_patch)
-		{
-			sys::mutex in_db_mtx, tmp_db_mtx, out_db_mtx;
-			db::data *input = putki::db::create(0, &in_db_mtx);
-			db::data *tmp = putki::db::create(input, &tmp_db_mtx);
-			db::data *output = putki::db::create(tmp, &out_db_mtx);
+		void make_packages(runtime::descptr rt, const char* build_config, bool incremental, bool make_patch)
+		{	
+			char pfx[1024];
+			sprintf(pfx, "out/%s-%s", runtime::desc_str(rt), build_config);
 
-			load_tree_into_db(builder::obj_path(builder), input);
+			int len = strlen(pfx);
+			for (int i=0;i<len;i++)
+				pfx[i] = ::tolower(pfx[i]);
 
-			builder::build_context *ctx = builder::create_context(builder, input, tmp, output);
+			std::string prefix(pfx);
+			objstore::data *input_store = objstore::open("data/");
+			objstore::data *tmp_store = objstore::open((prefix + "/.tmp").c_str());
+			objstore::data *built_store = objstore::open((prefix + "/.built").c_str());
+			build_db::data* bdb = build_db::create((prefix + "/.builddb").c_str(), incremental);
 
-			APP_INFO("Application packager...")
-
+			builder2::config conf;
+			conf.input = input_store;
+			conf.temp = tmp_store;
+			conf.built = built_store;
+			conf.build_db = bdb;
+			conf.build_config = build_config;
+			builder2::data* builder = builder2::create(&conf);
+	
 			char pkg_path[1024];
-			sprintf(pkg_path, "%s/packages/", builder::out_path(builder));
+			sprintf(pkg_path, "%s/packages/", prefix.c_str());
 			packaging_config pconf;
 			pconf.package_path = pkg_path;
-			pconf.rt = builder::runtime(builder);
-			pconf.bdb = builder::get_build_db(builder);
-			pconf.context = ctx;
+			pconf.rt = rt;
+			pconf.bdb = bdb;
 			pconf.make_patch = make_patch;
-			putki::builder::invoke_packager(output, &pconf);
+			putki::builder::invoke_packager(built_store, &pconf);
 
 			// Required assets
 			std::set<std::string> req;
@@ -372,44 +380,15 @@ namespace putki
 			std::set<std::string>::iterator j = req.begin();
 			while (j != req.end())
 			{
-				context_add_to_build(ctx, (*j++).c_str());
+				putki::builder2::add_build_root(builder, j->c_str());
+				j++;
 			}
 
-			builder::context_finalize(ctx);
-			builder::context_build(ctx);
-
-			post_build_ptr_update(input, output);
-
-			// save built objects.
-			write_cache_json js;
-			js.path_base = builder::built_obj_path(builder);
-			js.db = output;
-			js.builder = builder;
-			for (unsigned int i=0;;i++)
-			{
-				const char *path = context_get_built_object(ctx, i);
-				if (!path)
-					break;
-
-				if (db::is_aux_path(path))
-					continue;
-				
-				type_handler_i *th;
-				instance_t obj;
-				if (db::fetch(output, path, &th, &obj, false))
-				{
-					js.record(path, th, obj);
-				}
-			}
-
-			if (js.written > 0)
-			{
-				APP_INFO("Wrote " << js.written << " JSON objects to output")
-			}
+			putki::builder2::do_build(builder, incremental);
 
 			APP_INFO("Done building. Performing reporting step.")
 
-			builder::invoke_reporting(output, &pconf);
+			builder::invoke_reporting(conf.built, &pconf);
 
 			APP_INFO("Done reporting. Writing packages")
 
@@ -419,21 +398,11 @@ namespace putki
 				putki::package::free(pconf.packages[i].pkg);
 			}
 
-			// there should be no objects outside these database now.
-			db::free_and_destroy_objs(input);
-			db::free_and_destroy_objs(tmp);
-			db::free_and_destroy_objs(output);
-			builder::context_destroy(ctx);
-		}
-
-		void full_build(putki::builder::data *builder, bool make_patch)
-		{
-			do_build(builder, 0, make_patch);
-		}
-
-		void single_build(putki::builder::data *builder, const char *single_asset)
-		{
-			do_build(builder, single_asset, false);
+			objstore::free(input_store);
+			objstore::free(tmp_store);
+			objstore::free(built_store);
+			build_db::store(bdb);
+			build_db::release(bdb);
 		}
 	}
 }
