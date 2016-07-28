@@ -1170,7 +1170,7 @@ public class CppGenerator
                         continue;
                     writeOutkiStruct(comp, null, sb, struct, "\n\t");
 					sb.append("\n\t").append("char* " + outkiPostBlobLoader(struct) + "(void* object, char* beg, char* end);");
-					sb.append("\n\t").append("void " + outkiPtrWalker(struct) + "(void* data, putki::depwalker_i* walker);");
+					sb.append("\n\t").append("void " + outkiPtrWalker(struct) + "(void* object, putki::ptrwalker_callback callback, void* user_data);");
                 }
 	            sb.append("\n}");
 	            writer.addOutput(headerFn, sb.toString().getBytes());
@@ -1245,9 +1245,25 @@ public class CppGenerator
     	    			{
     	    				master.append(p1).append(ref + " = (" + outkiFieldTypeArray(null, field) + ")beg;");
     	    				master.append(p1).append("beg += " + ref + "_size * sizeof(" + outkiFieldType(null, field) + ");");
-    	    				master.append(p1).append("for (size_t i=0;i!=" + ref + "_size;i++) {");
-    	    				ref = ref + "[i]";
-    	    				indent = indent + "\t";
+    	    				boolean doLoop = false;
+    	    				switch (field.type)
+    	    				{
+	    	    				case FILE:
+	    	    				case PATH:
+	    	    				case STRING:
+	    	    				case STRUCT_INSTANCE:
+		    	    				master.append(p1).append("for (size_t i=0;i!=" + ref + "_size;i++) {");
+		    	    				ref = ref + "[i]";
+		    	    				indent = indent + "\t";
+		    	    				doLoop = true;
+		    	    				break;
+		    	    			default:
+		    	    				break;
+    	    				}
+    	    				if (!doLoop)
+    	    				{
+    	    					continue;
+    	    				}
     	    			}
 
     	    			switch (field.type)
@@ -1277,15 +1293,16 @@ public class CppGenerator
 
     	    		master.append(p0).append("\treturn beg;");
     	    		master.append(p0).append("}");
-    	    		master.append(p0).append("void " + outkiPtrWalker(struct) + "(void* data, putki::depwalker_i* walker)");
+    	    		master.append(p0).append("void " + outkiPtrWalker(struct) + "(void* object, putki::ptrwalker_callback callback, void* user_data)");
     	    		master.append(p0).append("{");
 
-   	    			master.append(p1).append(structName(struct) + "* obj = (" + structName(struct) + "*) data;");
 	    			if (struct.resolvedParent != null)
 	    			{
-						master.append(p1).append(outkiPtrWalker(struct.resolvedParent) + "(data, walker);");
+						master.append(p1).append(outkiPtrWalker(struct.resolvedParent) + "(object, callback, user_data);");
 	    			}
 
+	    			boolean first = true;
+	    			boolean firstPtr = true;
     	    		for (Compiler.ParsedField field : struct.fields)
     	    		{
     	    			if ((field.domains & Compiler.DOMAIN_OUTPUT) == 0)
@@ -1296,9 +1313,28 @@ public class CppGenerator
     	    			{
     	    				continue;
     	    			}
+    	    			if (field.type != FieldType.STRUCT_INSTANCE && field.type != FieldType.POINTER)
+    	    			{
+    	    				continue;
+    	    			}
+	   	    			if (first)
+    	    			{
+    	    				master.append(p1).append(structName(struct) + "* obj = (" + structName(struct) + "*) object;");
+    	    				first = false;
+    	    			}
+    	    			if (field.type == FieldType.POINTER)
+    	    			{
+		   	    			if (firstPtr)
+		   	    			{
+	    	    				master.append(p1).append("putki::ptr_info info;");
+	    	    				firstPtr = false;
+		   	    			}
+	    	    			master.append(p1).append("info.walker = " + outkiPtrWalker(field.resolvedRefStruct) + ";");
+    	    			}
 
     	    			String ref = "obj->" + fieldName(field);
     	    			String indent = p1;
+
 
     	    			if (field.isArray)
     	    			{
@@ -1310,12 +1346,11 @@ public class CppGenerator
     	    			switch (field.type)
     	    			{
 							case STRUCT_INSTANCE:
-								master.append(indent).append(outkiPtrWalker(field.resolvedRefStruct) + "(&" + ref + ", walker);");
+								master.append(indent).append(outkiPtrWalker(field.resolvedRefStruct) + "(&" + ref + ", callback, user_data);");
 								break;
 							case POINTER:
-								master.append(indent).append("if (walker->pointer_pre_filter((putki::instance_t*)&" + ref + ") && " + ref + ")");
-								master.append(indent).append("\t" + outkiPtrWalker(field.resolvedRefStruct) + "(" + ref + ", walker);");
-								master.append(indent).append("walker->pointer_post((putki::instance_t*)&" + ref + ");");
+								master.append(indent).append("info.ptr = ((putki::instance_t*)&" + ref + ");");
+								master.append(indent).append("callback(&info, user_data);");
 								break;
     	    				default:
     	    					break;
