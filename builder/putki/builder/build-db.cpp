@@ -317,13 +317,6 @@ namespace putki
 
 		void add_input_dependency(record *r, const char *dependency, const char *signature)
 		{
-			// aux filter.
-			char tmp[1024];
-			if (db::base_asset_path(dependency, tmp, sizeof(tmp)))
-			{
-				dependency = tmp;
-			}
-
 			// don't add same twice.
 			for (unsigned int i=0; i<r->input_dependencies.size(); i++)
 			{
@@ -533,25 +526,30 @@ namespace putki
 			RM::iterator q = d->records.find(path);
 			if (q != d->records.end())
 			{
-				for (unsigned int i=0; i<q->second->input_dependencies.size(); i++)
-				{
-					deplist::entry e;
-					e.path = q->second->input_dependencies[i].path;
-					e.signature = q->second->input_dependencies[i].signature;
-					e.is_external_resource = false;
-					dl->entries.push_back(e);
-				}
-				for (unsigned int i=0; i<q->second->dependencies.size(); i++)
-				{
-					// file entry
-					deplist::entry e;
-					e.is_external_resource = true;
-					e.path = q->second->dependencies[i].path;
-					e.signature = q->second->dependencies[i].signature;
-					dl->entries.push_back(e);
-				}
+				return inputdeps_get(q->second);
 			}
+		}
 
+		deplist* inputdeps_get(record *r)
+		{
+			deplist *dl = new deplist();
+			for (unsigned int i=0;i<r->input_dependencies.size(); i++)
+			{
+				deplist::entry e;
+				e.path = r->input_dependencies[i].path;
+				e.signature = r->input_dependencies[i].signature;
+				e.is_external_resource = false;
+				dl->entries.push_back(e);
+			}
+			for (unsigned int i=0;i<r->dependencies.size(); i++)
+			{
+				// file entry
+				deplist::entry e;
+				e.is_external_resource = true;
+				e.path = r->dependencies[i].path;
+				e.signature = r->dependencies[i].signature;
+				dl->entries.push_back(e);
+			}
 			return dl;
 		}
 

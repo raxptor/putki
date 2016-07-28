@@ -133,6 +133,44 @@ namespace putki
 			{
 				return false;
 			}
+			build_db::deplist* dl = build_db::inputdeps_get(find);
+
+			int di = 0;
+			while (true)
+			{
+				const char* dep = build_db::deplist_path(dl, di);
+				if (!dep)
+				{
+					break;
+				}
+				if (!deplist_is_external_resource(dl, di))
+				{
+					objstore::object_info info;
+					if (objstore::query_object(d->conf.input, path, &info))
+					{
+						if (strcmp(info.signature.c_str(), build_db::deplist_signature(dl, di)))
+						{
+							APP_DEBUG("cache_check => dependency changed on input obj [" << dep << "]");
+							return false;
+						}
+					}
+					else if (objstore::query_object(d->conf.temp, path, &info))
+					{
+						if (strcmp(info.signature.c_str(), build_db::deplist_signature(dl, di)))
+						{
+							APP_DEBUG("cache_check => dependency changed on temp obj [" << dep << "]");
+							return false;
+						}
+					}
+					else
+					{
+						APP_DEBUG("cache_check => unknown input object [" << dep << "]");
+						return false;
+					}
+					APP_DEBUG("cache_check => " << dep << " still has sig " << build_db::deplist_signature(dl, di));
+				}
+				++di;
+			}
 
 			int o = 0;
 			while (true)

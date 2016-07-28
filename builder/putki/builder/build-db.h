@@ -53,7 +53,7 @@ namespace putki
 		const char *get_output_signature(record *r, int index);
 
 		deplist* inputdeps_get(data *d, const char *path);
-
+		deplist* inputdeps_get(record *r);
 		deplist* deplist_get(data *d, const char *path);
 
 		const char *deplist_entry(deplist *d, unsigned int index);
