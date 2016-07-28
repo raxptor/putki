@@ -38,7 +38,7 @@ namespace putki
 			unsigned int unresolved;
 		};
 
-		struct pkg_ptrs : public depwalker_i
+		struct pkg_ptrs
 		{
 			struct entry
 			{
@@ -48,21 +48,13 @@ namespace putki
 
 			std::vector<entry> entries;
 
-			bool pointer_pre(instance_t *ptr)
+			static void ptrwalker_callback(putki::ptr_info* info, void* user_data)
 			{
+				pkg_ptrs* th = (pkg_ptrs*)user_data;
 				entry e;
-				e.ptr = ptr;
-				e.index = *((unsigned short *)ptr);
-
-				entries.push_back(e);
-
-				// don't traverse at all.
-				return false;
-			}
-
-			void pointer_post(instance_t *ptr)
-			{
-
+				e.ptr = info->ptr;
+				e.index = *((unsigned short *)info->ptr);
+				th->entries.push_back(e);
 			}
 		};
 
@@ -296,7 +288,7 @@ namespace putki
 						}
 						else
 						{
-							record->walk_dependencies(obj_ptr, &ptrs);
+							record->walk_dependencies(obj_ptr, pkg_ptrs::ptrwalker_callback, &ptrs);
 						}
 					}
 					else if (!record)
