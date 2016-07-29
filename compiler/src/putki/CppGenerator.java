@@ -794,8 +794,6 @@ public class CppGenerator
             		else
             			sb.append(pfx1).append("type_handler_i* parent_type() { return 0; }");
             		sb.append(pfx1).append("bool in_output() { return " + ((struct.domains & Compiler.DOMAIN_OUTPUT) != 0 ? "true" : "false") + "; }");
-            		sb.append(pfx1).append("void walk_dependencies(putki::instance_t source, putki::depwalker_i *walker, bool traverse_children, bool skip_input_only, bool rtti_dispatch) {");
-            		sb.append(pfx1).append("}");
             		sb.append(pfx1).append("void query_pointers(putki::instance_t source, putki::ptr_query_result* result, bool skip_input_only, bool rtti_dispatch)");
             		sb.append(pfx1).append("{");
             		if (struct.isTypeRoot || struct.resolvedParent != null)

@@ -23,18 +23,6 @@ namespace putki
 			out << "}\n";
 		}
 
-		bool write_object_to_fs(const char *basedir, const char *path, db::data *ref_source, type_handler_i *th, instance_t obj, char *fn_out)
-		{
-			std::string out_path(basedir);
-			out_path.append("/");
-			out_path.append(path);
-			out_path.append(".json");
-			putki::sstream ts;
-			write::write_object_into_stream(ts, th, obj);
-			sys::mk_dir_for_path(out_path.c_str());
-			return sys::write_file(out_path.c_str(), ts.str().c_str(), (unsigned long)ts.str().size());
-		}
-
 		namespace
 		{
 			static const char *hex = "0123456789abcdef";
