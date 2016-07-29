@@ -261,7 +261,6 @@ namespace putki
 					else if (!strcmp(build_db::deplist_signature(dl, di), "file-not-found"))
 					{
 						APP_DEBUG("res_cache_check => object still does not exist");
-						return false;
 					}
 					else
 					{
@@ -404,15 +403,12 @@ namespace putki
 				{
 					bi.builder = i->second.name;
 					bi.user_data = i->second.user_data;
+					RECORD_INFO(bi.record, "Building with builder " << bi.builder << "...");
 					if (!i->second.fn(&bi))
 					{
 						RECORD_ERROR(bi.record, "Error occured when building with builder " << bi.builder);
 						has_error = true;
 						break;
-					}
-					else
-					{
-						RECORD_INFO(bi.record, "Built with builder " << bi.builder);
 					}
 				}
 				
