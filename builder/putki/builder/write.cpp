@@ -13,59 +13,6 @@ namespace putki
 {
 	namespace write
 	{
-		struct auxwriter : public depwalker_i
-		{
-			std::vector<std::string> paths;
-			std::vector<std::string> subpaths;
-			db::data *ref_source;
-			instance_t base, start;
-			type_handler_i *th;
-
-			virtual bool pointer_pre(instance_t *on, const char *ptr_type)
-			{
-				instance_t obj = *on;
-				if (!obj) {
-					return false;
-				}
-
-				// returning back to where we were.
-				if (obj == start)
-					return false;
-
-				const char *path = db::pathof(ref_source, obj);
-				if (path && db::is_aux_path_of(ref_source, base, path))
-				{
-					// std::cout << "Including aux object [" << path << "]" << std::endl;
-					paths.push_back(path);
-
-					auxwriter aw;
-					if (db::fetch(ref_source, path, &aw.th, &aw.base))
-					{
-						aw.start = start;
-						aw.ref_source = ref_source;
-						aw.th->walk_dependencies(aw.base, &aw, false);
-
-						for (unsigned int i=0; i<aw.paths.size(); i++)
-							subpaths.push_back(aw.paths[i]);
-						for (unsigned int i=0; i<aw.subpaths.size(); i++)
-							subpaths.push_back(aw.subpaths[i]);
-					}
-					else
-					{
-						*on = 0;
-					}
-				}
-
-				return true;
-			}
-
-			virtual void pointer_post(instance_t *on)
-			{
-
-			}
-		};
-
-
 		void write_object_into_stream(putki::sstream & out, type_handler_i *th, instance_t obj)
 		{
 			out << "{\n";

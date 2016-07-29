@@ -14,7 +14,7 @@
 #include <putki/builder/build-db.h>
 #include <putki/builder/log.h>
 #include <putki/builder/objstore.h>
-#include <putki/builder/builder2.h>
+#include <putki/builder/builder.h>
 
 #include <putki/sys/files.h>
 #include <putki/sys/thread.h>
@@ -196,13 +196,13 @@ namespace putki
 			objstore::data *built_store = objstore::open((prefix + "/.built").c_str());
 			build_db::data* bdb = build_db::create((prefix + "/.builddb").c_str(), incremental);
 
-			builder2::config conf;
+			builder::config conf;
 			conf.input = input_store;
 			conf.temp = tmp_store;
 			conf.built = built_store;
 			conf.build_db = bdb;
 			conf.build_config = build_config;
-			builder2::data* builder = builder2::create(&conf);
+			builder::data* builder = builder::create(&conf);
 			s_config_fn(builder);
 	
 			char pkg_path[1024];
@@ -231,11 +231,11 @@ namespace putki
 			std::set<std::string>::iterator j = req.begin();
 			while (j != req.end())
 			{
-				putki::builder2::add_build_root(builder, j->c_str());
+				putki::builder::add_build_root(builder, j->c_str());
 				j++;
 			}
 
-			putki::builder2::do_build(builder, incremental);
+			putki::builder::do_build(builder, incremental);
 
 			APP_INFO("Done building. Performing reporting step.")
 

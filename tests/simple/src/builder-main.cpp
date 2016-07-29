@@ -1,6 +1,6 @@
 #include <putki/builder/build.h>
 #include <putki/builder/package.h>
-#include <putki/builder/builder2.h>
+#include <putki/builder/builder.h>
 
 #include <inki/types/t1.h>
 
@@ -10,10 +10,10 @@ namespace inki
 	void bind_test_proj();
 }
 
-bool everything_builder(const putki::builder2::build_info* info)
+bool everything_builder(const putki::builder::build_info* info)
 {
 	inki::everything* obj = (inki::everything*) info->object;
-	putki::ptr<inki::built_asset> built = putki::builder2::create_build_output<inki::built_asset>(info, "slask");
+	putki::ptr<inki::built_asset> built = putki::builder::create_build_output<inki::built_asset>(info, "slask");
 	built->build_config = info->build_config;
 	built->other_data = obj->vt_inline.text;
 	if (obj->t1)
@@ -24,13 +24,13 @@ bool everything_builder(const putki::builder2::build_info* info)
 	return true;
 }
 
-bool with_resource_builder(const putki::builder2::build_info* info)
+bool with_resource_builder(const putki::builder::build_info* info)
 {
 	inki::with_resource* wr = (inki::with_resource*) info->object;
-	putki::ptr<inki::built_asset> built = putki::builder2::create_build_output<inki::built_asset>(info, "out");
+	putki::ptr<inki::built_asset> built = putki::builder::create_build_output<inki::built_asset>(info, "out");
 	built->build_config = info->build_config;
 	
-	putki::builder2::resource res;
+	putki::builder::resource res;
 	if (!wr->input.empty())
 	{
 		if (fetch_resource(info, wr->input.c_str(), &res))
@@ -53,19 +53,19 @@ bool with_resource_builder(const putki::builder2::build_info* info)
 	
 	std::string newtxt("This is a text. It was produced by ");
 	newtxt.append(info->path);
-	wr->input = putki::builder2::store_resource(info, info->path, newtxt.c_str(), newtxt.size());
+	wr->input = putki::builder::store_resource(info, info->path, newtxt.c_str(), newtxt.size());
 	wr->output = built;
 	return true;
 }
 
-void app_configure_builder(putki::builder2::data *builder)
+void app_configure_builder(putki::builder::data *builder)
 {
 	const int count = 2;
-	putki::builder2::handler_info h[count] = {
+	putki::builder::handler_info h[count] = {
 		{ inki::everything::type_id(), "everything-builder", everything_builder, 0 },
 		{ inki::with_resource::type_id(), "dan-builder-1", with_resource_builder, 0 }
 	};
-	putki::builder2::add_handlers(builder, &h[0], &h[count]);
+	putki::builder::add_handlers(builder, &h[0], &h[count]);
 }
 
 void app_build_packages(putki::objstore::data *out, putki::build::packaging_config *pconf)

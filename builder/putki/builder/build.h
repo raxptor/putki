@@ -8,7 +8,7 @@ namespace putki
 {
 	namespace package { struct data; }
 	namespace db { struct data; }
-	namespace builder2 { struct data; }
+	namespace builder { struct data; }
 
 	namespace build
 	{
@@ -16,7 +16,7 @@ namespace putki
 		void make_packages(runtime::descptr rt, const char* build_config, bool incremental, bool make_patch);
 		void commit_package(putki::package::data *package, packaging_config *packaging, const char *out_path);
 
-		typedef void(*builder_setup_fn)(builder2::data *builder);
+		typedef void(*builder_setup_fn)(builder::data *builder);
 		typedef void(*packaging_fn)(objstore::data *out, build::packaging_config *pconf);
 		typedef void(*reporting_fn)(objstore::data *out, build::packaging_config *pconf);
 
