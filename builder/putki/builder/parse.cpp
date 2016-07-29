@@ -177,14 +177,16 @@ namespace putki
 		data * parse(const char *full_path)
 		{
 			FILE *fp = ::fopen(full_path, "rb");
-			if (!fp) {
+			if (!fp) 
+			{
 				return 0;
 			}
 			
 			::fseek(fp, 0, SEEK_END);
-			long size = ftell(fp); // get current file pointer
+			long size = ftell(fp);
 			::fseek(fp, 0, SEEK_SET);
-			if (size < 0) {
+			if (size < 0) 
+			{
 				return 0;
 			}
 
@@ -196,10 +198,16 @@ namespace putki
 			
 			tmp[rd] = 0;
 			data *p = parse_json(tmp, rd);
-			p->alloc = tmp;
-			return p;
-		}
 			
+			if (p)
+			{
+				p->alloc = tmp;
+				return p;
+			}
+			
+			delete[] tmp;
+			return 0;
+		}
 		
 		data * parse_json(char *json, size_t size)
 		{
@@ -241,11 +249,8 @@ namespace putki
 			}
 
 			std::stack<node*> pst;
-
 			int loc = 0;
-
 			node *root = 0;
-
 			data *pd = new data;
 
 			do

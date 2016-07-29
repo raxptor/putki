@@ -30,8 +30,31 @@ namespace putki
 
 		void json_stringencode_byte_array(putki::sstream & out, std::vector<unsigned char> const &bytes)
 		{
-			for (unsigned int i=0;i<bytes.size();i++)
+			size_t i;
+			const size_t blk = 8;
+			for (i=0;(i+blk)<=bytes.size();i+=blk)
 			{
+				uint64_t* src = (uint64_t*) &bytes[i];
+				uint64_t a = *src;
+				uint64_t b = *src;
+				const uint64_t a32 = ('a' << 24) | ('a' << 16) | ('a' << 8) | 'a';
+				const uint64_t a64 = (a32 << 32) | a32;
+				a = a & 0xf0f0f0f0f0f0f0f0;
+				b = b & 0x0f0f0f0f0f0f0f0f;
+				uint64_t res_a = (a >> 4) + a64;
+				uint64_t res_b = b + a64;
+				const char *high = (const char*) &res_a;
+				const char *low = (const char*) &res_b;
+				char* write = out.append_block(2*blk);
+				for (int j=0;j<blk;j++)
+				{
+					write[2*j] = high[j];
+					write[2*j+1] = low[j];
+				}
+			}
+			for (;i<bytes.size();i++)
+			{
+			
 				out << (char)('a' + ((bytes[i] >> 4) & 0xf));
 				out << (char)('a' + ((bytes[i]) & 0xf));
 			}

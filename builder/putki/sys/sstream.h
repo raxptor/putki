@@ -192,13 +192,21 @@ namespace putki
 		{
 			return *this;
 		}
-
+		
 		template<typename T>
 		inline sstream & hex(T val)
 		{
 			need_x_more(32);
 			_writeptr = format_hex<T>(_writeptr, val);
 			return *this;
+		}
+		
+		char* append_block(size_t size)
+		{
+			need_x_more(size);
+			char* write = _writeptr;
+			_writeptr = _writeptr + size;
+			return write;
 		}
 		
 		inline sstream & operator<<(char c)
