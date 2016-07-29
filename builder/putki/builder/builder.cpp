@@ -109,24 +109,29 @@ namespace putki
 			info->internal->data->str_allocs.push_back(ptr->path);
 			info->internal->outputs.push_back(*ptr);
 		}
+
+		bool store_resource_path(const build_info* info, const char* path, const char* data, size_t size)
+		{
+			if (!objstore::store_resource(info->internal->data->conf.temp, path, data, size))
+			{
+				RECORD_ERROR(info->record, "Failed to store temp resource [" << path << "] size=" << size);
+				return false;
+			}
+			objstore::resource_info ri;
+			if (!objstore::query_resource(info->internal->data->conf.temp, path, &ri))
+			{
+				RECORD_ERROR(info->record, "Failed to query stored resource [" << path << "] size=" << size);
+				return false;
+			}
+			return true;
+		}
 		
-		std::string store_resource(const build_info* info, const char* tag, const char* data, size_t size)
+		std::string store_resource_tag(const build_info* info, const char* tag, const char* data, size_t size)
 		{
 			std::string actual(info->path);
 			actual.append("-");
 			actual.append(tag);
-			if (!objstore::store_resource(info->internal->data->conf.temp, actual.c_str(), data, size))
-			{
-				RECORD_ERROR(info->record, "Failed to store temp resource [" << actual << "] size=" << size);
-				return "";
-			}
-			objstore::resource_info ri;
-			if (!objstore::query_resource(info->internal->data->conf.temp, actual.c_str(), &ri))
-			{
-				RECORD_ERROR(info->record, "Failed to query stored resource [" << actual << "] size=" << size);
-				return "";
-			}
-			return ri.signature;
+			return store_resource_path(info, actual.c_str(), data, size) ? actual : std::string("");
 		}
 
 		bool fetch_resource(const build_info* info, const char* path, resource* resource)

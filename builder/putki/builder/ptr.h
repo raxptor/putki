@@ -71,7 +71,15 @@ namespace putki
 		InkiT operator*() const { return *get(); }
 		InkiT* operator->() const { return get(); }
 		operator bool const() { return get() != 0; }
-
+		template<typename SourceT>
+		ptr(const ptr<SourceT>& source)
+		{
+			*this = source;
+		}
+		ptr()
+		{
+			memset(&_ptr, 0x00, sizeof(_ptr));
+		}
 		template<typename SourceT>
 		ptr<InkiT>& operator=(const ptr<SourceT>& source)
 		{

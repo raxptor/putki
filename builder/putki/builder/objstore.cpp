@@ -71,7 +71,7 @@ namespace putki
 			char *b = new char[(size_t)size];
 			f.read(b, size);
 			*outBytes = b;
-			*outSize = (long long) size;
+			*outSize = (size_t) size;
 			return true;
 		}
 		
@@ -198,7 +198,15 @@ namespace putki
 			size_t sig = fn.find_last_of('#');
 			if (sig != std::string::npos)
 			{
+				std::string signature = fn.substr(sig + 1, fn.size() - sig - 1);
 				fn = fn.substr(0, sig);
+
+				size_t dot = signature.find_last_of('.');
+				if (dot != std::string::npos)
+				{
+					signature.erase(0, dot);
+					fn.append(signature);
+				}
 				cached = true;
 			}
 			
@@ -371,12 +379,25 @@ namespace putki
 			md5_sig_to_string(signature, signature_string, 64);
 			
 			std::string fn(path);
-			fn.append("#");
-			fn.append(signature_string);
+			std::string out_fn;
+			size_t dot = fn.find_last_of('.');
+			if (dot != std::string::npos)
+			{
+				out_fn.append(fn.substr(0, dot));
+				out_fn.append("#");
+				out_fn.append(signature_string);
+				out_fn.append(fn.substr(dot, fn.size()-dot));
+			}
+			else
+			{
+				out_fn.append(fn);
+				out_fn.append("#");
+				out_fn.append(signature_string);
+			}
 		
 			std::string out_path(d->root);
 			out_path.append("/res/");
-			out_path.append(fn);
+			out_path.append(out_fn);
 			
 			sys::mk_dir_for_path(out_path.c_str());
 			if (!sys::write_file(out_path.c_str(), data, length))
@@ -384,7 +405,7 @@ namespace putki
 				return false;
 			}
 
-			examine_resource_file(out_path.c_str(), fn.c_str(), d);
+			examine_resource_file(out_path.c_str(), out_fn.c_str(), d);
 			return uncache_resource(d, d, path, signature_string);
 		}
 		

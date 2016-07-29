@@ -54,9 +54,6 @@ namespace putki
 			const char* build_config;
 		};
 
-		// Global configuration
-		void set_builder_configurator(configurator_fn configurator);
-
 		// Automatically creates and adds the object.
 		template<typename T>
 		ptr<T> create_build_output(const build_info* info, const char *path)
@@ -78,16 +75,18 @@ namespace putki
 		bool fetch_resource(const build_info* info, const char* path, resource* resource);
 		void free_resource(resource* resource);
 		
-		// Generates a path for you, returns the name
-		std::string store_resource(const build_info* info, const char* full_path, const char* data, size_t size);
-		
-		void create_build_output(const build_info* info, type_handler_i* th, const char *path, ptr_raw* ptr);
+		// Creates path based on input name and 'tag'. Returns path.
+		std::string store_resource_tag(const build_info* info, const char* tag, const char* data, size_t size);
+		// Stores by path specified in 'path'
+		bool store_resource_path(const build_info* info, const char* path, const char* data, size_t size);
+
+		// Creates path based on input name and 'tag'
+		void create_build_output(const build_info* info, type_handler_i* th, const char *tag, ptr_raw* ptr);
 
 		// 
 		data* create(config* conf);
 		void free(data *d);
-
-		//
+		
 		void add_handlers(data* d, const handler_info* begin, const handler_info* end);
 
 		void add_build_root(data *d, const char *path);
