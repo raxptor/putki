@@ -88,7 +88,7 @@ namespace putki
 		template<typename SourceT>
 		ptr<InkiT>& operator=(const ptr<SourceT>& source)
 		{
-			_ptr.obj = (SourceT*)(source._ptr.obj);
+			_ptr.obj = static_cast<SourceT*>(source._ptr.obj);
 			_ptr.th = source._ptr.th;
 			_ptr.path = source._ptr.path;
 			_ptr.user_data = source._ptr.user_data;
