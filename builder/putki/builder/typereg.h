@@ -1,5 +1,7 @@
 #pragma once
+
 #include <putki/runtime.h>
+#include "ptr.h"
 
 namespace putki
 {
@@ -14,11 +16,6 @@ namespace putki
 	namespace parse { struct node; }
 	namespace db { struct data; }
 	struct sstream;
-
-	struct load_resolver_i
-	{
-		virtual void resolve_pointer(instance_t *ptr, const char *path) = 0;
-	};
 
 	struct depwalker_i
 	{
@@ -53,13 +50,14 @@ namespace putki
 		virtual void free(instance_t) = 0;
 
 		// reading / writing
-		virtual void fill_from_parsed(parse::node *pn, instance_t target, load_resolver_i *resolver) = 0;
+		virtual void fill_from_parsed(parse::node *pn, instance_t target) = 0;
 		virtual void write_json(putki::db::data *ref_source, instance_t source, putki::sstream & out, int indent) = 0;
+		virtual void query_pointers(instance_t source, ptr_query_result* result, bool rtti_dispatch) = 0;
 
 		virtual char* write_into_buffer(runtime::descptr rt, instance_t source, char *beg, char *end) = 0;
 
 		// recurse down and report all pointers
-		virtual void walk_dependencies(instance_t source, depwalker_i *walker, bool traverseChildren, bool skipInputOnly = false, bool rttiDispatch = false) = 0;
+		virtual void walk_dependencies(instance_t source, depwalker_i *walker, bool traverseChildren, bool skipInputOnly = false, bool rttiDispatch = false) { }
 	};
 
 	// used by dll interface, forward decl here for getters.

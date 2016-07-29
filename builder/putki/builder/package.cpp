@@ -432,6 +432,7 @@ namespace putki
 					continue;
 				}
 				
+				APP_ERROR("Picking probably wrong object since i did not get by signature.");
 				build_db::record *r = build_db::find(bdb, addpath);
 				if (!r)
 				{

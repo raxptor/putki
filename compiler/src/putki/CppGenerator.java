@@ -145,7 +145,7 @@ public class CppGenerator
 			return "outki";
 	}
 
-	static String putkiFieldtypePod(Compiler.FieldType f)
+	static String inkiFieldtypePod(Compiler.FieldType f)
 	{
 		switch (f)
 		{
@@ -193,26 +193,26 @@ public class CppGenerator
 		}
 	}
 
-	static String putkiFieldType(Compiler.ParsedField pf)
+	static String inkiFieldType(Compiler.ParsedField pf)
 	{
 		if (pf.type == FieldType.STRUCT_INSTANCE)
 			return "inki::" + structName(pf.resolvedRefStruct);
 		else if (pf.type == FieldType.ENUM)
 			return "inki::" + enumName(pf.resolvedEnum);
 		else if (pf.type == FieldType.POINTER)
-			return "inki::" + structName(pf.resolvedRefStruct) + "*";
-		return putkiFieldtypePod(pf.type);
+			return "putki::ptr<inki::" + structName(pf.resolvedRefStruct) + "> ";
+		return inkiFieldtypePod(pf.type);
 	}
 
-	static String putkiFieldTypeArray(Compiler.ParsedField pf)
+	static String inkiFieldTypeArray(Compiler.ParsedField pf)
 	{
 		if (pf.isArray)
 		{
-			return "std::vector<" + putkiFieldType(pf) + ">";
+			return "std::vector<" + inkiFieldType(pf) + ">";
 		}
 		else
 		{
-			return putkiFieldType(pf);
+			return inkiFieldType(pf);
 		}
 	}
 
@@ -442,6 +442,20 @@ public class CppGenerator
 			}
 
 			String defValue = field.defValue;
+
+			if (field.type == FieldType.POINTER)
+			{
+				if (defValue != null && defValue.length() > 0)
+				{
+					sb.append(p1).append(fieldName(field) + ".set_path(\"" + defValue + "\");");
+				}
+				else
+				{
+					continue;
+				}
+			}
+
+
 			if (defValue == null)
 			{
 				if (field.type == FieldType.PATH || field.type == FieldType.FILE ||
@@ -480,7 +494,7 @@ public class CppGenerator
 			}
 			if (field.isBuildConfig)
 			{
-				sb.append(p0).append(putkiFieldTypeArray(field) + " & " + fieldName(field) + "(const char *build_config) {");
+				sb.append(p0).append(inkiFieldTypeArray(field) + " & " + fieldName(field) + "(const char *build_config) {");
 				for (String s : comp.buildConfigs)
 				{
 					if (s.equals("Default"))
@@ -492,7 +506,7 @@ public class CppGenerator
 				sb.append(p0).append("}");
 				continue;
 			}
-			sb.append(p0).append(putkiFieldTypeArray(field) + " " + fieldName(field) + ";");
+			sb.append(p0).append(inkiFieldTypeArray(field) + " " + fieldName(field) + ";");
 		}
 
 		sb.append(prefix).append("};");
@@ -782,12 +796,14 @@ public class CppGenerator
             			sb.append(pfx1).append("type_handler_i* parent_type() { return 0; }");
             		sb.append(pfx1).append("bool in_output() { return " + ((struct.domains & Compiler.DOMAIN_OUTPUT) != 0 ? "true" : "false") + "; }");
             		sb.append(pfx1).append("void walk_dependencies(putki::instance_t source, putki::depwalker_i *walker, bool traverse_children, bool skip_input_only, bool rtti_dispatch) {");
-
+            		sb.append(pfx1).append("}");
+            		sb.append(pfx1).append("void query_pointers(putki::instance_t source, putki::ptr_query_result* result, bool skip_input_only, bool rtti_dispatch)");
+            		sb.append(pfx1).append("{");
             		if (struct.isTypeRoot || struct.resolvedParent != null)
             		{
 						sb.append(pfx2).append("if (rtti_dispatch)");
-						sb.append(pfx2).append("{");
-						sb.append(pfx2).append("\tputki::typereg_get_handler(((" + sn + "*)source)->rtti_type_ref())->walk_dependencies(source, walker, traverse_children, skip_input_only, false);");
+						sb.append(pfx2).append("{");						//
+						sb.append(pfx2).append("\tputki::typereg_get_handler(((" + sn + "*)source)->rtti_type_ref())->query_pointers(source, result, skip_input_only, false);");
 						sb.append(pfx2).append("\treturn;");
 						sb.append(pfx2).append("}");
             		}
@@ -795,7 +811,7 @@ public class CppGenerator
 					Compiler.ParsedStruct hr = struct.resolvedParent;
 					while (hr != null)
 					{
-						sb.append(pfx2).append(getTypeHandlerFn(hr) + "()->walk_dependencies(source, walker, traverse_children, skip_input_only, false);");
+						sb.append(pfx2).append(getTypeHandlerFn(hr) + "()->query_pointers(source, result, skip_input_only, false);");
 						hr = hr.resolvedParent;
 					}
 
@@ -844,16 +860,10 @@ public class CppGenerator
 	                    switch (field.type)
 	                    {
 	                    	case POINTER:
-	                    		sb.append(indent).append("if (walker->pointer_pre_filter((putki::instance_t *)&" + ref + ", \"" + field.resolvedRefStruct.name + "\"))");
-	                    		sb.append(indent).append("{");
-	                    		sb.append(indent).append("\tif (traverse_children && " + ref + ") {");
-	                    		sb.append(indent).append("\t\t" + getTypeHandlerFn(field.resolvedRefStruct) + "()->walk_dependencies(" + ref + ", walker, traverse_children, skip_input_only, true);");
-	                    		sb.append(indent).append("\t}");
-	                    		sb.append(indent).append("}");
-	                    		sb.append(indent).append("walker->pointer_post((putki::instance_t *)& " + ref + ");");
+	                    		sb.append(indent).append("putki::ptr_add_to_query_result(0, 0);");
 	                    		break;
 	                    	case STRUCT_INSTANCE:
-	                    		sb.append(indent).append(getTypeHandlerFn(field.resolvedRefStruct) + "()->walk_dependencies(&" + ref + ", walker, traverse_children, skip_input_only, true);");
+	                    		sb.append(indent).append(getTypeHandlerFn(field.resolvedRefStruct) + "()->query_pointers(&" + ref + ", result, skip_input_only, false);");
 	                    		break;
 	                    	default:
 	                    		break;
@@ -1016,14 +1026,14 @@ public class CppGenerator
                     		sb.append(arrIndent).append("\tsize_t i = 0;");
                     		sb.append(arrIndent).append("\tputki::parse::node *arr = " + node + ";");
                     		sb.append(arrIndent).append("\twhile (putki::parse::node * narr = putki::parse::get_array_item(arr, i)) {");
-                    		sb.append(arrIndent).append("\t\t" + putkiFieldType(field) + " tmp;");
+                    		sb.append(arrIndent).append("\t\t" + inkiFieldType(field) + " tmp;");
                     		sb.append(arrIndent).append("\t\t(void)narr;");
                     		sb.append(arrIndent).append("\t\t" + ref + ".push_back(tmp);");
                     		sb.append(arrIndent).append("\t\t++i;");
                     		sb.append(arrIndent).append("\t}");
                     		sb.append(arrIndent).append("\ti = 0;");
                     		sb.append(arrIndent).append("\twhile (putki::parse::node * narr = putki::parse::get_array_item(arr, i)) {");
-                    		sb.append(arrIndent).append("\t\t" + putkiFieldType(field) + " & obj = " + ref + "[i];");
+                    		sb.append(arrIndent).append("\t\t" + inkiFieldType(field) + " & obj = " + ref + "[i];");
                     		ref = "obj";
                     		indent = arrIndent + "\t\t";
                     		node = "narr";
@@ -1050,7 +1060,7 @@ public class CppGenerator
 	                    	case UINT32:
 	                    	case INT32:
 	                    	case BYTE:
-	                    		sb.append(indent3).append(ref + " = (" + putkiFieldtypePod(field.type) + ") putki::parse::get_value_int(n);");
+	                    		sb.append(indent3).append(ref + " = (" + inkiFieldtypePod(field.type) + ") putki::parse::get_value_int(n);");
 	                    		break;
 	                    	case BOOL:
 	                    		sb.append(indent3).append(ref + " = putki::parse::get_value_int(n) != 0;");
@@ -1062,11 +1072,7 @@ public class CppGenerator
 	                    		sb.append(indent3).append(ref + " = " + enumFromString(field.resolvedEnum) + "(putki::parse::get_value_string(n));");
 	                    		break;
 	                    	case POINTER:
-	                    		sb.append(indent3).append("const char* str = putki::parse::get_value_string(n);");
-	                    		sb.append(indent3).append("if (!str || !str[0])");
-	                    		sb.append(indent3).append("\t" + ref + " = 0;");
-	                    		sb.append(indent3).append("else");
-	                    		sb.append(indent3).append("\tresolver->resolve_pointer((putki::instance_t *)&" + ref + ", str);");
+	                    		sb.append(indent3).append(ref + ".set_path(putki::parse::get_value_string(n);");
 	                    		break;
 							default:
 	                    }
