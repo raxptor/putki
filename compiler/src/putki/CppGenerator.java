@@ -420,6 +420,7 @@ public class CppGenerator
 		if (struct.isTypeRoot)
 		{
 			sb.append(p0).append("int32_t & rtti_type_ref() { return " + rttiField() + "; }");
+			sb.append(p0).append("int32_t rtti_type_id() const { return " + rttiField() + "; }");
 			sb.append(p0).append("int32_t " + rttiField() + ";");
 		}
 
@@ -836,8 +837,10 @@ public class CppGenerator
 
 	                	String bpfx = pfx2;
 	                	boolean has_if = false;
-	                    if ((struct.domains & Compiler.DOMAIN_OUTPUT) == 0)
+	                    if ((field.domains & Compiler.DOMAIN_OUTPUT) == 0 ||
+	                    	(field.type == FieldType.POINTER && (field.resolvedRefStruct.domains & Compiler.DOMAIN_OUTPUT) == 0))
 	                    {
+
 	                    	sb.append(bpfx).append("if (!skip_input_only) {");
 	                    	bpfx = bpfx + "\t";
 	                    	has_if = true;
@@ -938,6 +941,8 @@ public class CppGenerator
 							case PATH:
 								sb.append(indent).append("out << " + delim + "putki::write::json_str(" + ref + ".c_str());");
 								break;
+							case BOOL:
+								sb.append(indent).append("out << " + delim + "(" + ref + " ? 1 : 0);");
 							case INT32:
 							case UINT32:
 								sb.append(indent).append("out << " + delim + ref+ ";");
