@@ -37,6 +37,11 @@ namespace putki
 		ptr_context* ctx = ptr->ctx;
 		if (!ptr->has_resolved)
 		{
+            if (!ctx)
+            {
+                // dumb user created pointer.
+                return 0;
+            }
 			ctx->resolve(ptr);
 			ptr->has_resolved = true;
 		}

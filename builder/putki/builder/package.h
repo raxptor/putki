@@ -18,6 +18,7 @@ namespace putki
 
 		// need storepath = true to be able to look it up from the package in runtime.
 		void add(package::data *data, const char *path, bool storepath);
+        
 		const char *get_needed_asset(data *d, unsigned int i);		
 		void add_previous_package(package::data *data, const char *basepath, const char *path);
 		

@@ -36,22 +36,29 @@ namespace putki
 		
 		struct resource_info
 		{
+            std::string path;
 			std::string signature;
+            size_t size;
+            void* handle;
 		};
 
-		bool query_resource(data* d, const char *path, resource_info* result);
 		bool fetch_resource(data* d, const char* path, const char* signature, fetch_res_result* result);
 		void fetch_resource_free(fetch_res_result* result);
 		
 		bool query_object(data* d, const char *path, object_info* result);
-		bool fetch_object(data* d, const char* path, const char* signature, fetch_obj_result* result);
-		void fetch_object_free(fetch_obj_result* result);
 
+        bool query_resource(data* d, const char* path, resource_info* result);
+        size_t read_resource_range(data *d, const char* path, const char* signature, char* output, size_t beg, size_t end);
+        bool fetch_object(data* d, const char* path, const char* signature, fetch_obj_result* result);
+        void fetch_object_free(fetch_obj_result* result);
+   
 		bool store_object(data* d, const char *path, type_handler_i* th, instance_t obj, const char *signature);
 		bool store_resource(data* d, const char *path, const char* data, size_t length);
 		
 		bool uncache_object(data* dest, data* source, const char *path, const char *signature);
 		bool uncache_resource(data* dest, data* source, const char *path, const char *signature);
+        
+        size_t query_by_type(data* d, type_handler_i* th, const char** paths, size_t len);
 	}
 }
 

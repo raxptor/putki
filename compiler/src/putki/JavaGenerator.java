@@ -74,7 +74,7 @@ public class JavaGenerator
 					sb.append(spfx).append("{");
 					if (struct.resolvedParent != null)
 					{
-						sb.append(spfx).append("\tsuper(type.resolvedParent)");
+						sb.append(spfx).append("\tsuper(type.resolvedParent);");
 					}
 					sb.append(spfx).append("\tm_type = type;");
 					sb.append(spfx).append("}");

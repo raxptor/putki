@@ -58,7 +58,7 @@ namespace putki
 
 		static builder_setup_fn s_config_fn = 0;
 		static packaging_fn s_packaging_fn = 0;
-		static reporting_fn s_reporting_fn = 0;
+		static std::vector<postbuild_fn> s_postbuild_fns;
 
 		void set_builder_configurator(builder_setup_fn configurator)
 		{
@@ -70,9 +70,9 @@ namespace putki
 			s_packaging_fn = packaging;
 		}
 
-		void set_reporting_fn(reporting_fn fn)
+		void add_postbuild_fn(postbuild_fn fn)
 		{
-			s_reporting_fn = fn;
+			s_postbuild_fns.push_back(fn);
 		}
 
 		void invoke_packager(putki::objstore::data* out, packaging_config* pconf)
@@ -80,11 +80,11 @@ namespace putki
 			s_packaging_fn(out, pconf);
 		}
 
-		void invoke_reporting(putki::objstore::data* out, packaging_config* pconf)
+		void invoke_post_build(postbuild_info* info)
 		{
-			if (s_reporting_fn)
+			for (size_t i=0;i<s_postbuild_fns.size();i++)
 			{
-				s_reporting_fn(out, pconf);
+				s_postbuild_fns[i](info);
 			}
 		}
 
@@ -216,7 +216,7 @@ namespace putki
 
 			// Required assets
 			std::set<std::string> req;
-			for (unsigned int i=0;i!=pconf.packages.size();i++)
+			for (size_t i=0;i!=pconf.packages.size();i++)
 			{
 				for (unsigned int j=0;;j++)
 				{
@@ -231,17 +231,28 @@ namespace putki
 			std::set<std::string>::iterator j = req.begin();
 			while (j != req.end())
 			{
-				putki::builder::add_build_root(builder, j->c_str());
+				putki::builder::add_build_root(builder, j->c_str(), 0);
 				j++;
 			}
 
 			putki::builder::do_build(builder, incremental);
 
-			APP_INFO("Done building. Performing reporting step.")
+			APP_INFO("Done building. Performing post-build steps.")
 
-			invoke_reporting(conf.built, &pconf);
+			postbuild_info pbi;
+			pbi.input = input_store;
+			pbi.temp = tmp_store;
+			pbi.output = built_store;
+			pbi.pconf = &pconf;
+			pbi.builder = builder;
+			invoke_post_build(&pbi);
 
-			APP_INFO("Done reporting. Writing packages")
+			// Post-build step may create new packages, but it must make sure they get built too.
+			// So it is up to the post_build_step to run add_build_root for the objects it would like
+			// to package.
+			putki::builder::do_build(builder, incremental);
+
+			APP_INFO("Done post-build. Writing packages")
 
 			for (unsigned int i=0;i!=pconf.packages.size();i++)
 			{

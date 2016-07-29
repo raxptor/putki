@@ -9,7 +9,7 @@
 
 extern "C"
 {
-	#include <md5/md5.h>
+#include <md5/md5.h>
 }
 
 #include <fstream>
@@ -35,12 +35,13 @@ namespace putki
 			type_handler_i* th;
 			parse::node* node;
 		};
-		
+
 		struct resource_entry
 		{
 			file_entry* file;
 			std::string path;
 			std::string signature;
+			size_t size;
 			bool cached;
 		};
 
@@ -74,13 +75,14 @@ namespace putki
 			*outSize = (size_t) size;
 			return true;
 		}
-		
-		std::string file_signature(const char* path)
+
+		std::string file_signature(const char* path, size_t* size)
 		{
 			const char *bytes;
 			size_t sz;
 			if (!load_file(path, &bytes, &sz))
 			{
+				*size = 0;
 				return "";
 			}
 			else
@@ -89,11 +91,12 @@ namespace putki
 				char signature_string[64];
 				md5_buffer(bytes, (unsigned int)sz, signature);
 				md5_sig_to_string(signature, signature_string, 64);
+				*size = sz;
 				delete [] bytes;
 				return signature_string;
 			}
 		}
-		
+
 		void examine_object_file(const char *fullname, const char *name, void *userptr)
 		{
 			data* d = (data *)userptr;
@@ -107,7 +110,7 @@ namespace putki
 			{
 				return;
 			}
-			
+
 			std::string fn2 = fn.substr(0, pos);
 			std::string objname;
 			bool is_cached = false;
@@ -119,7 +122,7 @@ namespace putki
 				is_cached = true;
 			}
 			else
-			{ 
+			{
 				objname = fn2;
 			}
 
@@ -156,7 +159,7 @@ namespace putki
 			{
 				APP_WARNING("Unrecognized type [" << objtype << "]");
 			}
-			
+
 			parse::node *aux = parse::get_object_item(root, "aux");
 			if (aux)
 			{
@@ -193,7 +196,7 @@ namespace putki
 		{
 			data* d = (data *)userptr;
 			std::string fn(name);
-			
+
 			bool cached = false;
 			size_t sig = fn.find_last_of('#');
 			if (sig != std::string::npos)
@@ -209,7 +212,7 @@ namespace putki
 				}
 				cached = true;
 			}
-			
+
 			file_entry* fe = new file_entry();
 			fe->path = fullname;
 			d->files.push_back(fe);
@@ -218,10 +221,10 @@ namespace putki
 			e.file = fe;
 			e.path = fn;
 			e.cached = cached;
-			e.signature = file_signature(fullname);
+			e.signature = file_signature(fullname, &e.size);
 			d->resources.insert(std::make_pair(fn, e));
 		}
-		
+
 		data* open(const char *root_path)
 		{
 			data* d = new data();
@@ -243,7 +246,7 @@ namespace putki
 			}
 			return d;
 		}
-		
+
 		void free(data *d)
 		{
 			delete d;
@@ -292,30 +295,80 @@ namespace putki
 				if (!i->second.cached)
 				{
 					result->signature = i->second.signature;
+					result->size = i->second.size;
 					return true;
 				}
 			}
 			return false;
 		}
 
-		bool fetch_resource(data* d, const char* path, const char* signature, fetch_res_result* result)
+		resource_entry* find_res(data *d, const char* path, const char* signature)
 		{
 			std::pair<ResMap::iterator, ResMap::iterator> range = d->resources.equal_range(path);
 			for (ResMap::iterator i = range.first; i != range.second; i++)
 			{
 				if (!strcmp(i->second.signature.c_str(), signature))
 				{
-					if (!load_file(i->second.file->path.c_str(), &result->data, &result->size))
-					{
-						APP_WARNING("Could not fetch resource [" << path << "] actual[" << i->second.file->path << "]");
-						return false;
-					}
+					return &i->second;
+				}
+			}
+			return 0;
+		}
+
+		size_t read_resource_range(data *d, const char* path, const char* signature, char* output, size_t beg, size_t end)
+		{
+			resource_entry* e = find_res(d, path, signature);
+			APP_DEBUG("Reading range " << beg << " to " << end << " from " << path);
+			if (e)
+			{
+				std::ifstream f(e->file->path.c_str(), std::ios::binary);
+				if (f.good())
+				{
+					f.seekg(beg, std::ios::beg);
+					f.read(output, end - beg);
+					return f.gcount();
+				}
+				APP_WARNING("Failed to load file [" << path << "]")
+			}
+			return 0;
+		}
+
+		size_t query_by_type(data* d, type_handler_i* th, const char** paths, size_t len)
+		{
+			size_t count = 0;
+			ObjMap::iterator i = d->objects.begin();
+			while (i != d->objects.end())
+			{
+				if (i->second.cached || i->second.th != th)
+				{
+					++i;
+					continue;
+				}
+				if (count < len)
+				{
+					paths[count] = i->first.c_str();
+				}
+				++count;
+				++i;
+			}
+			return count;
+		}
+
+
+		bool fetch_resource(data* d, const char* path, const char* signature, fetch_res_result* result)
+		{
+			resource_entry* e = find_res(d, path, signature);
+			if (e)
+			{
+				if (load_file(e->file->path.c_str(), &result->data, &result->size))
+				{
 					return true;
 				}
+				APP_WARNING("Could not fetch resource [" << path << "] actual[" << e->file->path << "]");
 			}
 			return false;
 		}
-		
+
 		void fetch_resource_free(fetch_res_result* result)
 		{
 			delete result->data;
@@ -377,7 +430,7 @@ namespace putki
 			char signature_string[64];
 			md5_buffer(data, (unsigned int)length, signature);
 			md5_sig_to_string(signature, signature_string, 64);
-			
+
 			std::string fn(path);
 			std::string out_fn;
 			size_t dot = fn.find_last_of('.');
@@ -394,11 +447,11 @@ namespace putki
 				out_fn.append("#");
 				out_fn.append(signature_string);
 			}
-		
+
 			std::string out_path(d->root);
 			out_path.append("/res/");
 			out_path.append(out_fn);
-			
+
 			sys::mk_dir_for_path(out_path.c_str());
 			if (!sys::write_file(out_path.c_str(), data, length))
 			{
@@ -408,7 +461,7 @@ namespace putki
 			examine_resource_file(out_path.c_str(), out_fn.c_str(), d);
 			return uncache_resource(d, d, path, signature_string);
 		}
-		
+
 		bool uncache_resource(data* dest, data* source, const char *path, const char *signature)
 		{
 			std::pair<ResMap::iterator, ResMap::iterator> range = source->resources.equal_range(path);
@@ -424,6 +477,7 @@ namespace putki
 					re.path = path;
 					re.file = f;
 					re.signature = signature;
+					re.size = i->second.size;
 					dest->resources.insert(std::make_pair(path, re));
 					return true;
 				}

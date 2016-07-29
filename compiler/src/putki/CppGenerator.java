@@ -881,6 +881,87 @@ public class CppGenerator
 	                }
 
             		sb.append(pfx1).append("}");
+            		sb.append(pfx1).append("void query_files(putki::instance_t source, putki::file_query_result* result, bool skip_input_only, bool rtti_dispatch)");
+            		sb.append(pfx1).append("{");
+            		if (struct.isTypeRoot || struct.resolvedParent != null)
+            		{
+						sb.append(pfx2).append("if (rtti_dispatch)");
+						sb.append(pfx2).append("{");						//
+						sb.append(pfx2).append("\tputki::typereg_get_handler(((" + sn + "*)source)->rtti_type_ref())->query_files(source, result, skip_input_only, false);");
+						sb.append(pfx2).append("\treturn;");
+						sb.append(pfx2).append("}");
+            		}
+
+					hr = struct.resolvedParent;
+					while (hr != null)
+					{
+						sb.append(pfx2).append(getTypeHandlerFn(hr) + "()->query_files(source, result, skip_input_only, false);");
+						hr = hr.resolvedParent;
+					}
+
+            		first = true;
+	                for (Compiler.ParsedField field : struct.fields)
+	                {
+	                    if (field.isBuildConfig || field.isParentField)
+	                    {
+	                    	continue;
+	                    }
+	                    if (field.type != FieldType.POINTER && field.type != FieldType.STRUCT_INSTANCE)
+	                    {
+	                    	continue;
+	                    }
+	                    if (first)
+	                    {
+            				sb.append(pfx2).append(sn + "* obj = (" + sn + "*) source;");
+            				first = false;
+            			}
+
+	                	String bpfx = pfx2;
+	                	boolean has_if = false;
+	                    if ((field.domains & Compiler.DOMAIN_OUTPUT) == 0 ||
+	                    	(field.type == FieldType.POINTER && (field.resolvedRefStruct.domains & Compiler.DOMAIN_OUTPUT) == 0))
+	                    {
+
+	                    	sb.append(bpfx).append("if (!skip_input_only) {");
+	                    	bpfx = bpfx + "\t";
+	                    	has_if = true;
+	                    }
+
+            			String indent = bpfx;
+	                    String ref = "obj->" + fieldName(field);
+
+            			if (field.isArray)
+            			{
+							sb.append(bpfx).append("for (size_t i=0;i<" + ref + ".size();i++)");
+							sb.append(bpfx).append("{");
+							ref = ref + "[i]";
+							indent = pfx2 + "\t";
+            			}
+
+	                    switch (field.type)
+	                    {
+	                    	case FILE:
+	                    		sb.append(indent).append("putki::add_to_file_query(result, &" + ref + "._ptr);");
+	                    		break;
+	                    	case STRUCT_INSTANCE:
+	                    		sb.append(indent).append(getTypeHandlerFn(field.resolvedRefStruct) + "()->query_files(&" + ref + ", result, skip_input_only, false);");
+	                    		break;
+	                    	default:
+	                    		break;
+	                    }
+
+						if (field.isArray)
+            			{
+							sb.append(bpfx).append("}");
+            			}
+
+						if (has_if)
+						{
+							sb.append(pfx2).append("}");
+						}
+	                }
+
+            		sb.append(pfx1).append("}");
             		sb.append(pfx1).append("void write_json(putki::instance_t source, putki::sstream & out, int indent) {");
 
             		boolean firstJson = true;

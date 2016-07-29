@@ -99,7 +99,7 @@ namespace putki
 
 			RECORD_INFO(info->record, "Creating output object [" << actual << "] type=" << th->name());
 			instance_t obj = th->alloc();
-			ptr->path = _strdup(actual.c_str());
+			ptr->path = strdup(actual.c_str());
 			ptr->has_resolved = true;
 			ptr->obj = obj;
 			ptr->th = th;
@@ -134,6 +134,20 @@ namespace putki
 			return store_resource_path(info, actual.c_str(), data, size) ? actual : std::string("");
 		}
 
+		size_t read_resource_segment(const build_info* info, const char* path, char* output, size_t beg, size_t end)
+		{
+			objstore::resource_info ri;
+			if (objstore::query_resource(info->internal->data->conf.temp, path, &ri))
+			{
+				return objstore::read_resource_range(info->internal->data->conf.temp, path, ri.signature.c_str(), output, beg, end);
+			}
+			if (objstore::query_resource(info->internal->data->conf.input, path, &ri))
+			{
+				return objstore::read_resource_range(info->internal->data->conf.input, path, ri.signature.c_str(), output, beg, end);
+			}
+			return 0;
+		}
+
 		bool fetch_resource(const build_info* info, const char* path, resource* resource)
 		{
 			objstore::resource_info ri;
@@ -141,7 +155,7 @@ namespace putki
 			{
 				if (objstore::fetch_resource(info->internal->data->conf.temp, path, ri.signature.c_str(), &resource->internal))
 				{
-					resource->signature = _strdup(ri.signature.c_str());
+					resource->signature = strdup(ri.signature.c_str());
 					resource->data = resource->internal.data;
 					resource->size = resource->internal.size;
 					build_db::add_external_resource_dependency(info->record, path, resource->signature);
@@ -158,7 +172,7 @@ namespace putki
 			{
 				if (objstore::fetch_resource(info->internal->data->conf.input, path, ri.signature.c_str(), &resource->internal))
 				{
-					resource->signature = _strdup(ri.signature.c_str());
+					resource->signature = strdup(ri.signature.c_str());
 					resource->data = resource->internal.data;
 					resource->size = resource->internal.size;
 					build_db::add_external_resource_dependency(info->record, path, resource->signature);
@@ -179,7 +193,7 @@ namespace putki
 			objstore::fetch_resource_free(&resource->internal);
 		}
 
-		void add_build_root(data *d, const char *path)
+		void add_build_root(data *d, const char *path, int domain)
 		{
 			if (!d->has_added.count(path))
 			{
@@ -187,7 +201,7 @@ namespace putki
 
 				to_build tb;
 				tb.path = path;
-				tb.domain = 0;
+				tb.domain = domain;
 				d->to_build.push(tb);
 			}
 		}
@@ -359,7 +373,7 @@ namespace putki
 						actual.erase(actual.begin() + already, actual.end());
 					}
 					actual.append(p->path);
-					p->path = _strdup(actual.c_str());
+					p->path = strdup(actual.c_str());
 					d->str_allocs.push_back(p->path);
 				}
 				
@@ -447,9 +461,7 @@ namespace putki
 			loaded l;
 			l.obj = obj;
 			l.th = info->th;
-			signature::buffer sigbuf;
-			l.signature = signature::object(info->th, obj, sigbuf);
-
+			l.signature = info->signature;
 			cache->insert(std::make_pair(std::string(ptr->path), l));
 
 			ptr->th = info->th;
@@ -469,6 +481,14 @@ namespace putki
 			{
 				pcd->visited.insert(ptr->path);
 			}
+		}
+
+		void add_post_build_object(data* d, type_handler_i* th, instance_t obj, const char* path)
+		{
+			signature::buffer buf;
+			const char* sig = signature::object(th, obj, buf);
+			objstore::store_object(d->conf.temp, path, th, obj, sig);
+			add_build_root(d, path, 1);
 		}
 
 		void do_build(data *d, bool incremental)
@@ -512,7 +532,7 @@ namespace putki
 
 				if (incremental && fetch_cached(d, path, &info, bname.c_str()))
 				{
-					APP_DEBUG("=> Got cached object, no build needed.");
+					APP_DEBUG("Got cached object, no build needed.");
 					continue;
 				}
 
@@ -538,7 +558,7 @@ namespace putki
 				{
 					bi.builder = i->second.name;
 					bi.user_data = i->second.user_data;
-					RECORD_INFO(bi.record, "=> Invoking builder " << bi.builder << "...");
+					RECORD_INFO(bi.record, "Invoking builder " << bi.builder << "...");
 					if (!i->second.fn(&bi))
 					{
 						RECORD_ERROR(bi.record, "Error occured when building with builder " << bi.builder);
@@ -549,7 +569,7 @@ namespace putki
 				
 				if (hs.first == hs.second)
 				{
-					RECORD_INFO(bi.record, "=> No processing needed.");
+					RECORD_INFO(bi.record, "Copying to output");
 				}
 				
 				std::set<const char*> ignore;
@@ -590,7 +610,7 @@ namespace putki
 						}
 						else
 						{
-							APP_ERROR("visited set contained entry " << *deps << " not in either input or temp!");
+							APP_ERROR("Visited set contained entry " << *deps << " not in either input or temp!");
 						}
 					}
 					++deps;

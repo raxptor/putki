@@ -18,13 +18,20 @@ namespace putki
 
 		typedef void(*builder_setup_fn)(builder::data *builder);
 		typedef void(*packaging_fn)(objstore::data *out, build::packaging_config *pconf);
-		typedef void(*reporting_fn)(objstore::data *out, build::packaging_config *pconf);
+        
+        struct postbuild_info
+        {
+            objstore::data* input;
+            objstore::data* temp;
+            objstore::data* output;
+            builder::data* builder;
+            build::packaging_config* pconf;
+        };
+        
+		typedef void(*postbuild_fn)(postbuild_info* info);
 
 		void set_builder_configurator(builder_setup_fn fn);
 		void set_packager(packaging_fn fn);
-		void set_reporting_fn(reporting_fn fn);
-
-		void invoke_packager(objstore::data* built, build::packaging_config *pconf);
-		void invoke_reporting(objstore::data* out, build::packaging_config *pconf);
+		void add_postbuild_fn(postbuild_fn fn);
 	}
 }

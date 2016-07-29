@@ -1,7 +1,7 @@
 #ifndef __PUTKI_SYS_FILES__
 #define __PUTKI_SYS_FILES__
 
-#include <stdint.h>
+#include <stddef.h>
 
 namespace putki
 {
