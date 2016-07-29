@@ -1,9 +1,7 @@
 #include <putki/liveupdate/liveupdate.h>
 
-#include <putki/builder/db.h>
-#include <putki/builder/builder.h>
+#include <putki/builder/builder2.h>
 #include <putki/builder/log.h>
-#include <putki/builder/source.h>
 #include <putki/builder/build.h>
 #include <putki/builder/write.h>
 #include <putki/builder/build-db.h>
@@ -164,7 +162,7 @@ namespace putki
 			}
 			
 			sstream tmp;
-			write::write_object_into_stream(tmp, db, th, obj);
+			write::write_object_into_stream(tmp, th, obj);
 			const char *str = tmp.c_str();
 
 			i->second.version++;

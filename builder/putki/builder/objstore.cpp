@@ -49,27 +49,12 @@ namespace putki
 
 		struct data
 		{
-			db::data* db;
 			std::string root;
 			std::vector<file_entry*> files;
 			ObjMap objects;
 			ResMap resources;
 		};
 
-		namespace
-		{
-			struct make_unresolved : public load_resolver_i
-			{
-				db::data* db;
-				std::string base_path;
-				void resolve_pointer(instance_t *ptr, const char *path)
-				{
-					std::string p = path[0] == '#' ? (base_path + path) : std::string(path);
-					*ptr = (instance_t)db::create_unresolved_pointer(db, p.c_str());
-				}
-			};
-		}
-		
 		bool load_file(const char* path, const char** outBytes, size_t* outSize)
 		{
 			std::ifstream f(path, std::ios::binary);
@@ -102,7 +87,7 @@ namespace putki
 			{
 				char signature[64];
 				char signature_string[64];
-				md5_buffer(bytes, sz, signature);
+				md5_buffer(bytes, (unsigned int)sz, signature);
 				md5_sig_to_string(signature, signature_string, 64);
 				delete [] bytes;
 				return signature_string;
@@ -149,30 +134,23 @@ namespace putki
 			fe->path = fullname;
 			d->files.push_back(fe);
 
-			// clear() please.
-			db::free(d->db);
-			d->db = db::create();
-
 			parse::node *root = parse::get_root(pd);
 			std::string objtype = parse::get_value_string(parse::get_object_item(root, "type"));
 			type_handler_i *th = typereg_get_handler(objtype.c_str());
 			if (th)
 			{
 				instance_t obj = th->alloc();
-				make_unresolved mur;
-				mur.db = d->db;
-				mur.base_path = objname;
-				th->fill_from_parsed(parse::get_object_item(root, "data"), obj, &mur);
-				db::insert(d->db, objname.c_str(), th, obj);
+				th->fill_from_parsed(parse::get_object_item(root, "data"), obj);
 				object_entry e;
 				e.file = fe;
 				e.path = objname;
 				e.cached = is_cached;
 				char buf[64];
-				e.signature = db::signature(d->db, objname.c_str(), buf);
+				e.signature = db::signature(th, obj, buf);
 				e.node = parse::get_object_item(root, "data");
 				e.th = th;
 				d->objects.insert(std::make_pair(objname, e));
+				th->free(obj);
 			}
 			else
 			{
@@ -195,11 +173,7 @@ namespace putki
 					if (th)
 					{
 						instance_t obj = th->alloc();
-						make_unresolved mur;
-						mur.db = d->db;
-						mur.base_path = objname;
-						th->fill_from_parsed(parse::get_object_item(aux_obj, "data"), obj, &mur);
-						db::insert(d->db, auxpath.c_str(), th, obj);
+						th->fill_from_parsed(parse::get_object_item(aux_obj, "data"), obj);
 						object_entry e;
 						e.file = fe;
 						e.path = auxpath;
@@ -207,8 +181,9 @@ namespace putki
 						e.cached = is_cached;
 						e.th = th;
 						char buf[64];
-						e.signature = db::signature(d->db, auxpath.c_str(), buf);
+						e.signature = db::signature(th, obj, buf);
 						d->objects.insert(std::make_pair(auxpath, e));
+						th->free(obj);
 					}
 				}
 			}
@@ -220,7 +195,7 @@ namespace putki
 			std::string fn(name);
 			
 			bool cached = false;
-			int sig = fn.find_last_of('#');
+			size_t sig = fn.find_last_of('#');
 			if (sig != std::string::npos)
 			{
 				fn = fn.substr(0, sig);
@@ -242,13 +217,9 @@ namespace putki
 		data* open(const char *root_path)
 		{
 			data* d = new data();
-			d->db = db::create();
 			d->root = root_path;
 			sys::search_tree((d->root + "/objs").c_str(), examine_object_file, d);
 			sys::search_tree((d->root + "/res").c_str(), examine_resource_file, d);
-
-			db::free(d->db);
-			d->db = db::create();
 
 			ObjMap::iterator i = d->objects.begin();
 			while (i != d->objects.end())
@@ -267,10 +238,8 @@ namespace putki
 		
 		void free(data *d)
 		{
-			db::free(d->db);
 			delete d;
 		}
-
 
 		bool query_object(data* d, const char *path, object_info* result)
 		{
@@ -369,7 +338,7 @@ namespace putki
 			return false;
 		}
 
-		bool store_object(data* d, const char *path, db::data* ref_source, type_handler_i* th, instance_t obj, const char *signature)
+		bool store_object(data* d, const char *path, type_handler_i* th, instance_t obj, const char *signature)
 		{
 			std::string out_path(d->root);
 			out_path.append("/objs/");
@@ -378,7 +347,7 @@ namespace putki
 			out_path.append(signature);
 			out_path.append(".json");
 			putki::sstream ts;
-			write::write_object_into_stream(ts, ref_source, th, obj);
+			write::write_object_into_stream(ts, th, obj);
 			sys::mk_dir_for_path(out_path.c_str());
 			if (!sys::write_file(out_path.c_str(), ts.str().c_str(), (unsigned long)ts.str().size()))
 			{
@@ -391,18 +360,14 @@ namespace putki
 			fn.append(".json");
 			examine_object_file(out_path.c_str(), fn.c_str(), d);
 
-			bool succ = uncache_object(d, d, path, signature);
-
-			// TODO: Unresolve the pointers in 'obj' and cache it, should we happen to store and then try to load it in the same session.
-			th->free(obj);
-			return succ;
+			return uncache_object(d, d, path, signature);
 		}
 
 		bool store_resource(data* d, const char *path, const char* data, size_t length)
 		{
 			char signature[64];
 			char signature_string[64];
-			md5_buffer(data, length, signature);
+			md5_buffer(data, (unsigned int)length, signature);
 			md5_sig_to_string(signature, signature_string, 64);
 			
 			std::string fn(path);
@@ -434,6 +399,8 @@ namespace putki
 					f->path = i->second.file->path;
 					dest->files.push_back(f);
 					resource_entry re;
+					re.cached = false;
+					re.path = path;
 					re.file = f;
 					re.signature = signature;
 					dest->resources.insert(std::make_pair(path, re));

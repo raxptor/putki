@@ -1,6 +1,8 @@
 #pragma once
 
 #include <putki/builder/log.h>
+#include <putki/builder/typereg.h>
+#include <map>
 
 namespace putki
 {
@@ -21,9 +23,13 @@ namespace putki
 		void release(data *d);
 
 		record *create_record(const char *input_path, const char *input_sig, const char *builder = 0);
+
+		typedef std::map<std::string, std::string> InputDepSigs;
 		
-		record *find(data *d, const char *path, const char *signature, const char *builder);
-		record *find(data *d, const char *output_path);
+		record *find_cached(data *d, const char *path, const char *signature, const char *builder, const InputDepSigs& dep_filter);
+		record *find_committed(data *d, const char *output_path);
+
+		// 
 		const char *get_pointer(record *r, unsigned int index);
 		const char *get_type(record *r);
 		const char *get_signature(record *r);
@@ -38,11 +44,12 @@ namespace putki
 		void add_output(record *r, const char *output_path, const char *builder, const char *signature);
 		void add_input_dependency(record *r, const char *dependency, const char *signature=0);
 		void add_external_resource_dependency(record *r, const char *filepath, const char *signature);
-		void insert_metadata(record* rec, db::data *db, const char *path);
+		void insert_metadata(record* rec, type_handler_i* th, instance_t obj, const char *path);
 		void record_log(record *r, LogType type, const char *msg);
 		void flush_log(record *r);
-		
+				
 		void commit_record(data *d, record *r);
+		void commit_cached_record(data *d, record *r);
 
 		void copy_input_dependencies(record *copy_to, record *copy_from);
 		void merge_input_dependencies(record *target, record *source);

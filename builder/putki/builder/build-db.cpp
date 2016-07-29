@@ -10,6 +10,7 @@
 
 #include <putki/builder/db.h>
 #include <putki/builder/log.h>
+#include <putki/builder/ptr.h>
 #include <putki/sys/thread.h>
 
 namespace putki
@@ -49,12 +50,14 @@ namespace putki
 		};
 
 		typedef std::multimap<std::string, record*> RM;
+		typedef std::multimap<std::string, record*> Committed;
 		typedef std::multimap<std::string, std::string> RevDepMap;
 
 		struct data
 		{
 			std::string path;
 			RM records;
+			Committed committed;
 			RevDepMap depends;
 			sys::mutex mtx;
 		};
@@ -81,7 +84,7 @@ namespace putki
 						std::string extra, extra2;
 
 						// peel off extra2
-						int w = line.find('*');
+						size_t w = line.find('*');
 						if (w != std::string::npos)
 						{
 							extra2 = line.substr(w + 1, line.size() - w - 1);
@@ -195,15 +198,55 @@ namespace putki
 			delete d;
 		}
 
-		record *find(data *d, const char *path, const char *signature, const char *builder)
+		record *find_cached(data *d, const char *path, const char *signature, const char *builder, const InputDepSigs& dep_filter)
 		{
 			sys::scoped_maybe_lock _lk(&d->mtx);
 			std::pair<RM::iterator, RM::iterator> eq = d->records.equal_range(path);
 			for (RM::iterator q = eq.first; q != eq.second; q++)
 			{
-				if (!strcmp(q->second->source_sig.c_str(), signature) && !strcmp(q->second->builder.c_str(), builder))
-					return q->second;
+				record *r = q->second;
+				if (!strcmp(r->source_sig.c_str(), signature) && !strcmp(r->builder.c_str(), builder))
+				{
+					bool matched_all = true;
+					for (size_t i = 0; i < r->input_dependencies.size(); i++)
+					{
+						InputDepSigs::const_iterator chk = dep_filter.find(r->input_dependencies[i].path);
+						if (chk != dep_filter.end())
+						{
+							if (strcmp(chk->second.c_str(), r->input_dependencies[i].signature.c_str()))
+							{
+								matched_all = false;
+								break;
+							}
+						}
+					}
+					for (size_t i = 0; i < r->dependencies.size(); i++)
+					{
+						InputDepSigs::const_iterator chk = dep_filter.find(r->dependencies[i].path);
+						if (chk != dep_filter.end())
+						{
+							if (strcmp(chk->second.c_str(), r->dependencies[i].signature.c_str()))
+							{
+								matched_all = false;
+								break;
+							}
+						}
+					}
+					if (matched_all)
+					{
+						return r;
+					}
+				}
 			}
+			return 0;
+		}
+
+		record *find_committed(data *d, const char *output_path)
+		{
+			sys::scoped_maybe_lock _lk(&d->mtx);
+			Committed::iterator q = d->committed.find(output_path);
+			if (q != d->committed.end())
+				return q->second;
 			return 0;
 		}
 
@@ -404,7 +447,6 @@ namespace putki
 					}
 				}
 			}
-			// std::cout << " -> Cleaned up " << count << " old dependencies" << std::endl;
 		}
 
 		void commit_record(data *d, record *r)
@@ -414,77 +456,33 @@ namespace putki
 				APP_ERROR("aah");
 			}
 			flush_log(r);
-			record *ex = find(d, r->source_path.c_str(), r->source_sig.c_str(), r->builder.c_str());
-			if (ex)
-			{
-				*ex = *r;
-			}
-			else
-			{
-				sys::scoped_maybe_lock _lk(&d->mtx);
-				d->records.insert(std::make_pair(r->source_path, r));
-			}
+
+			sys::scoped_maybe_lock _lk(&d->mtx);
+			d->records.insert(std::make_pair(r->source_path, r));
+			commit_cached_record(d, r);
 		}
 
-		struct depwalker : putki::depwalker_i
+		void commit_cached_record(data *d, record *r)
 		{
-			db::data *db;
-			metadata *out;
+			d->committed.insert(std::make_pair(r->source_path, r));
+		}
 
-			virtual bool pointer_pre(instance_t * on, const char *ptr_type)
-			{
-				if (!*on) {
-					return true;
-				}
-
-				const char *path = db::pathof_including_unresolved(db, *on);
-				if (!path)
-				{
-					APP_ERROR("Found object without path")
-					return true;
-				}
-
-				// ignore aux paths since they are included implicitly.
-				if (db::is_aux_path(path))
-				{
-					out->pointers.insert(path);
-					return true;
-				}
-
-				if (db::is_unresolved_pointer(db, *on))
-				{
-					out->pointers.insert(path);
-					return false;
-				}
-
-				out->pointers.insert(path);
-				return false;
-			}
-
-			void pointer_post(instance_t *on)
-			{
-
-			}
-		};
-
-		void insert_metadata(record* rec, db::data *db, const char *path)
+		void insert_metadata(record* rec, type_handler_i* th, instance_t obj, const char *path)
 		{
-			type_handler_i *th;
-			instance_t obj;
-			if (db::fetch(db, path, &th, &obj))
+			char buffer[128];
+			rec->md.type = th->name();
+			rec->md.signature = db::signature(th, obj, buffer);
+
+			ptr_query_result ptrs;
+			th->query_pointers(obj, &ptrs, true, true);
+			rec->md.pointers.clear();
+			for (size_t i = 0; i < ptrs.pointers.size(); i++)
 			{
-				char buffer[128];
-				rec->md.type = th->name();
-				rec->md.signature = db::signature(db, path, buffer);
-				rec->md.pointers.clear();
-				depwalker dw;
-				dw.db = db;
-				dw.out = &rec->md;
-				th->walk_dependencies(obj, &dw, true);
-			}
-			else
-			{
-				APP_WARNING("Failed to fetch [" << path << "] for meta data insertion")
+				ptr_raw* p = ptrs.pointers[i];
+				if (p->path != 0 && p->path[0])
+				{
+					rec->md.pointers.insert(p->path);
+				}
 			}
 		}
 

@@ -2,8 +2,8 @@
 #include <putki/builder/parse.h>
 #include <putki/builder/db.h>
 #include <putki/builder/build-db.h>
+#include <putki/builder/ptr.h>
 #include "builder2.h"
-#include "objloader.h"
 
 #include <map>
 #include <set>
@@ -13,51 +13,53 @@ namespace putki
 {
 	namespace builder2
 	{
-		struct build_info_internal
+		struct loaded
 		{
-			db::data* tmp_db;
-			db::data* output_db;
-			objstore::data* input_store;
-			objstore::data* temp_store;
-			objstore::data* output_store;
-			std::vector<std::string> outputs;
+			type_handler_i* th;
+			instance_t obj;
+			std::string signature;
 		};
 
 		typedef std::multimap<int, handler_info> HandlerMapT;
+		typedef std::map<std::string, loaded> LoadedT;
+		typedef std::vector<const char*> AllocStringsT;
+
+		struct to_build
+		{
+			std::string path;
+			int domain;
+		};
 
 		struct data
 		{
 			config conf;
 			db::data* output;
-			objloader::data* input_loader;
-			objloader::data* temp_loader;
 			HandlerMapT handlers;
-			std::queue<std::string> to_build;
+			std::queue<to_build> to_build;
 			std::set<std::string> has_added;
+			LoadedT loaded_input;
+			LoadedT loaded_temp;
+			LoadedT loaded_built;
+			std::vector<const char*> str_allocs;
 		};
-
-		static configurator_fn s_config_fn = 0;
-
-		void set_builder_configurator(configurator_fn configurator)
+		
+		struct build_info_internal
 		{
-			s_config_fn = configurator;
-		}
+			data* data;
+			std::vector<ptr_raw> outputs;
+			ptr_context* ptr_context;
+		};
 
 		data* create(config* conf)
 		{
 			data* d = new data();
 			d->conf = *conf;
-			d->input_loader = objloader::create(conf->input);
-			d->temp_loader = objloader::create(conf->temp);
 			d->output = db::create();
-			s_config_fn(d);
 			return d;
 		}
 
 		void free(data *d)
 		{
-			objloader::free(d->input_loader);
-			objloader::free(d->temp_loader);
 			db::free(d->output);
 			delete d;
 		}
@@ -88,13 +90,23 @@ namespace putki
 			return builder_name.empty() ? "default" : builder_name;
 		}
 
-		void add_build_output(const build_info* info, type_handler_i* th, instance_t object, const char *tag)
+		void create_build_output(struct putki::builder2::build_info const *info, struct putki::type_handler_i *th, char const *tag, struct putki::ptr_raw *ptr)
 		{
 			std::string actual(info->path);
 			actual.append("-");
 			actual.append(tag);
-			info->internal->outputs.push_back(actual.c_str());
-			db::insert(info->internal->tmp_db, actual.c_str(), th, object);
+
+			RECORD_INFO(info->record, "Creating output object [" << actual << "] type=" << th->name());
+			instance_t obj = th->alloc();
+			ptr->path = _strdup(actual.c_str());
+			ptr->has_resolved = true;
+			ptr->obj = obj;
+			ptr->th = th;
+			ptr->user_data = 1;
+			ptr->ctx = info->internal->ptr_context;
+
+			info->internal->data->str_allocs.push_back(ptr->path);
+			info->internal->outputs.push_back(*ptr);
 		}
 		
 		std::string store_resource(const build_info* info, const char* tag, const char* data, size_t size)
@@ -102,13 +114,13 @@ namespace putki
 			std::string actual(info->path);
 			actual.append("-");
 			actual.append(tag);
-			if (!objstore::store_resource(info->internal->temp_store, actual.c_str(), data, size))
+			if (!objstore::store_resource(info->internal->data->conf.temp, actual.c_str(), data, size))
 			{
 				RECORD_ERROR(info->record, "Failed to store temp resource [" << actual << "] size=" << size);
 				return "";
 			}
 			objstore::resource_info ri;
-			if (!objstore::query_resource(info->internal->temp_store, actual.c_str(), &ri))
+			if (!objstore::query_resource(info->internal->data->conf.temp, actual.c_str(), &ri))
 			{
 				RECORD_ERROR(info->record, "Failed to query stored resource [" << actual << "] size=" << size);
 				return "";
@@ -119,11 +131,11 @@ namespace putki
 		bool fetch_resource(const build_info* info, const char* path, resource* resource)
 		{
 			objstore::resource_info ri;
-			if (objstore::query_resource(info->internal->temp_store, path, &ri))
+			if (objstore::query_resource(info->internal->data->conf.temp, path, &ri))
 			{
-				if (objstore::fetch_resource(info->internal->temp_store, path, ri.signature.c_str(), &resource->internal))
+				if (objstore::fetch_resource(info->internal->data->conf.temp, path, ri.signature.c_str(), &resource->internal))
 				{
-					resource->signature = strdup(ri.signature.c_str());
+					resource->signature = _strdup(ri.signature.c_str());
 					resource->data = resource->internal.data;
 					resource->size = resource->internal.size;
 					build_db::add_external_resource_dependency(info->record, path, resource->signature);
@@ -136,11 +148,11 @@ namespace putki
 					return false;
 				}
 			}
-			if (objstore::query_resource(info->internal->input_store, path, &ri))
+			if (objstore::query_resource(info->internal->data->conf.input, path, &ri))
 			{
-				if (objstore::fetch_resource(info->internal->input_store, path, ri.signature.c_str(), &resource->internal))
+				if (objstore::fetch_resource(info->internal->data->conf.input, path, ri.signature.c_str(), &resource->internal))
 				{
-					resource->signature = strdup(ri.signature.c_str());
+					resource->signature = _strdup(ri.signature.c_str());
 					resource->data = resource->internal.data;
 					resource->size = resource->internal.size;
 					build_db::add_external_resource_dependency(info->record, path, resource->signature);
@@ -192,19 +204,23 @@ namespace putki
 			if (!d->has_added.count(path))
 			{
 				d->has_added.insert(path);
-				d->to_build.push(path);
+
+				to_build tb;
+				tb.path = path;
+				tb.domain = 0;
+				d->to_build.push(tb);
 			}
 		}
-
-		bool fetch_cached(data* d, const char* path, objstore::object_info* info, const char* bname, db::data* input, db::data* temp, db::data* output)
+		
+		bool fetch_cached(data* d, const char* path, objstore::object_info* info, const char* bname, build_db::InputDepSigs& sigs)
 		{
-			build_db::record* find = build_db::find(d->conf.build_db, path, info->signature.c_str(), bname);
+			build_db::record* find = build_db::find_cached(d->conf.build_db, path, info->signature.c_str(), bname, sigs);
 			if (!find)
 			{
 				return false;
 			}
-			build_db::deplist* dl = build_db::inputdeps_get(find);
 
+			build_db::deplist* dl = build_db::inputdeps_get(find);
 			int di = 0;
 			while (true)
 			{
@@ -215,61 +231,71 @@ namespace putki
 				}
 				if (!deplist_is_external_resource(dl, di))
 				{
-					objstore::object_info info;
-					if (objstore::query_object(d->conf.input, dep, &info))
+					objstore::object_info dep_info;
+					if (objstore::query_object(d->conf.input, dep, &dep_info))
 					{
-						if (strcmp(info.signature.c_str(), build_db::deplist_signature(dl, di)))
+						if (strcmp(dep_info.signature.c_str(), build_db::deplist_signature(dl, di)))
 						{
-							APP_DEBUG("cache_check => input obj has changed [" << dep << "]");
-							return false;
+							APP_DEBUG("fetch_cached: obj-dep check for [" << dep << "] => " << dep_info.signature << " (record had " << build_db::deplist_signature(dl, di) << ")");
+							sigs.insert(std::make_pair(std::string(dep), dep_info.signature));
+							return fetch_cached(d, path, info, bname, sigs);
 						}
 					}
-					else if (objstore::query_object(d->conf.temp, dep, &info))
+					else if (objstore::query_object(d->conf.temp, dep, &dep_info))
 					{
-						if (strcmp(info.signature.c_str(), build_db::deplist_signature(dl, di)))
+						if (strcmp(dep_info.signature.c_str(), build_db::deplist_signature(dl, di)))
 						{
-							APP_DEBUG("cache_check => temp obj has changed [" << dep << "]");
-							return false;
+							APP_DEBUG("fetch_cached: obj-dep check for [" << dep << "] => " << dep_info.signature << " (record had " << build_db::deplist_signature(dl, di) << ")");
+							sigs.insert(std::make_pair(std::string(dep), dep_info.signature));
+							return fetch_cached(d, path, info, bname, sigs);
 						}
 					}
 					else
 					{
-						APP_DEBUG("cache_check => unknown input object [" << dep << "]");
+						APP_DEBUG("fetch_cached => unknown input object [" << dep << "]");
 						return false;
 					}
-					APP_DEBUG("cache_check => " << dep << " still has sig " << build_db::deplist_signature(dl, di));
 				}
 				else
 				{
-					objstore::resource_info info;
-					if (objstore::query_resource(d->conf.input, dep, &info))
+					objstore::resource_info res_info;
+					if (objstore::query_resource(d->conf.input, dep, &res_info))
 					{
-						if (strcmp(info.signature.c_str(), build_db::deplist_signature(dl, di)))
+						if (strcmp(res_info.signature.c_str(), build_db::deplist_signature(dl, di)))
 						{
-							APP_DEBUG("res_cache_check => input resource changed [" << dep << "]");
-							return false;
+							APP_DEBUG("fetch_cached: res-dep check for [" << dep << "] => " << res_info.signature << " (record had " << build_db::deplist_signature(dl, di) << ")");
+							sigs.insert(std::make_pair(std::string(dep), res_info.signature));
+							return fetch_cached(d, path, info, bname, sigs);
 						}
 					}
-					else if (objstore::query_resource(d->conf.temp, dep, &info))
+					else if (objstore::query_resource(d->conf.temp, dep, &res_info))
 					{
-						if (strcmp(info.signature.c_str(), build_db::deplist_signature(dl, di)))
+						if (strcmp(res_info.signature.c_str(), build_db::deplist_signature(dl, di)))
 						{
-							APP_DEBUG("res_cache_check => temp object changed [" << dep << "]");
-							return false;
+							APP_DEBUG("fetch_cached: res-dep check for [" << dep << "] => " << res_info.signature << " (record had " << build_db::deplist_signature(dl, di) << ")");
+							sigs.insert(std::make_pair(std::string(dep), res_info.signature));
+							return fetch_cached(d, path, info, bname, sigs);
 						}
 					}
 					else if (!strcmp(build_db::deplist_signature(dl, di), "file-not-found"))
 					{
-						APP_DEBUG("res_cache_check => object still does not exist");
+						APP_DEBUG("fetch_cached: obj still not exists");
 					}
 					else
 					{
-						APP_DEBUG("res_cache_check => [" << dep << "] does not exist any longer.");
+						APP_DEBUG("fetch_cached => [" << dep << "] does not exist any longer.");
 						return false;
 					}
-					APP_DEBUG("res_cache_check => " << dep << " still has sig " << build_db::deplist_signature(dl, di));
 				}
 				++di;
+			}
+
+			APP_DEBUG("fetch_cached: I have a match")
+			build_db::InputDepSigs::iterator i = sigs.begin();
+			while (i != sigs.end())
+			{
+				APP_DEBUG("fetch_cached:  filter[" << i->first << "] => [" << i->second << "]");
+				++i;
 			}
 
 			int o = 0;
@@ -310,18 +336,170 @@ namespace putki
 				}
 				if (!d->has_added.count(ptr))
 				{
-					d->to_build.push(ptr);
+					to_build p;
+					p.path = ptr;
+					p.domain = 0;
+					objstore::object_info oi;
+					if (objstore::query_object(d->conf.temp, ptr, &oi))
+					{
+						p.domain = 1;
+					}
+
+					d->to_build.push(p);
 					d->has_added.insert(ptr);
 				}
 			}
 			return true;
 		}
 
+		bool fetch_cached(data* d, const char* path, objstore::object_info* info, const char* bname)
+		{
+			build_db::InputDepSigs sigs;
+			return fetch_cached(d, path, info, bname, sigs);
+		}
+
+		void fixup_pointers(data* d, type_handler_i* th, instance_t obj, ptr_context* context, const char* root_path)
+		{
+			ptr_query_result result;
+			th->query_pointers(obj, &result, false, true);
+			for (size_t i = 0; i < result.pointers.size(); i++)
+			{
+				ptr_raw *p = result.pointers[i];
+				p->ctx = context;
+				if (p->path == 0 || !p->path[0])
+				{
+					continue;
+				}
+				if (p->path[0] == '#')
+				{
+					std::string actual(root_path);
+					size_t already = actual.find_last_of('#');
+					if (already != std::string::npos)
+					{
+						actual.erase(actual.begin() + already, actual.end());
+					}
+					actual.append(p->path);
+					p->path = _strdup(actual.c_str());
+					d->str_allocs.push_back(p->path);
+				}
+				
+				objstore::object_info info;
+				if (objstore::query_object(d->conf.temp, p->path, &info))
+				{
+					p->user_data = 1;
+				}
+				else
+				{
+					p->user_data = 0;
+				}
+			}
+		}
+		
+		struct ptr_ctx_data
+		{
+			data* d;
+			std::set<const char*> visited;
+		};
+
+		void ptr_resolve_info(ptr_raw* ptr, objstore::object_info* info)
+		{
+			if (ptr->path == 0 || !ptr->path[0])
+			{
+				ptr->obj = 0;
+				return;
+			}
+
+			ptr_ctx_data* pcd = (ptr_ctx_data*)ptr->ctx->user_data;
+			data* d = pcd->d;
+			objstore::data* store;
+			LoadedT* cache;
+			switch (ptr->user_data)
+			{
+			case 0:
+				store = d->conf.input;
+				cache = &d->loaded_input;
+				break;
+			case 1:
+				store = d->conf.temp;
+				cache = &d->loaded_temp;
+				break;
+			case 2:
+				store = d->conf.built;
+				cache = &d->loaded_built;
+				break;
+			default:
+				APP_ERROR("Invalid ptr domain. I do not know from which store to get it.");
+				ptr->obj = 0;
+				break;
+			}
+
+			// TODO: Verify that pointers are compatible with what is actually being loaded.
+
+			LoadedT::iterator i = cache->find(ptr->path);
+			if (i != cache->end())
+			{
+				ptr->obj = i->second.obj;
+				ptr->th = i->second.th;
+				info->signature = i->second.signature;
+				info->th = i->second.th;
+				return;
+			}
+			
+			if (!objstore::query_object(store, ptr->path, info))
+			{
+				APP_ERROR("Unable to resolve " << ptr->path);
+				ptr->obj = 0;
+				return;
+			}
+
+			objstore::fetch_obj_result result;
+			if (!objstore::fetch_object(store, ptr->path, info->signature.c_str(), &result))
+			{
+				APP_ERROR("Unable to fetch " << ptr->path);
+				ptr->obj = 0;
+				return;
+			}
+
+			instance_t obj = info->th->alloc();
+			info->th->fill_from_parsed(result.node, obj);
+			fixup_pointers(d, info->th, obj, ptr->ctx, ptr->path);
+			
+			loaded l;
+			l.obj = obj;
+			l.th = info->th;
+			char sig[64];
+			l.signature = db::signature(info->th, obj, sig);
+
+			cache->insert(std::make_pair(std::string(ptr->path), l));
+
+			ptr->th = info->th;
+			ptr->obj = obj;
+		}
+
+		void ptr_resolve(ptr_raw* ptr)
+		{
+			objstore::object_info info;
+			ptr_resolve_info(ptr, &info);
+		}
+
+		void ptr_deref(const ptr_raw* ptr)
+		{
+			ptr_ctx_data* pcd = (ptr_ctx_data*) ptr->ctx->user_data;
+			if (ptr->path != 0 && ptr->path[0] != 0)
+			{
+				pcd->visited.insert(ptr->path);
+			}
+		}
+
 		void do_build(data *d, bool incremental)
 		{
-			db::data* input = db::create();
-			db::data* temp = db::create(input);
-			db::data* output = db::create(temp);
+			ptr_ctx_data pcd;
+			pcd.d = d;
+
+			ptr_context pctx;
+			pctx.user_data = (uintptr_t)&pcd;
+			pctx.deref = ptr_deref;
+			pctx.resolve = ptr_resolve;
 
 			while (true)
 			{
@@ -330,80 +508,57 @@ namespace putki
 					break;
 				}
 
-				std::string next = d->to_build.front();
+				to_build next = d->to_build.front();
 				d->to_build.pop();
 
-				const char* path = next.c_str();
+				const char* path = next.path.c_str();
 
-				bool is_tmp_obj = false;
+				ptr_raw source;
+				source.ctx = &pctx;
+				source.has_resolved = false;
+				source.user_data = next.domain;
+				source.path = path;
+
+				APP_DEBUG("Processing object [" << next.path << "] domain=" << next.domain);
+
 				objstore::object_info info;
-				if (!objstore::query_object(d->conf.input, path, &info))
-				{
-					if (objstore::query_object(d->conf.temp, path, &info))
-					{
-						is_tmp_obj = true;
-					}
-					else
-					{
-						APP_ERROR("Attempted to build object not in store! [" << path << "]");
-						continue;
-					}
-				}
-
-				std::string bname = builder_name(d, info.th->id());
-				if (incremental && fetch_cached(d, path, &info, bname.c_str(), input, temp, output))
+				ptr_resolve_info(&source, &info);
+				if (!source.obj)
 				{
 					continue;
 				}
 
-				if (is_tmp_obj)
-				{
-					if (!objloader::load_into(d->temp_loader, input, path))
-					{
-						APP_ERROR("Could not load tmp object to build into db! [" << path << "]");
-						continue;
-					}
-				}
-				else
-				{
-					if (!objloader::load_into(d->input_loader, input, path))
-					{
-						APP_ERROR("Could not load object to build into db! [" << path << "]");
-						continue;
-					}
-				}
+				std::string bname = builder_name(d, source.th->id());
 
-				type_handler_i* th;
-				instance_t obj;
-				if (!db::fetch(input, path, &th, &obj))
+				if (incremental && fetch_cached(d, path, &info, bname.c_str()))
 				{
-					APP_ERROR("Fetch error! This should never happen.");
+					APP_DEBUG("=> Got cached object, no build needed.");
 					continue;
 				}
 
-				instance_t clone = th->clone(obj);
+				source.obj = info.th->clone(source.obj);
 
 				build_info_internal bii;
-				bii.tmp_db = temp;
-				bii.input_store = d->conf.input;
-				bii.temp_store = d->conf.temp;
-				bii.output_store = d->conf.built;
+				bii.data = d;
+				bii.ptr_context = &pctx;
 
 				build_info bi;
 				bi.path = path;
 				bi.build_config = d->conf.build_config;
-				bi.type = th;
-				bi.object = clone;
+				bi.type = info.th;
+				bi.object = source.obj;
 				bi.record = build_db::create_record(path, info.signature.c_str(), builder_name(d, info.th->id()).c_str());;
 				bi.internal = &bii;
 
+				pcd.visited.clear();
+
 				bool has_error = false;
-				std::pair<HandlerMapT::iterator, HandlerMapT::iterator> hs = d->handlers.equal_range(th->id());
+				std::pair<HandlerMapT::iterator, HandlerMapT::iterator> hs = d->handlers.equal_range(info.th->id());
 				for (HandlerMapT::iterator i = hs.first; i != hs.second; i++)
 				{
 					bi.builder = i->second.name;
 					bi.user_data = i->second.user_data;
-					RECORD_INFO(bi.record, "Building with builder " << bi.builder << "...");
+					RECORD_INFO(bi.record, "=> Invoking builder " << bi.builder << "...");
 					if (!i->second.fn(&bi))
 					{
 						RECORD_ERROR(bi.record, "Error occured when building with builder " << bi.builder);
@@ -414,74 +569,79 @@ namespace putki
 				
 				if (hs.first == hs.second)
 				{
-					RECORD_INFO(bi.record, "Building without any registered handlers");
+					RECORD_INFO(bi.record, "=> No processing needed.");
 				}
-
-				// TODO: Enumerate struct instances here too and build them.
-				APP_DEBUG("Finished building [" << path << "] has_error = " << has_error);
-
+				
+				std::set<const char*> ignore;
 				for (size_t i = 0; i != bii.outputs.size(); i++)
 				{
 					char buffer[64];
-					build_db::add_output(bi.record, bii.outputs[i].c_str(), bname.c_str(), db::signature(temp, bii.outputs[i].c_str(), buffer));
+					const char* sig = db::signature(bii.outputs[i].th, bii.outputs[i].obj, buffer);
+					objstore::store_object(d->conf.temp, bii.outputs[i].path, bii.outputs[i].th, bii.outputs[i].obj, sig);
+					build_db::add_output(bi.record, bii.outputs[i].path, bname.c_str(), sig);
+
+					loaded le;
+					le.th = bii.outputs[i].th;
+					le.obj = bii.outputs[i].obj;
+					le.signature = sig;
+					d->loaded_temp.insert(std::make_pair(std::string(bii.outputs[i].path), le));
+					ignore.insert(bii.outputs[i].path);
 				}
 
-				db::insert(output, path, th, clone);
-
-				// Find out run-time dependencies.
-				find_runtime_deps frd;
-				frd.db = temp;
-				frd.record = bi.record;
-				th->walk_dependencies(clone, &frd, false);
-				build_db::add_input_dependency(bi.record, path, info.signature.c_str());
-				build_db::flush_log(frd.record);
-				build_db::insert_metadata(frd.record, output, path);
-				build_db::commit_record(d->conf.build_db, bi.record);
-
-				// Handle outputs
-				int o = 0;
-				while (true)
+				std::set<const char*>::iterator deps = pcd.visited.begin();
+				while (deps != pcd.visited.end())
 				{
-					const char* out = build_db::enum_outputs(bi.record, o++);
-					if (!out)
+					if (ignore.find(*deps) != ignore.end())
 					{
-						break;
+						++deps;
+						continue;
 					}
-
-					type_handler_i* th;
-					instance_t obj;
-					if (db::fetch(temp, out, &th, &obj))
+					LoadedT::iterator i = d->loaded_temp.find(*deps);
+					if (i != d->loaded_temp.end())
 					{
-						char buffer[64];
-						objstore::store_object(d->conf.temp, out, temp, th, obj, db::signature(temp, out, buffer));
+						build_db::add_input_dependency(bi.record, *deps, i->second.signature.c_str());
 					}
 					else
 					{
-						APP_ERROR("enum_outputs gave path [" << out << "] but it did not exist in temp database!");
+						i = d->loaded_input.find(*deps);
+						if (i != d->loaded_input.end())
+						{
+							build_db::add_input_dependency(bi.record, *deps, i->second.signature.c_str());
+						}
+						else
+						{
+							APP_ERROR("visited set contained entry " << *deps << " not in either input or temp!");
+						}
 					}
+					++deps;
 				}
+			
+				build_db::flush_log(bi.record);
+				build_db::insert_metadata(bi.record, source.th, source.obj, source.path);
+				build_db::commit_record(d->conf.build_db, bi.record);
+
+				ptr_query_result ptrs;
+				source.th->query_pointers(source.obj, &ptrs, true, true);
 
 				// Add runtime dependencies.
-				for (std::set<std::string>::iterator i = frd.ptrs.begin(); i != frd.ptrs.end(); i++)
+				for (size_t i = 0; i < ptrs.pointers.size();i++)
 				{
-					if (!d->has_added.count(*i))
+					ptr_raw* p = ptrs.pointers[i];
+					if (p->path != 0 && p->path[0])
 					{
-						d->to_build.push(*i);
-						d->has_added.insert(*i);
+						if (!d->has_added.count(p->path))
+						{
+							to_build tb;
+							tb.path = p->path;
+							tb.domain = (int)p->user_data;
+							d->to_build.push(tb);
+							d->has_added.insert(p->path);
+						}
 					}
 				}
 
-				char slask[64];
-				APP_DEBUG("Source signature = " + info.signature + "  dest signature = " + db::signature(output, path, slask) + " org sig = ");
-				
-				// store_object takes ownership of objects
-				char buffer[64];
-				objstore::store_object(d->conf.built, path, output, th, clone, db::signature(output, path, buffer));
+				objstore::store_object(d->conf.built, path, info.th, source.obj, build_db::get_signature(bi.record));
 			}
-
-			db::free_and_destroy_objs(input);
-			db::free(temp);
-			db::free(output);
 		}
 	}
 }

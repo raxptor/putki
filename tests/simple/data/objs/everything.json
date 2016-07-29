@@ -6,7 +6,7 @@
 		"T3": "triply-nested",
 		"VPtr": "",
 		"RootStructs": ["subsubstruct",
-		"root1"],
+		"root1", "thisisnull"],
 		"VAuxPtr": "#roz9h",
 		"VTInline": {
 			"A": 3.4,

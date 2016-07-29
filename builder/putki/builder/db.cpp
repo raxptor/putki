@@ -200,7 +200,7 @@ namespace putki
 			return pathof(d, obj);
 		}
 
-		const char *signature(data *d, const char *path, char *buffer=0)
+		const char *signature(data* d, const char* path, char* buffer = 0)
 		{
 			sys::scoped_maybe_lock _lk(d->mtx);
 			std::map<std::string, entry>::iterator i = d->objs.find(path);
@@ -208,25 +208,28 @@ namespace putki
 			{
 				entry e = i->second;
 				_lk.unlock();
-				
-				putki::sstream ss;
-				write::write_object_into_stream(ss, d, e.th, e.obj);
-
-				char signature[16];
-				static char unsafe_buffer[64];
-
-				if (!buffer)
-				{
-					APP_WARNING("Not using buffer for db::signature")
-					buffer = unsafe_buffer;
-				}
-
-				md5_buffer(ss.c_str(), (unsigned int)ss.size(), signature);
-				md5_sig_to_string(signature, buffer, 64);
-				return buffer;
-
+				return signature(e.th, e.obj, buffer);
 			}
 			return "NO-SIG";
+		}
+
+		const char *signature(type_handler_i* th, instance_t obj, char* buffer = 0)
+		{
+			putki::sstream ss;
+			write::write_object_into_stream(ss, th, obj);
+
+			char signature[16];
+			static char unsafe_buffer[64];
+
+			if (!buffer)
+			{
+				APP_WARNING("Not using buffer for db::signature")
+				buffer = unsafe_buffer;
+			}
+
+			md5_buffer(ss.c_str(), (unsigned int)ss.size(), signature);
+			md5_sig_to_string(signature, buffer, 64);
+			return buffer;
 		}
 		
 		void insert_deferred(data *data, const char *path, deferred_load_fn fn, void *userptr)

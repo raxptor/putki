@@ -1,5 +1,4 @@
 #include <putki/builder/build.h>
-#include <putki/builder/builder.h>
 #include <putki/builder/package.h>
 #include <putki/builder/builder2.h>
 
@@ -14,9 +13,13 @@ namespace inki
 bool everything_builder(const putki::builder2::build_info* info)
 {
 	inki::everything* obj = (inki::everything*) info->object;
-	inki::built_asset* built = putki::builder2::create_build_output<inki::built_asset>(info, "slask");
+	putki::ptr<inki::built_asset> built = putki::builder2::create_build_output<inki::built_asset>(info, "slask");
 	built->build_config = info->build_config;
 	built->other_data = obj->vt_inline.text;
+	if (obj->t1)
+	{
+		built->other_data = obj->t1->test_string;
+	}
 	obj->built = built;
 	return true;
 }
@@ -24,7 +27,7 @@ bool everything_builder(const putki::builder2::build_info* info)
 bool with_resource_builder(const putki::builder2::build_info* info)
 {
 	inki::with_resource* wr = (inki::with_resource*) info->object;
-	inki::built_asset* built = putki::builder2::create_build_output<inki::built_asset>(info, "out");
+	putki::ptr<inki::built_asset> built = putki::builder2::create_build_output<inki::built_asset>(info, "out");
 	built->build_config = info->build_config;
 	
 	putki::builder2::resource res;
@@ -80,7 +83,7 @@ int run_putki_builder(int argc, char **argv);
 int main(int argc, char **argv)
 {
 	inki::bind_test_proj();
-	putki::builder2::set_builder_configurator(&app_configure_builder);
-	putki::builder::set_packager(&app_build_packages);
+	putki::build::set_builder_configurator(&app_configure_builder);
+	putki::build::set_packager(&app_build_packages);
 	return run_putki_builder(argc, argv);
 }

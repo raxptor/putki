@@ -46,9 +46,8 @@ namespace putki
 		bool query_object(data* d, const char *path, object_info* result);
 		bool fetch_object(data* d, const char* path, const char* signature, fetch_obj_result* result);
 		void fetch_object_free(fetch_obj_result* result);
-		
-		// This function will destroy the object.
-		bool store_object(data* d, const char *path, db::data* ref_source, type_handler_i* th, instance_t obj, const char *signature);
+
+		bool store_object(data* d, const char *path, type_handler_i* th, instance_t obj, const char *signature);
 		bool store_resource(data* d, const char *path, const char* data, size_t length);
 		
 		bool uncache_object(data* dest, data* source, const char *path, const char *signature);

@@ -1,44 +1,88 @@
 #pragma once
+
 #include <putki/runtime.h>
+#include <stdint.h>
 
 namespace putki
 {
 	typedef void* instance_t;
-	typedef const char *type_t;
+	struct type_handler_i;
 
-	struct ptr_context;
+	typedef const char *type_t;
+	struct ptr_raw;
+
+	// Should always write obj. Should write th when mem != 0
+	typedef void (*ptr_resolve_fn)(ptr_raw* ptr);
+	typedef void (*ptr_on_deref_fn)(const ptr_raw* ptr);
+
+	struct ptr_context
+	{
+		ptr_resolve_fn resolve;
+		ptr_on_deref_fn deref;
+		intptr_t user_data;
+	};
 
 	struct ptr_raw
 	{
-		int type_id;
 		const char* path;
 		intptr_t user_data;
-		bool has_resolved;
-		instance_t* mem;
+		instance_t obj;
+		type_handler_i* th;
 		ptr_context* ctx;
+		bool has_resolved;
 	};
 
-	void ptr_mark_visited(ptr_raw* p);
-
-	// queries
-	struct ptr_query_result;
-	void ptr_add_to_query_result(ptr_query_result* result, ptr_raw* p);
-
-	// action.
-	instance_t ptr_get(ptr_raw* p);
+	inline instance_t ptr_get(ptr_raw* ptr)
+	{
+		ptr_context* ctx = ptr->ctx;
+		if (!ptr->has_resolved)
+		{
+			ctx->resolve(ptr);
+			ptr->has_resolved = true;
+		}
+		if (ctx->deref)
+		{
+			ctx->deref(ptr);
+		}
+		return ptr->obj;
+	}
 
 	template<typename InkiT>
 	struct ptr
 	{
-		private:
-			data_ptr _ptr;
-		public:
-			void set_path(const char* path);
-			intptr_t& user_data() { return _ptr.user_data; };
-			const InkiT* get() { return ptr_get(const_cast<ptr_raw*>(&_ptr)); }
-			const InkiT& operator*() { return ptr_get(const_cast<ptr_raw*>(&_ptr)); }
-			const InkiT* operator->() const { return ptr_get(const_cast<ptr_raw*>(&_ptr)); }
-			const InkiT& bool { return ptr_get(const_cast<ptr_raw*>(&_ptr)) != 0; }
+		ptr_raw _ptr;
+		void init(type_handler_i* th, const char* path)
+		{
+			_ptr.th = th;
+			_ptr.path = path;
+			_ptr.user_data = 0;
+			_ptr.has_resolved = false;
+			_ptr.obj = 0;
+			_ptr.ctx = 0;
+		}
+		void set_context(ptr_context* ctx) { _ptr.ctx = ctx; }
+		void set_path(const char* path) { _ptr.path = path; _ptr.has_resolved = false; }
+		const char* path() { return _ptr.path;  }
+		intptr_t& user_data() { return _ptr.user_data; };
+		InkiT* get() const
+		{
+			return (InkiT*) ptr_get(const_cast<ptr_raw*>(&_ptr)); 
+		}
+		InkiT operator*() const { return *get(); }
+		InkiT* operator->() const { return get(); }
+		operator bool const() { return get() != 0; }
+
+		template<typename SourceT>
+		ptr<InkiT>& operator=(const ptr<SourceT>& source)
+		{
+			_ptr.obj = (SourceT*)(source._ptr.obj);
+			_ptr.th = source._ptr.th;
+			_ptr.path = source._ptr.path;
+			_ptr.user_data = source._ptr.user_data;
+			_ptr.ctx = source._ptr.ctx;
+			_ptr.has_resolved = source._ptr.has_resolved;
+			return *this;
+		}
 	};
 }
 

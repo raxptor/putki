@@ -66,12 +66,12 @@ namespace putki
 		};
 
 
-		void write_object_into_stream(putki::sstream & out, db::data *ref_source, type_handler_i *th, instance_t obj)
+		void write_object_into_stream(putki::sstream & out, type_handler_i *th, instance_t obj)
 		{
 			out << "{\n";
 			out << "	type: "<< json_str(th->name()) << ",\n";
 			out << "	data: {\n";
-			th->write_json(ref_source, obj, out, 1);
+			th->write_json(obj, out, 1);
 			out << "	}\n";
 			out << "}\n";
 		}
@@ -83,7 +83,7 @@ namespace putki
 			out_path.append(path);
 			out_path.append(".json");
 			putki::sstream ts;
-			write::write_object_into_stream(ts, ref_source, th, obj);
+			write::write_object_into_stream(ts, th, obj);
 			sys::mk_dir_for_path(out_path.c_str());
 			return sys::write_file(out_path.c_str(), ts.str().c_str(), (unsigned long)ts.str().size());
 		}

@@ -8,15 +8,13 @@
 
 #include "build.h"
 
-#include <putki/builder/db.h>
 #include <putki/builder/typereg.h>
-#include <putki/builder/builder.h>
-#include <putki/builder/source.h>
 #include <putki/builder/package.h>
-#include <putki/builder/resource.h>
 #include <putki/builder/write.h>
 #include <putki/builder/build-db.h>
 #include <putki/builder/log.h>
+#include <putki/builder/objstore.h>
+#include <putki/builder/builder2.h>
 
 #include <putki/sys/files.h>
 #include <putki/sys/thread.h>
@@ -29,152 +27,14 @@
 #include <vector>
 #include <set>
 
-namespace
-{
-	const unsigned long xbufSize = 512*1024*1024;
-	char xbuf[xbufSize];
-
-
-	struct domain_switch : public putki::db::enum_i
-	{
-		putki::db::data *input, *output;
-		bool create_unresolved;
-		bool traverse_children;
-	
-		domain_switch()
-		{
-			create_unresolved = true;
-			traverse_children = false;
-		}
-
-		struct depwalker : public putki::depwalker_i
-		{
-			domain_switch *parent;
-			putki::instance_t source;
-
-			bool pointer_pre(putki::instance_t *on, const char *ptr_type)
-			{
-				// ignore nulls.
-				if (!*on) {
-					return false;
-				}
-
-				putki::type_handler_i *th;
-				putki::instance_t obj = 0;
-
-				const char *path = putki::db::pathof_including_unresolved(parent->input, *on);
-				if (!path)
-				{
-					// this would mean the object exists neither in the input nor output domain.
-					if (!putki::db::pathof_including_unresolved(parent->output, *on)) 
-					{
-						APP_ERROR("!!! A wild object appears! [" << *on << "]. Might be a [" << ptr_type << "]");
-						putki::db::pathof_including_unresolved(parent->output, *on);
-					}
-					return false;
-				}
-
-				if (!putki::db::fetch(parent->output, path, &th, &obj))
-				{
-					if (parent->create_unresolved)
-					{
-						*on = putki::db::create_unresolved_pointer(parent->output, path);
-						return false;
-					}
-					else
-					{
-						APP_WARNING("domain_switch: could not find [" << path << " in neither source nor output")
-						return false;
-					}
-				}
-
-				if (*on != obj)
-				{
-					*on = obj;
-				}
-
-				return true;
-			}
-
-			void pointer_post(putki::instance_t *on)
-			{
-			}
-		};
-
-		void record(const char *path, putki::type_handler_i* th, putki::instance_t obj)
-		{
-			// ignore deferred objects.
-			if (obj && th)
-			{
-				depwalker dp;
-				dp.parent = this;
-				dp.source = obj;
-				th->walk_dependencies(obj, &dp, traverse_children);
-			}
-		}
-	};
-
-	struct db_record_inserter : public putki::db::enum_i
-	{
-		putki::db::data *input;
-		putki::db::data *output;
-
-		void record(const char *path, putki::type_handler_i* th, putki::instance_t obj)
-		{
-			putki::db::copy_obj(input, output, path);
-		}
-	};
-	
-	// TODO TODO - Read this from external manifest instead / subsystem which can track
-	//             a database of input files, particularly along with their aux refs.
-	struct build_source_file : public putki::db::enum_i
-	{
-		putki::builder::build_context *context;
-		putki::db::data *input;
-		void record(const char *path, putki::type_handler_i* th, putki::instance_t obj)
-		{
-			putki::builder::context_add_to_build(context, path);
-		}
-	};
-
-	struct write_cache_json : public putki::db::enum_i
-	{
-		putki::builder::data *builder;
-		putki::db::data *db;
-		std::string path_base;
-		int written;
-
-		write_cache_json() 
-		{
-			written = 0;
-		}
-
-		void record(const char *path, putki::type_handler_i* th, putki::instance_t obj)
-		{
-			if (putki::db::is_aux_path(path)) {
-				return;
-			}
-
-			// forward all objects directly to the output db. we can't clone them here or all
-			// pointers to them will become wild.
-			std::string out_path = path_base;
-			out_path.append("/");
-			out_path.append(path);
-			out_path.append(".json");
-
-			putki::sstream tmp;
-			putki::write::write_object_into_stream(tmp, db, th, obj);
-
-			putki::sys::mk_dir_for_path(out_path.c_str());
-			putki::sys::write_file(out_path.c_str(), tmp.str().c_str(), tmp.str().size());
-			written++;
-		}
-	};
-
-}
-
 namespace putki
 {
+	namespace
+	{
+		const size_t xbufSize = 64 * 1024 * 1024;
+		char xbuf[xbufSize];
+	}
+
 	namespace build
 	{
 		struct pkg_conf
@@ -196,44 +56,36 @@ namespace putki
 			bool make_patch;
 		};
 
-		void post_build_ptr_update(db::data *input, db::data *output)
+		static builder_setup_fn s_config_fn = 0;
+		static packaging_fn s_packaging_fn = 0;
+		static reporting_fn s_reporting_fn = 0;
+
+		void set_builder_configurator(builder_setup_fn configurator)
 		{
-			// Move all references from objects in the output
-			domain_switch dsw;
-			dsw.input = input;
-			dsw.output = output;
-			db::read_all_no_fetch(output, &dsw);
+			s_config_fn = configurator;
 		}
 
-		void resolve_object(putki::db::data *source, const char *path)
+		void set_packager(packaging_fn packaging)
 		{
-			type_handler_i *th;
-			instance_t obj;
-			if (!fetch(source, path, &th, &obj))
+			s_packaging_fn = packaging;
+		}
+
+		void set_reporting_fn(reporting_fn fn)
+		{
+			s_reporting_fn = fn;
+		}
+
+		void invoke_packager(putki::objstore::data* out, packaging_config* pconf)
+		{
+			s_packaging_fn(out, pconf);
+		}
+
+		void invoke_reporting(putki::objstore::data* out, packaging_config* pconf)
+		{
+			if (s_reporting_fn)
 			{
-				APP_WARNING("resolve[" << path << "] could not find object")
-				return;
+				s_reporting_fn(out, pconf);
 			}
-			domain_switch dsw;
-			dsw.input = source;
-			dsw.output = source;
-			dsw.traverse_children = true;
-			dsw.record(path, th, obj);
-		}
-
-		// merges objects from source into target.
-		void post_build_merge_database(putki::db::data *source, db::data *target)
-		{
-			db_record_inserter ri;
-			ri.input = source;
-			ri.output = target;
-			putki::db::read_all_no_fetch(source, &ri);
-
-			domain_switch dsw;
-			dsw.input = source;
-			dsw.output = target;
-			dsw.create_unresolved = true;
-			db::read_all_no_fetch(source, &dsw);
 		}
 
 		void commit_package(putki::package::data *package, packaging_config *packaging, const char *out_path)
@@ -291,15 +143,13 @@ namespace putki
 			
 			if (make_patch)
 			{
-				for (int i=old_ones.size()-1;i>=0;i--)
+				for (int i=(int)old_ones.size()-1;i>=0;i--)
 				{
 					package::add_previous_package(package, packaging->package_path.c_str(), old_ones[i].c_str());
 				}
 				APP_DEBUG("Registered package " << out_path << " and it will be a patch [" << pk.final_path << "] with " << old_ones.size() << " previous files to use");
 			}
-			
-			
-					
+
 			pk.pkg = package;
 			pk.path = out_path;
 			packaging->packages.push_back(pk);
@@ -336,7 +186,7 @@ namespace putki
 			char pfx[1024];
 			sprintf(pfx, "out/%s-%s", runtime::desc_str(rt), build_config);
 
-			int len = strlen(pfx);
+			size_t len = strlen(pfx);
 			for (int i=0;i<len;i++)
 				pfx[i] = ::tolower(pfx[i]);
 
@@ -353,6 +203,7 @@ namespace putki
 			conf.build_db = bdb;
 			conf.build_config = build_config;
 			builder2::data* builder = builder2::create(&conf);
+			s_config_fn(builder);
 	
 			char pkg_path[1024];
 			sprintf(pkg_path, "%s/packages/", prefix.c_str());
@@ -361,7 +212,7 @@ namespace putki
 			pconf.rt = rt;
 			pconf.bdb = bdb;
 			pconf.make_patch = make_patch;
-			putki::builder::invoke_packager(built_store, &pconf);
+			invoke_packager(built_store, &pconf);
 
 			// Required assets
 			std::set<std::string> req;
@@ -388,7 +239,7 @@ namespace putki
 
 			APP_INFO("Done building. Performing reporting step.")
 
-			builder::invoke_reporting(conf.built, &pconf);
+			invoke_reporting(conf.built, &pconf);
 
 			APP_INFO("Done reporting. Writing packages")
 

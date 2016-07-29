@@ -6,7 +6,6 @@
 #include <putki/builder/build-db.h>
 #include <putki/builder/log.h>
 #include <putki/builder/objstore.h>
-#include <putki/builder/objloader.h>
 #include <putki/blob.h>
 
 extern "C"
@@ -37,11 +36,11 @@ namespace putki
 			std::string path;
 			type_handler_i *th;
 			instance_t obj;
-			
 			int pack_slot_index;
 			int file_index, file_slot_index;
 			unsigned int ofs_begin;
 			unsigned int ofs_end;
+			std::string signature;
 			std::string bytes_signature;
 			build_db::record *r;
 		};
@@ -248,32 +247,6 @@ namespace putki
 			tok::free(mf);
 			APP_DEBUG("Loaded previous package with " << pkg->slots.size() << " slots!")
 		}
-		
-
-		struct depwalker : putki::depwalker_i
-		{
-			db::data *db;
-			std::set<std::string> deps;
-			blobmap_t *already_added;
-
-			virtual bool pointer_pre(instance_t * on, const char *ptr_type)
-			{
-				if (!*on)
-				{
-					return false;
-				}
-
-				const char *path = db::pathof_including_unresolved(db, *on);
-				if (!path)
-				{
-					APP_ERROR("Found object without path")
-					return false;
-				}
-
-				deps.insert(path);
-				return false;
-			}
-		};
 
 		data * create(objstore::data* store)
 		{
@@ -407,8 +380,6 @@ namespace putki
 			if (bulkadd && bulkadd->empty())
 				return;
 
-			objloader::data* ldr = objloader::create(data->source);
-			
 			// verify that all exist, we can error out here completely.
 			for (unsigned int i = 0;i < 1 || (bulkadd && i < bulkadd->size());i++)
 			{
@@ -432,8 +403,7 @@ namespace putki
 					continue;
 				}
 				
-				APP_ERROR("Picking probably wrong object since i did not get by signature.");
-				build_db::record *r = build_db::find(bdb, addpath);
+				build_db::record *r = build_db::find_committed(bdb, addpath);
 				if (!r)
 				{
 					APP_ERROR("Item exists in output db but not in build_db!")
@@ -444,6 +414,7 @@ namespace putki
 				e.path = addpath;
 				e.save_path = storepath;
 				e.th = info.th;
+				e.signature = info.signature;
 		
 				// Now is time to check if it can be picked from an old manifest.
 				if (r && pick_from_previous(data, addpath, build_db::get_type(r), build_db::get_signature(r), &e))
@@ -460,7 +431,7 @@ namespace putki
 						if (!path)
 							break;
 
-						build_db::record * tr = build_db::find(bdb, path);
+						build_db::record * tr = build_db::find_committed(bdb, path);
 						if (!tr)
 						{
 							APP_ERROR("No own record for " << path)
@@ -497,55 +468,21 @@ namespace putki
 				e.ofs_begin = 0;
 				e.ofs_end = 0;
 				e.file_index = e.file_slot_index = -1;
-
-				if (!objloader::load_into_nodeps(ldr, data->tmp_db, addpath))
-				{
-					APP_ERROR("query_object said " << addpath << " exists, but it could not be loaded!");
-					continue;
-				}
-
-				if (!db::fetch(data->tmp_db, addpath, &e.th, &e.obj))
-				{
-					APP_ERROR("Could not fest post load_into!");
-					continue;
-				}
-
+				e.th = info.th;
 				data->blobs[addpath] = e;
-			}
 
-			objloader::free(ldr);
-			
-			if (bulkadd && bulkadd->empty())
-				return;
-			
-			// All that remains are objects that could not be loaded from previous file,
-			// so these must be scanned here. We could use the build record pointer list...
-			// but not much gain?
-
-			depwalker dw;
-			dw.already_added = &data->blobs;
-			dw.db = data->tmp_db;
-
-			for (unsigned int k = 0;k < 1 || (bulkadd && k < bulkadd->size());k++)
-			{
-				const char *addpath = path;
-				if (bulkadd)
+				std::vector<std::string> next_add;
+				int ptrs = 0;
+				while (true)
 				{
-					addpath = (*bulkadd)[k].c_str();
-				}
-				
-				data->blobs[addpath].th->walk_dependencies(data->blobs[addpath].obj, &dw, true);
-
-				if (scandep)
-				{
-					std::set<std::string>::iterator i = dw.deps.begin();
-					std::vector<std::string> next_add;
-					while (i != dw.deps.end())
+					const char* ptr = build_db::get_pointer(r, ptrs++);
+					if (!ptr)
 					{
-						next_add.push_back(*i++);
+						break;
 					}
-					add(data, 0, &next_add, store_path_for_dependencies, true, bdb);
+					next_add.push_back(ptr);
 				}
+				add(data, 0, &next_add, store_path_for_dependencies, true, bdb);
 			}
 		}
 
@@ -565,47 +502,6 @@ namespace putki
 			}
 			return 0;
 		}
-
-		// extracts all the pointer values and their values so packaging can
-		// temporarily rewrite them.
-		struct pointer_rewriter : putki::depwalker_i
-		{
-			struct entry
-			{
-				instance_t *ptr;
-				instance_t value;
-			};
-
-			db::data *db;
-			std::vector<entry> ptrs;
-
-			bool pointer_pre(instance_t *p, const char *ptr_type)
-			{
-				if (*p) // don't modify null pointer
-				{
-					// save what we did so we can undo later
-					entry e;
-					e.ptr = p;
-					e.value = *p;
-					ptrs.push_back(e);
-
-					const char *path = db::pathof_including_unresolved(db, *p);
-					if (!path)
-					{
-						APP_WARNING("Object [" << *p << "] will not be packed because it is missing in the db.")
-						// need to return false because this could be unresolved. we can't do anything about it anyway!.
-						return false;
-					}
-				}
-				return false;
-			}
-
-			void pointer_post(instance_t *p)
-			{
-
-			}
-
-		};
 
 		long write(data *data, runtime::descptr rt, char *buffer, long available, build_db::data *build_db, sstream & manifest)
 		{
@@ -651,56 +547,63 @@ namespace putki
 			// Go through all the pointers in the object, writing slot indices (as +1 though as 0=0)
 			// where the unpacked slots end up as the last ones after the one in the packlist.
 			
-
 			// the packlist is now doomed if we manipulate with the blobmap
 			// pack all pointers so they point into the slot list.
-			pointer_rewriter pp;
-			pp.db = data->tmp_db;
 
 			// get all pointers rewritten to be pure indices.
-			APP_DEBUG("Converting paths into indices and finding unresolved pointers...")
+			APP_DEBUG("Loading objects and assigning slot indices to pointers...")
+			std::vector<std::string> unpacked;
 			for (unsigned int i = 0;i < packlist.size();i++)
 			{
-				if (packlist[i]->file_slot_index == -1)
-					packlist[i]->th->walk_dependencies(packlist[i]->obj, &pp, true, true);
-			}
-			
-			int written = 0;
-			std::vector<std::string> unpacked;
-			for (unsigned int i = 0;i < pp.ptrs.size();i++)
-			{
-				const char *path = db::pathof_including_unresolved(data->tmp_db, pp.ptrs[i].value);
-				if (!path)
+				objstore::fetch_obj_result res;
+				if (!objstore::fetch_object(data->source, packlist[i]->path.c_str(), packlist[i]->signature.c_str(), &res))
 				{
-					APP_ERROR("Pointer not in output db")
+					APP_ERROR("Panic, could not fetch output object [" << packlist[i]->path << "]");
+					packlist[i]->obj = 0;
 					continue;
 				}
-				
-				short write = 0;
-				if (!packorder.count(path))
-				{
-					for (unsigned int i = 0;i < unpacked.size();i++)
-						if (unpacked[i] == path)
-							write = (short)(packlist.size() + i + 1);
 
-					if (!write)
+				type_handler_i* th = packlist[i]->th;
+				instance_t obj = th->alloc();
+				th->fill_from_parsed(res.node, obj);
+
+				ptr_query_result query;
+				th->query_pointers(obj, &query, true, true);
+				packlist[i]->obj = obj;
+
+				for (size_t p = 0; p < query.pointers.size(); p++)
+				{
+					ptr_raw* ptr = query.pointers[p];
+					ptr->user_data = 0;
+					if (!ptr->path || !ptr->path[0])
 					{
-						write = (short)(packlist.size() + unpacked.size() + 1);
-						unpacked.push_back(path);
+						continue;
+					}
+
+					std::map<std::string, int>::iterator pk = packorder.find(ptr->path);
+					if (pk == packorder.end())
+					{
+						for (unsigned int j = 0; j < unpacked.size(); j++)
+						{
+							if (!strcmp(unpacked[j].c_str(), ptr->path))
+							{
+								ptr->user_data = packlist.size() + j + 1;
+								break;
+							}
+						}
+						if (!ptr->user_data)
+						{
+							ptr->user_data = packlist.size() + unpacked.size() + 1;
+							unpacked.push_back(ptr->path);
+						}
+					}
+					else
+					{
+						ptr->user_data = 1 + pk->second;
 					}
 				}
-				else
-				{
-					write = 1 + packorder[path];
-				}
-
-				// clear whole field.
-				*(pp.ptrs[i].ptr) = 0;
-				*((short*)pp.ptrs[i].ptr) = write;
-
-				++written;
 			}
-		
+			
 			APP_DEBUG("In pack list: " << packlist.size() << ", unresolved:" << unpacked.size())
 			
 			// --- Write package information
@@ -847,7 +750,7 @@ namespace putki
 					total_loaded_data_size += (packlist[i]->ofs_end - packlist[i]->ofs_begin);
 				}
 			
-				build_db::record *r = build_db::find(build_db, packlist[i]->path.c_str());
+				build_db::record *r = build_db::find_committed(build_db, packlist[i]->path.c_str());
 				
 				if (!r)
 				{
@@ -891,10 +794,6 @@ namespace putki
 			
 			// compute total size
 			pack_int32_field(header_size_pos, total_loaded_data_size);
-
-			// Revert all the changes!
-			for (unsigned int i = 0;i < pp.ptrs.size();i++)
-				*(pp.ptrs[i].ptr) = pp.ptrs[i].value;
 
 			APP_DEBUG("Package ready: wrote " << (ptr - buffer) << " bytes in total.")
 

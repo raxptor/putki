@@ -5,6 +5,7 @@
 #include <putki/builder/parse.h>
 #include <putki/builder/db.h>
 #include <putki/builder/build-db.h>
+#include <putki/builder/build.h>
 #include "objstore.h"
 
 namespace putki
@@ -59,11 +60,11 @@ namespace putki
 
 		// Automatically creates and adds the object.
 		template<typename T>
-		T* create_build_output(const build_info* info, const char *path)
+		ptr<T> create_build_output(const build_info* info, const char *path)
 		{
-			instance_t obj = T::th()->alloc();
-			add_build_output(info, T::th(), obj, path);
-			return (T*) obj;
+			ptr<T> new_ptr;
+			create_build_output(info, T::th(), path, &new_ptr._ptr);
+			return new_ptr;
 		}
 		
 		struct resource
@@ -80,8 +81,8 @@ namespace putki
 		
 		// Generates a path for you, returns the name
 		std::string store_resource(const build_info* info, const char* full_path, const char* data, size_t size);
-
-		void add_build_output(const build_info* info, type_handler_i* th, instance_t object, const char *path);
+		
+		void create_build_output(const build_info* info, type_handler_i* th, const char *path, ptr_raw* ptr);
 
 		// 
 		data* create(config* conf);

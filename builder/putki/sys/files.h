@@ -1,6 +1,8 @@
 #ifndef __PUTKI_SYS_FILES__
 #define __PUTKI_SYS_FILES__
 
+#include <stdint.h>
+
 namespace putki
 {
 	namespace sys
@@ -16,7 +18,7 @@ namespace putki
 		bool stat(const char *path, file_info *out);
 		void search_tree(const char *root_directory, file_enum_t callback, void *userptr);
 		void mk_dir_for_path(const char *path);
-		bool write_file(const char *path, const char *str, unsigned long size);
+		bool write_file(const char *path, const char *str, size_t size);
 
 		void chdir_push(const char *path);
 		void chdir_pop();
