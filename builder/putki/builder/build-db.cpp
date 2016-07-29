@@ -8,7 +8,7 @@
 #include <fstream>
 #include <cstring>
 
-#include <putki/builder/db.h>
+#include <putki/builder/signature.h>
 #include <putki/builder/log.h>
 #include <putki/builder/ptr.h>
 #include <putki/sys/thread.h>
@@ -467,11 +467,10 @@ namespace putki
 			d->committed.insert(std::make_pair(r->source_path, r));
 		}
 
-		void insert_metadata(record* rec, type_handler_i* th, instance_t obj, const char *path)
+		void insert_metadata(record* rec, type_handler_i* th, instance_t obj, const char* path, const char* signature)
 		{
-			char buffer[128];
 			rec->md.type = th->name();
-			rec->md.signature = db::signature(th, obj, buffer);
+			rec->md.signature = signature;
 
 			ptr_query_result ptrs;
 			th->query_pointers(obj, &ptrs, true, true);

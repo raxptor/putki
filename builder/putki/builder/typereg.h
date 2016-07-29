@@ -17,6 +17,7 @@ namespace putki
 
 	namespace parse { struct node; }
 	namespace db { struct data; }
+
 	struct sstream;
 
 	struct depwalker_i

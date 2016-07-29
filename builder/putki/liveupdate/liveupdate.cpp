@@ -142,7 +142,7 @@ namespace putki
 		void editor_on_edited(ed_client *conn, db::data *db, const char *path)
 		{
 			sys::scoped_maybe_lock lk(&conn->session.mtx);
-
+			/*
 			edits_t::iterator i = conn->session.edits.find(path);
 			if (i == conn->session.edits.end())
 			{
@@ -169,6 +169,7 @@ namespace putki
 			i->second.data = std::string(str, str + tmp.size());
 			conn->session.num_edits++;
 			conn->session.cond.broadcast();
+			*/
 			APP_DEBUG("Inserted edit on " << path);
 		}
 		
@@ -284,7 +285,6 @@ namespace putki
 				close(conn->socket);
 				conn->socket = -2;
 			}
-			
 			sys::thread_free(read_thread);
 		}
 		

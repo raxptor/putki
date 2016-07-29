@@ -5,7 +5,7 @@
 #include <vector>
 #include <string>
 
-#include <putki/builder/db.h>
+#include <putki/builder/typereg.h>
 #include <putki/sys/files.h>
 #include <putki/sys/sstream.h>
 

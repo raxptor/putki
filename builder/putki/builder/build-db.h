@@ -44,7 +44,7 @@ namespace putki
 		void add_output(record *r, const char *output_path, const char *builder, const char *signature);
 		void add_input_dependency(record *r, const char *dependency, const char *signature=0);
 		void add_external_resource_dependency(record *r, const char *filepath, const char *signature);
-		void insert_metadata(record* rec, type_handler_i* th, instance_t obj, const char *path);
+		void insert_metadata(record* rec, type_handler_i* th, instance_t obj, const char* path, const char* signature);
 		void record_log(record *r, LogType type, const char *msg);
 		void flush_log(record *r);
 				

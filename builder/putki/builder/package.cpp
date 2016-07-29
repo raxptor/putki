@@ -2,7 +2,7 @@
 #include "tok.h"
 
 #include <putki/builder/typereg.h>
-#include <putki/builder/db.h>
+#include <putki/builder/signature.h>
 #include <putki/builder/build-db.h>
 #include <putki/builder/log.h>
 #include <putki/builder/objstore.h>
@@ -252,13 +252,11 @@ namespace putki
 		{
 			data *d = new data;
 			d->source = store;
-			d->tmp_db = db::create();
 			return d;
 		}
 
 		void free(data *package)
 		{
-			db::free(package->tmp_db);
 			delete package;
 		}
 		

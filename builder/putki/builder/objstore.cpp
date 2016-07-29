@@ -1,7 +1,7 @@
 #include "objstore.h"
 
 #include <putki/sys/files.h>
-#include <putki/builder/db.h>
+#include <putki/builder/signature.h>
 #include <putki/builder/log.h>
 #include <putki/builder/parse.h>
 #include <putki/builder/write.h>
@@ -145,8 +145,8 @@ namespace putki
 				e.file = fe;
 				e.path = objname;
 				e.cached = is_cached;
-				char buf[64];
-				e.signature = db::signature(th, obj, buf);
+				signature::buffer sigbuf;
+				e.signature = signature::object(th, obj, sigbuf);
 				e.node = parse::get_object_item(root, "data");
 				e.th = th;
 				d->objects.insert(std::make_pair(objname, e));
@@ -180,8 +180,8 @@ namespace putki
 						e.node = parse::get_object_item(aux_obj, "data");
 						e.cached = is_cached;
 						e.th = th;
-						char buf[64];
-						e.signature = db::signature(th, obj, buf);
+						signature::buffer sigbuf;
+						e.signature = signature::object(th, obj, sigbuf);
 						d->objects.insert(std::make_pair(auxpath, e));
 						th->free(obj);
 					}
