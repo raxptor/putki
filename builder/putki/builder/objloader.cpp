@@ -133,7 +133,7 @@ namespace putki
 			}
 			
 			APP_DEBUG("\tprocess_load/fetch [" << path << "] sig = [" << info.signature << "]");
-			objstore::fetch_result fr;
+			objstore::fetch_obj_result fr;
 			if (!objstore::fetch_object(ld->d->store, path, info.signature.c_str(), &fr))
 			{
 				return false;
@@ -174,6 +174,8 @@ namespace putki
 				*_th = fr.th;
 				*_obj = obj;
 			}
+			
+			objstore::fetch_object_free(&fr);
 			return true;
 		}
 

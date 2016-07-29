@@ -1,0 +1,9 @@
+{
+	"type": "WithResource",
+	"data": {
+		"Input": "data1\u002etxt",
+		"Output": ""
+	},
+	"aux": [
+	]
+}

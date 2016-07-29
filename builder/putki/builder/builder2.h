@@ -65,6 +65,21 @@ namespace putki
 			add_build_output(info, T::th(), obj, path);
 			return (T*) obj;
 		}
+		
+		struct resource
+		{
+			const char* signature;
+			const char* data;
+			size_t size;
+			objstore::fetch_res_result internal;	
+		};
+
+		// Automatically adds to input dependency.		
+		bool fetch_resource(const build_info* info, const char* path, resource* resource);
+		void free_resource(resource* resource);
+		
+		// Generates a path for you, returns the name
+		std::string store_resource(const build_info* info, const char* full_path, const char* data, size_t size);
 
 		void add_build_output(const build_info* info, type_handler_i* th, instance_t object, const char *path);
 

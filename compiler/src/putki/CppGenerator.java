@@ -1198,6 +1198,7 @@ public class CppGenerator
 
             master.append("#include <putki/types.h>\n");
             master.append("#include <putki/blob.h>\n");
+            master.append("#include <stddef.h>\n");
 
         	for (Compiler.ParsedFile file : tree.parsedFiles)
         	{

@@ -14,7 +14,10 @@
 			"Text": "This is cykelpump type in C#",
 			"DummyPtr": "dummy2"
 		},
-		"BuildConfiguration": "buildconfig"
+		"BuildConfiguration": "buildconfig",
+		"Built": "",
+		"WRes": ["data-1",
+		"test/data-2"]
 	},
 	"aux": [
 		{

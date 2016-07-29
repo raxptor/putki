@@ -1,6 +1,6 @@
 #include "pkgloader.h"
 
-#include <putki/config.h>
+#include "putki/config.h"
 #include "log/log.h"
 
 #include <fstream>

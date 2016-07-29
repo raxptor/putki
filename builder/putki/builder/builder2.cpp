@@ -17,6 +17,9 @@ namespace putki
 		{
 			db::data* tmp_db;
 			db::data* output_db;
+			objstore::data* input_store;
+			objstore::data* temp_store;
+			objstore::data* output_store;
 			std::vector<std::string> outputs;
 		};
 
@@ -85,10 +88,77 @@ namespace putki
 			return builder_name.empty() ? "default" : builder_name;
 		}
 
-		void add_build_output(const build_info* info, type_handler_i* th, instance_t object, const char *path)
+		void add_build_output(const build_info* info, type_handler_i* th, instance_t object, const char *tag)
 		{
-			info->internal->outputs.push_back(path);
-			db::insert(info->internal->tmp_db, path, th, object);
+			std::string actual(info->path);
+			actual.append("-");
+			actual.append(tag);
+			info->internal->outputs.push_back(actual.c_str());
+			db::insert(info->internal->tmp_db, actual.c_str(), th, object);
+		}
+		
+		std::string store_resource(const build_info* info, const char* tag, const char* data, size_t size)
+		{
+			std::string actual(info->path);
+			actual.append("-");
+			actual.append(tag);
+			if (!objstore::store_resource(info->internal->temp_store, actual.c_str(), data, size))
+			{
+				RECORD_ERROR(info->record, "Failed to store temp resource [" << actual << "] size=" << size);
+				return "";
+			}
+			objstore::resource_info ri;
+			if (!objstore::query_resource(info->internal->temp_store, actual.c_str(), &ri))
+			{
+				RECORD_ERROR(info->record, "Failed to query stored resource [" << actual << "] size=" << size);
+				return "";
+			}
+			return ri.signature;
+		}
+
+		bool fetch_resource(const build_info* info, const char* path, resource* resource)
+		{
+			objstore::resource_info ri;
+			if (objstore::query_resource(info->internal->temp_store, path, &ri))
+			{
+				if (objstore::fetch_resource(info->internal->temp_store, path, ri.signature.c_str(), &resource->internal))
+				{
+					resource->signature = strdup(ri.signature.c_str());
+					resource->data = resource->internal.data;
+					resource->size = resource->internal.size;
+					build_db::add_external_resource_dependency(info->record, path, resource->signature);
+					return true;
+				}
+				else
+				{
+					build_db::add_external_resource_dependency(info->record, path, "file-not-found");
+					APP_WARNING("Thought i could fetch resource [" << path << "] from tmp but then i couldn't!");
+					return false;
+				}
+			}
+			if (objstore::query_resource(info->internal->input_store, path, &ri))
+			{
+				if (objstore::fetch_resource(info->internal->input_store, path, ri.signature.c_str(), &resource->internal))
+				{
+					resource->signature = strdup(ri.signature.c_str());
+					resource->data = resource->internal.data;
+					resource->size = resource->internal.size;
+					build_db::add_external_resource_dependency(info->record, path, resource->signature);
+					return true;
+				}
+				else
+				{
+					APP_WARNING("Thought i could fetch resource [" << path << "] from input but then i couldn't!");
+				}
+			}
+			build_db::add_external_resource_dependency(info->record, path, "file-not-found");
+			return false;
+		}
+		
+		void free_resource(resource* resource)
+		{
+			::free((void*)resource->signature);
+			objstore::fetch_resource_free(&resource->internal);
 		}
 
 		struct find_runtime_deps : public depwalker_i
@@ -146,19 +216,19 @@ namespace putki
 				if (!deplist_is_external_resource(dl, di))
 				{
 					objstore::object_info info;
-					if (objstore::query_object(d->conf.input, path, &info))
+					if (objstore::query_object(d->conf.input, dep, &info))
 					{
 						if (strcmp(info.signature.c_str(), build_db::deplist_signature(dl, di)))
 						{
-							APP_DEBUG("cache_check => dependency changed on input obj [" << dep << "]");
+							APP_DEBUG("cache_check => input obj has changed [" << dep << "]");
 							return false;
 						}
 					}
-					else if (objstore::query_object(d->conf.temp, path, &info))
+					else if (objstore::query_object(d->conf.temp, dep, &info))
 					{
 						if (strcmp(info.signature.c_str(), build_db::deplist_signature(dl, di)))
 						{
-							APP_DEBUG("cache_check => dependency changed on temp obj [" << dep << "]");
+							APP_DEBUG("cache_check => temp obj has changed [" << dep << "]");
 							return false;
 						}
 					}
@@ -168,6 +238,37 @@ namespace putki
 						return false;
 					}
 					APP_DEBUG("cache_check => " << dep << " still has sig " << build_db::deplist_signature(dl, di));
+				}
+				else
+				{
+					objstore::resource_info info;
+					if (objstore::query_resource(d->conf.input, dep, &info))
+					{
+						if (strcmp(info.signature.c_str(), build_db::deplist_signature(dl, di)))
+						{
+							APP_DEBUG("res_cache_check => input resource changed [" << dep << "]");
+							return false;
+						}
+					}
+					else if (objstore::query_resource(d->conf.temp, dep, &info))
+					{
+						if (strcmp(info.signature.c_str(), build_db::deplist_signature(dl, di)))
+						{
+							APP_DEBUG("res_cache_check => temp object changed [" << dep << "]");
+							return false;
+						}
+					}
+					else if (!strcmp(build_db::deplist_signature(dl, di), "file-not-found"))
+					{
+						APP_DEBUG("res_cache_check => object still does not exist");
+						return false;
+					}
+					else
+					{
+						APP_DEBUG("res_cache_check => [" << dep << "] does not exist any longer.");
+						return false;
+					}
+					APP_DEBUG("res_cache_check => " << dep << " still has sig " << build_db::deplist_signature(dl, di));
 				}
 				++di;
 			}
@@ -181,7 +282,7 @@ namespace putki
 					break;
 				}
 				const char* out_sig = get_output_signature(find, o);
-				if (!objstore::transfer_and_uncache_into(d->conf.temp, d->conf.temp, out, out_sig))
+				if (!objstore::uncache_object(d->conf.temp, d->conf.temp, out, out_sig))
 				{
 					// Is cleanup here actually needed? Probably not.
 					APP_DEBUG("Could not uncache object " << out << " sig=" << out_sig);
@@ -194,7 +295,7 @@ namespace putki
 				++o;
 			}
 
-			if (!objstore::transfer_and_uncache_into(d->conf.built, d->conf.built, path, build_db::get_signature(find)))
+			if (!objstore::uncache_object(d->conf.built, d->conf.built, path, build_db::get_signature(find)))
 			{
 				APP_DEBUG("Could not uncache object " << path << " sig=" << build_db::get_signature(find));
 				return false;
@@ -285,6 +386,9 @@ namespace putki
 
 				build_info_internal bii;
 				bii.tmp_db = temp;
+				bii.input_store = d->conf.input;
+				bii.temp_store = d->conf.temp;
+				bii.output_store = d->conf.built;
 
 				build_info bi;
 				bi.path = path;
@@ -302,9 +406,19 @@ namespace putki
 					bi.user_data = i->second.user_data;
 					if (!i->second.fn(&bi))
 					{
+						RECORD_ERROR(bi.record, "Error occured when building with builder " << bi.builder);
 						has_error = true;
 						break;
 					}
+					else
+					{
+						RECORD_INFO(bi.record, "Built with builder " << bi.builder);
+					}
+				}
+				
+				if (hs.first == hs.second)
+				{
+					RECORD_INFO(bi.record, "Building without any registered handlers");
 				}
 
 				// TODO: Enumerate struct instances here too and build them.

@@ -7,6 +7,12 @@
 #include <putki/builder/write.h>
 #include <putki/builder/typereg.h>
 
+extern "C"
+{
+	#include <md5/md5.h>
+}
+
+#include <fstream>
 #include <string>
 #include <map>
 #include <vector>
@@ -29,8 +35,17 @@ namespace putki
 			type_handler_i* th;
 			parse::node* node;
 		};
+		
+		struct resource_entry
+		{
+			file_entry* file;
+			std::string path;
+			std::string signature;
+			bool cached;
+		};
 
 		typedef std::multimap<std::string, object_entry> ObjMap;
+		typedef std::multimap<std::string, resource_entry> ResMap;
 
 		struct data
 		{
@@ -38,6 +53,7 @@ namespace putki
 			std::string root;
 			std::vector<file_entry*> files;
 			ObjMap objects;
+			ResMap resources;
 		};
 
 		namespace
@@ -53,18 +69,47 @@ namespace putki
 				}
 			};
 		}
-
-		void fetch(const char* path, fetch_result* result)
+		
+		bool load_file(const char* path, const char** outBytes, size_t* outSize)
 		{
+			std::ifstream f(path, std::ios::binary);
+			if (!f.good())
+			{
+				APP_WARNING("Failed to load file [" << path << "]")
+				return false;
+			}
 
+			f.seekg(0, std::ios::end);
+			std::streampos size = f.tellg();
+			f.seekg(0, std::ios::beg);
+
+			char *b = new char[(size_t)size];
+			f.read(b, size);
+			*outBytes = b;
+			*outSize = (long long) size;
+			return true;
 		}
-
-		void fetch_free(fetch_result* result)
+		
+		std::string file_signature(const char* path)
 		{
-			
+			const char *bytes;
+			size_t sz;
+			if (!load_file(path, &bytes, &sz))
+			{
+				return "";
+			}
+			else
+			{
+				char signature[64];
+				char signature_string[64];
+				md5_buffer(bytes, sz, signature);
+				md5_sig_to_string(signature, signature_string, 64);
+				delete [] bytes;
+				return signature_string;
+			}
 		}
-
-		void examine_file(const char *fullname, const char *name, void *userptr)
+		
+		void examine_object_file(const char *fullname, const char *name, void *userptr)
 		{
 			data* d = (data *)userptr;
 			std::string fn(name);
@@ -168,13 +213,39 @@ namespace putki
 				}
 			}
 		}
+
+		void examine_resource_file(const char *fullname, const char *name, void *userptr)
+		{
+			data* d = (data *)userptr;
+			std::string fn(name);
+			
+			bool cached = false;
+			int sig = fn.find_last_of('#');
+			if (sig != std::string::npos)
+			{
+				fn = fn.substr(0, sig);
+				cached = true;
+			}
+			
+			file_entry* fe = new file_entry();
+			fe->path = fullname;
+			d->files.push_back(fe);
+
+			resource_entry e;
+			e.file = fe;
+			e.path = fn;
+			e.cached = cached;
+			e.signature = file_signature(fullname);
+			d->resources.insert(std::make_pair(fn, e));
+		}
 		
 		data* open(const char *root_path)
 		{
 			data* d = new data();
 			d->db = db::create();
 			d->root = root_path;
-			sys::search_tree((d->root + "/objs").c_str(), examine_file, d);
+			sys::search_tree((d->root + "/objs").c_str(), examine_object_file, d);
+			sys::search_tree((d->root + "/res").c_str(), examine_resource_file, d);
 
 			db::free(d->db);
 			d->db = db::create();
@@ -182,8 +253,14 @@ namespace putki
 			ObjMap::iterator i = d->objects.begin();
 			while (i != d->objects.end())
 			{
-				APP_DEBUG("[" << i->first << "] sig=" << i->second.signature);
+				APP_DEBUG("obj [" << i->first << "] sig=" << i->second.signature << " file=" << i->second.file->path);
 				++i;
+			}
+			ResMap::iterator j = d->resources.begin();
+			while (j != d->resources.end())
+			{
+				APP_DEBUG("res [" << j->first << "] sig=" << j->second.signature << " file=" << j->second.file->path);
+				++j;
 			}
 			return d;
 		}
@@ -194,20 +271,6 @@ namespace putki
 			delete d;
 		}
 
-		bool fetch_object(data* d, const char* path, const char* signature, fetch_result* result)
-		{
-			std::pair<ObjMap::iterator, ObjMap::iterator> range = d->objects.equal_range(path);
-			for (ObjMap::iterator i = range.first; i != range.second; i++)
-			{
-				if (!strcmp(i->second.signature.c_str(), signature))
-				{
-					result->node = i->second.node;
-					result->th = i->second.th;
-					return true;
-				}
-			}
-			return false;
-		}
 
 		bool query_object(data* d, const char *path, object_info* result)
 		{
@@ -224,7 +287,65 @@ namespace putki
 			return false;
 		}
 
-		bool transfer_and_uncache_into(data* dest, data* source, const char *path, const char *signature)
+		bool fetch_object(data* d, const char* path, const char* signature, fetch_obj_result* result)
+		{
+			std::pair<ObjMap::iterator, ObjMap::iterator> range = d->objects.equal_range(path);
+			for (ObjMap::iterator i = range.first; i != range.second; i++)
+			{
+				if (!strcmp(i->second.signature.c_str(), signature))
+				{
+					result->node = i->second.node;
+					result->th = i->second.th;
+					return true;
+				}
+			}
+			return false;
+		}
+
+		void fetch_object_free(fetch_obj_result* result)
+		{
+
+		}
+
+		bool query_resource(data* d, const char *path, resource_info* result)
+		{
+			std::pair<ResMap::iterator, ResMap::iterator> range = d->resources.equal_range(path);
+			for (ResMap::iterator i = range.first; i != range.second; i++)
+			{
+				if (!i->second.cached)
+				{
+					result->signature = i->second.signature;
+					return true;
+				}
+			}
+			return false;
+		}
+
+		bool fetch_resource(data* d, const char* path, const char* signature, fetch_res_result* result)
+		{
+			std::pair<ResMap::iterator, ResMap::iterator> range = d->resources.equal_range(path);
+			for (ResMap::iterator i = range.first; i != range.second; i++)
+			{
+				if (!strcmp(i->second.signature.c_str(), signature))
+				{
+					if (!load_file(i->second.file->path.c_str(), &result->data, &result->size))
+					{
+						APP_WARNING("Could not fetch resource [" << path << "] actual[" << i->second.file->path << "]");
+						return false;
+					}
+					return true;
+				}
+			}
+			return false;
+		}
+		
+		void fetch_resource_free(fetch_res_result* result)
+		{
+			delete result->data;
+			result->data = 0;
+		}
+
+		bool uncache_object(data* dest, data* source, const char *path, const char *signature)
 		{
 			std::pair<ObjMap::iterator, ObjMap::iterator> range = source->objects.equal_range(path);
 			for (ObjMap::iterator i = range.first; i != range.second; i++)
@@ -268,23 +389,58 @@ namespace putki
 			fn.append(".");
 			fn.append(signature);
 			fn.append(".json");
-			examine_file(out_path.c_str(), fn.c_str(), d);
+			examine_object_file(out_path.c_str(), fn.c_str(), d);
 
-			bool succ = transfer_and_uncache_into(d, d, path, signature);
+			bool succ = uncache_object(d, d, path, signature);
 
 			// TODO: Unresolve the pointers in 'obj' and cache it, should we happen to store and then try to load it in the same session.
 			th->free(obj);
 			return succ;
 		}
 
-		void fetch_object_free(data* d, fetch_result* result)
+		bool store_resource(data* d, const char *path, const char* data, size_t length)
 		{
+			char signature[64];
+			char signature_string[64];
+			md5_buffer(data, length, signature);
+			md5_sig_to_string(signature, signature_string, 64);
+			
+			std::string fn(path);
+			fn.append("#");
+			fn.append(signature_string);
+		
+			std::string out_path(d->root);
+			out_path.append("/res/");
+			out_path.append(fn);
+			
+			sys::mk_dir_for_path(out_path.c_str());
+			if (!sys::write_file(out_path.c_str(), data, length))
+			{
+				return false;
+			}
 
+			examine_resource_file(out_path.c_str(), fn.c_str(), d);
+			return uncache_resource(d, d, path, signature_string);
 		}
 		
-		std::string signature(const char *path)
+		bool uncache_resource(data* dest, data* source, const char *path, const char *signature)
 		{
-			return "none";
+			std::pair<ResMap::iterator, ResMap::iterator> range = source->resources.equal_range(path);
+			for (ResMap::iterator i = range.first; i != range.second; i++)
+			{
+				if (i->second.cached && !strcmp(i->second.signature.c_str(), signature))
+				{
+					file_entry* f = new file_entry();
+					f->path = i->second.file->path;
+					dest->files.push_back(f);
+					resource_entry re;
+					re.file = f;
+					re.signature = signature;
+					dest->resources.insert(std::make_pair(path, re));
+					return true;
+				}
+			}
+			return false;
 		}
 	}
 }

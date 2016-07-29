@@ -413,7 +413,6 @@ namespace putki
 			{
 				APP_ERROR("aah");
 			}
-			sys::scoped_maybe_lock _lk(&d->mtx);
 			flush_log(r);
 			record *ex = find(d, r->source_path.c_str(), r->source_sig.c_str(), r->builder.c_str());
 			if (ex)
@@ -422,6 +421,7 @@ namespace putki
 			}
 			else
 			{
+				sys::scoped_maybe_lock _lk(&d->mtx);
 				d->records.insert(std::make_pair(r->source_path, r));
 			}
 		}
@@ -528,6 +528,7 @@ namespace putki
 			{
 				return inputdeps_get(q->second);
 			}
+			return 0;
 		}
 
 		deplist* inputdeps_get(record *r)

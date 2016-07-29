@@ -39,9 +39,7 @@ namespace putki
 		bool load(builder::data *bld, const char *path, const char **outBytes, long long *outSize)
 		{
 			sys::scoped_maybe_lock lk(&_mtx);
-			
 			std::string full_path = real_path(bld, path);
-
 			std::ifstream f(full_path.c_str(), std::ios::binary);
 			if (!f.good())
 			{

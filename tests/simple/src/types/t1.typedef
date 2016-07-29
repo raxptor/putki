@@ -87,6 +87,12 @@ BuiltAsset non-instantiable
 	string OtherData
 }
 
+WithResource
+{
+	[no-out] file Input
+	[hidden] ptr BuiltAsset Output
+}
+
 Everything
 {
 	ptr TestStructTypes T1
@@ -98,6 +104,7 @@ Everything
 	TestValueType VTInline	
 	ptr BuildConfigTest BuildConfiguration
 	[hidden] ptr BuiltAsset Built	
+	ptr[] WithResource WRes
 }
 
 
