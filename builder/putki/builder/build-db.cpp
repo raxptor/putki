@@ -104,7 +104,7 @@ namespace putki
 						if (line[0] == '#')
 						{
 							if (cur) {
-								commit_record(d, cur);
+								d->records.insert(std::make_pair(cur->source_path, cur));
 							}
 							cur = create_record(path, extra.c_str(), extra2.c_str());
 						}
@@ -143,7 +143,7 @@ namespace putki
 					}
 
 					if (cur) {
-						commit_record(d, cur);
+						d->records.insert(std::make_pair(cur->source_path, cur));
 					}
 				}
 			}
@@ -451,19 +451,15 @@ namespace putki
 
 		void commit_record(data *d, record *r)
 		{
-			if (r->md.signature.empty())
-			{
-				APP_ERROR("aah");
-			}
 			flush_log(r);
-
 			sys::scoped_maybe_lock _lk(&d->mtx);
 			d->records.insert(std::make_pair(r->source_path, r));
-			commit_cached_record(d, r);
+			d->committed.insert(std::make_pair(r->source_path, r));
 		}
 
 		void commit_cached_record(data *d, record *r)
 		{
+			sys::scoped_maybe_lock _lk(&d->mtx);
 			d->committed.insert(std::make_pair(r->source_path, r));
 		}
 

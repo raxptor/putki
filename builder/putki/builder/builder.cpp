@@ -343,6 +343,8 @@ namespace putki
 					d->has_added.insert(ptr);
 				}
 			}
+
+			build_db::commit_cached_record(d->conf.build_db, find);
 			return true;
 		}
 

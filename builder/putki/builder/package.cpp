@@ -412,6 +412,7 @@ namespace putki
 				e.path = addpath;
 				e.save_path = storepath;
 				e.th = info.th;
+				e.obj = 0;
 				e.signature = info.signature;
 		
 				// Now is time to check if it can be picked from an old manifest.
@@ -553,6 +554,11 @@ namespace putki
 			std::vector<std::string> unpacked;
 			for (unsigned int i = 0;i < packlist.size();i++)
 			{
+				if (packlist[i]->file_slot_index != -1)
+				{
+					continue;
+				}
+
 				objstore::fetch_obj_result res;
 				if (!objstore::fetch_object(data->source, packlist[i]->path.c_str(), &res))
 				{
@@ -795,7 +801,10 @@ namespace putki
 
 			for (unsigned int i = 0;i < packlist.size();i++)
 			{
-				packlist[i]->th->free(packlist[i]->obj);
+				if (packlist[i]->obj != 0)
+				{
+					packlist[i]->th->free(packlist[i]->obj);
+				}
 			}
 
 			return ptr - buffer;
