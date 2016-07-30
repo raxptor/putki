@@ -614,7 +614,7 @@ namespace putki
 				{
 					if (ignore.find(*deps) != ignore.end())
 					{
-						++deps;
+						deps++;
 						continue;
 					}
 					LoadedT::iterator i = d->loaded_temp.find(*deps);
@@ -634,7 +634,7 @@ namespace putki
 							APP_ERROR("Visited set contained entry " << *deps << " not in either input or temp!");
 						}
 					}
-					++deps;
+					deps++;
 				}
 
 				signature::buffer sigbuf;

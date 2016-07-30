@@ -291,6 +291,21 @@ namespace putki
 			}
 			return r;
 		}
+
+
+		void commit_record(data *d, record *r)
+		{
+			flush_log(r);
+			sys::scoped_maybe_lock _lk(&d->mtx);
+			d->records.insert(std::make_pair(r->source_path, r));
+			d->committed.insert(std::make_pair(r->source_path, r));
+		}
+
+		void commit_cached_record(data *d, record *r)
+		{
+			sys::scoped_maybe_lock _lk(&d->mtx);
+			d->committed.insert(std::make_pair(r->source_path, r));
+		}
 		
 		void flush_log(record *r)
 		{
@@ -447,20 +462,6 @@ namespace putki
 					}
 				}
 			}
-		}
-
-		void commit_record(data *d, record *r)
-		{
-			flush_log(r);
-			sys::scoped_maybe_lock _lk(&d->mtx);
-			d->records.insert(std::make_pair(r->source_path, r));
-			d->committed.insert(std::make_pair(r->source_path, r));
-		}
-
-		void commit_cached_record(data *d, record *r)
-		{
-			sys::scoped_maybe_lock _lk(&d->mtx);
-			d->committed.insert(std::make_pair(r->source_path, r));
 		}
 
 		void insert_metadata(record* rec, type_handler_i* th, instance_t obj, const char* path, const char* signature)

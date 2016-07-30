@@ -430,7 +430,7 @@ namespace putki
 
 		void fetch_resource_free(fetch_res_result* result)
 		{
-			delete result->data;
+			delete[] result->data;
 			result->data = 0;
 		}
 
