@@ -554,20 +554,18 @@ namespace putki
 			for (unsigned int i = 0;i < packlist.size();i++)
 			{
 				objstore::fetch_obj_result res;
-				if (!objstore::fetch_object(data->source, packlist[i]->path.c_str(), packlist[i]->signature.c_str(), &res))
+				if (!objstore::fetch_object(data->source, packlist[i]->path.c_str(), &res))
 				{
 					APP_ERROR("Panic, could not fetch output object [" << packlist[i]->path << "]");
 					packlist[i]->obj = 0;
 					continue;
 				}
 
-				type_handler_i* th = packlist[i]->th;
-				instance_t obj = th->alloc();
-				th->fill_from_parsed(res.node, obj);
+				packlist[i]->th = res.th;
+				packlist[i]->obj = res.obj;
 
 				ptr_query_result query;
-				th->query_pointers(obj, &query, true, true);
-				packlist[i]->obj = obj;
+				res.th->query_pointers(res.obj, &query, true, true);
 
 				for (size_t p = 0; p < query.pointers.size(); p++)
 				{
@@ -794,6 +792,11 @@ namespace putki
 			pack_int32_field(header_size_pos, total_loaded_data_size);
 
 			APP_DEBUG("Package ready: wrote " << (ptr - buffer) << " bytes in total.")
+
+			for (unsigned int i = 0;i < packlist.size();i++)
+			{
+				packlist[i]->th->free(packlist[i]->obj);
+			}
 
 			return ptr - buffer;
 		}

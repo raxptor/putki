@@ -36,7 +36,6 @@ namespace putki
 			file_entry* file;
 			std::string path;
 			std::string signature;
-			bool cached;
 			type_handler_i* th;
 			parse::node* node;
 		};
@@ -50,14 +49,19 @@ namespace putki
 			bool cached;
 		};
 
-		typedef std::multimap<std::string, object_entry> ObjMap;
+		typedef std::multimap<std::string, object_entry*> CacheMap;
+		typedef std::map<std::string, object_entry*> ObjMap;
+
 		typedef std::multimap<std::string, resource_entry> ResMap;
 
 		struct data
 		{
 			std::string root;
 			std::vector<file_entry*> files;
-			ObjMap objects;
+			std::vector<object_entry*> all_objs;
+			CacheMap obj_cache;
+			ObjMap objs;
+
 			ResMap resources;
 		};
 
@@ -118,13 +122,13 @@ namespace putki
 
 			std::string fn2 = fn.substr(0, pos);
 			std::string objname;
-			bool is_cached = false;
+			bool is_cache = false;
 
 			size_t sig = fn2.find_last_of('.');
 			if (sig != std::string::npos)
 			{
 				objname = fn.substr(0, sig);
-				is_cached = true;
+				is_cache = true;
 			}
 			else
 			{
@@ -150,15 +154,24 @@ namespace putki
 			{
 				instance_t obj = th->alloc();
 				th->fill_from_parsed(parse::get_object_item(root, "data"), obj);
-				object_entry e;
-				e.file = fe;
-				e.path = objname;
-				e.cached = is_cached;
+
+				object_entry* e = new object_entry();
+				e->file = fe;
+				e->path = objname;
+
 				signature::buffer sigbuf;
-				e.signature = signature::object(th, obj, sigbuf);
-				e.node = parse::get_object_item(root, "data");
-				e.th = th;
-				d->objects.insert(std::make_pair(objname, e));
+				e->signature = signature::object(th, obj, sigbuf);
+				e->node = parse::get_object_item(root, "data");
+				e->th = th;
+				d->all_objs.push_back(e);
+				if (is_cache)
+				{
+					d->obj_cache.insert(std::make_pair(e->signature, e));
+				}
+				else
+				{
+					d->objs.insert(std::make_pair(objname, e));
+				}
 				th->free(obj);
 			}
 			else
@@ -183,15 +196,22 @@ namespace putki
 					{
 						instance_t obj = th->alloc();
 						th->fill_from_parsed(parse::get_object_item(aux_obj, "data"), obj);
-						object_entry e;
-						e.file = fe;
-						e.path = auxpath;
-						e.node = parse::get_object_item(aux_obj, "data");
-						e.cached = is_cached;
-						e.th = th;
+						object_entry* e = new object_entry();
+						d->all_objs.push_back(e);
+						e->file = fe;
+						e->path = auxpath;
+						e->node = parse::get_object_item(aux_obj, "data");
+						e->th = th;
 						signature::buffer sigbuf;
-						e.signature = signature::object(th, obj, sigbuf);
-						d->objects.insert(std::make_pair(auxpath, e));
+						e->signature = signature::object(th, obj, sigbuf);
+						if (is_cache)
+						{
+							d->obj_cache.insert(std::make_pair(e->signature, e));
+						}
+						else
+						{
+							d->objs.insert(std::make_pair(auxpath, e));
+						}
 						th->free(obj);
 					}
 				}
@@ -238,10 +258,10 @@ namespace putki
 			sys::search_tree((d->root + "/objs").c_str(), examine_object_file, d);
 			sys::search_tree((d->root + "/res").c_str(), examine_resource_file, d);
 
-			ObjMap::iterator i = d->objects.begin();
-			while (i != d->objects.end())
+			ObjMap::iterator i = d->objs.begin();
+			while (i != d->objs.end())
 			{
-				APP_DEBUG("obj [" << i->first << "] sig=" << i->second.signature << " file=" << i->second.file->path);
+				APP_DEBUG("obj [" << i->first << "] sig=" << i->second->signature << " file=" << i->second->file->path);
 				++i;
 			}
 			ResMap::iterator j = d->resources.begin();
@@ -268,54 +288,57 @@ namespace putki
 
 		bool query_object(data* d, const char *path, object_info* result)
 		{
-			std::pair<ObjMap::iterator, ObjMap::iterator> range = d->objects.equal_range(path);
-			for (ObjMap::iterator i = range.first; i != range.second; i++)
+			ObjMap::iterator i = d->objs.find(path);
+			if (i != d->objs.end())
 			{
-				if (!i->second.cached)
-				{
-					result->signature = i->second.signature;
-					result->th = i->second.th;
-					return true;
-				}
+				result->signature = i->second->signature;
+				result->th = i->second->th;
+				return true;
 			}
 			return false;
 		}
 
-		bool fetch_object(data* d, const char* path, const char* signature, fetch_obj_result* result)
+		// Fetches -the- uncached.
+		bool fetch_object(data* d, const char* path, fetch_obj_result* result)
 		{
-			std::pair<ObjMap::iterator, ObjMap::iterator> range = d->objects.equal_range(path);
-			for (ObjMap::iterator i = range.first; i != range.second; i++)
+			ObjMap::iterator i = d->objs.find(path);
+			if (i == d->objs.end())
 			{
-				if (!strcmp(i->second.signature.c_str(), signature))
-				{
-					result->th = i->second.th;
-					if (i->second.node)
-					{
-						result->node = i->second.node;
-						return true;
-					}
-
-					file_entry* f = i->second.file;
-					if (f->parsed)
-					{
-						APP_ERROR("File has parse data, but object has not?!");
-						return false;
-					}
-
-					f->parsed = parse::parse(f->path.c_str());
-					if (!f->parsed)
-					{
-						APP_INFO("Parse error in file [" << path << "]");
-						return false;
-					}
-
-					parse::node *root = parse::get_root(f->parsed);
-					i->second.node = parse::get_object_item(root, "data");
-					result->node = i->second.node;
-					return true;
-				}
+				result->obj = 0;
+				result->th = 0;
+				return false;
 			}
-			return false;
+
+			object_entry* o = i->second;
+			type_handler_i* th = i->second->th;
+			if (o->node)
+			{
+				result->th = th;
+				result->obj = th->alloc();
+				th->fill_from_parsed(o->node, result->obj);
+				return true;
+			}
+
+			file_entry* f = o->file;
+			if (f->parsed)
+			{
+				APP_ERROR("File has parse data, but object has not?!");
+				return false;
+			}
+
+			f->parsed = parse::parse(f->path.c_str());
+			if (!f->parsed)
+			{
+				APP_INFO("Parse error in file [" << path << "]");
+				return false;
+			}
+
+			parse::node *root = parse::get_root(f->parsed);
+			i->second->node = parse::get_object_item(root, "data");
+			result->th = th;
+			result->obj = th->alloc();
+			th->fill_from_parsed(o->node, result->obj);
+			return true;
 		}
 
 		void fetch_object_free(fetch_obj_result* result)
@@ -372,10 +395,10 @@ namespace putki
 		size_t query_by_type(data* d, type_handler_i* th, const char** paths, size_t len)
 		{
 			size_t count = 0;
-			ObjMap::iterator i = d->objects.begin();
-			while (i != d->objects.end())
+			ObjMap::iterator i = d->objs.begin();
+			while (i != d->objs.end())
 			{
-				if (i->second.cached || i->second.th != th)
+				if (i->second->th != th)
 				{
 					++i;
 					continue;
@@ -413,22 +436,22 @@ namespace putki
 
 		bool uncache_object(data* dest, data* source, const char *path, const char *signature)
 		{
-			std::pair<ObjMap::iterator, ObjMap::iterator> range = source->objects.equal_range(path);
+			std::pair<CacheMap::iterator, CacheMap::iterator> range = source->obj_cache.equal_range(signature);
 			for (ObjMap::iterator i = range.first; i != range.second; i++)
 			{
-				if (i->second.cached && !strcmp(i->second.signature.c_str(), signature))
+				if (!strcmp(i->second->path.c_str(), path))
 				{
 					file_entry* f = new file_entry();
-					f->path = i->second.file->path;
+					f->path = i->second->file->path;
 					dest->files.push_back(f);
-					object_entry oe;
-					oe.file = f;
-					oe.node = 0;
-					oe.path = path;
-					oe.cached = false;
-					oe.th = i->second.th;
-					oe.signature = signature;
-					dest->objects.insert(std::make_pair(path, oe));
+					object_entry *o = new object_entry();
+					dest->all_objs.push_back(o);
+					o->file = f;
+					o->node = 0;
+					o->path = path;
+					o->th = i->second->th;
+					o->signature = signature;
+					dest->objs.insert(std::make_pair(path, o));
 					return true;
 				}
 			}
@@ -460,14 +483,14 @@ namespace putki
 			fe->path = out_path.c_str();
 
 			d->files.push_back(fe);
-			object_entry e;
-			e.file = fe;
-			e.path = path;
-			e.cached = true;
-			e.signature = signature;
-			e.node = 0;
-			e.th = th;
-			d->objects.insert(std::make_pair(path, e));
+			object_entry* o = new object_entry();
+			o->file = fe;
+			o->path = path;
+			o->signature = signature;
+			o->node = 0;
+			o->th = th;
+			d->all_objs.push_back(o);
+			d->obj_cache.insert(std::make_pair(signature, o));
 			return uncache_object(d, d, path, signature);
 		}
 

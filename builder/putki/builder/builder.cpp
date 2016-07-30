@@ -395,7 +395,7 @@ namespace putki
 			std::set<const char*> visited;
 		};
 
-		void ptr_resolve_info(ptr_raw* ptr, objstore::object_info* info)
+		void ptr_resolve_internal(ptr_raw* ptr, bool allow_cache, objstore::object_info* info)
 		{
 			if (ptr->path == 0 || !ptr->path[0])
 			{
@@ -429,14 +429,17 @@ namespace putki
 
 			// TODO: Verify that pointers are compatible with what is actually being loaded.
 
-			LoadedT::iterator i = cache->find(ptr->path);
-			if (i != cache->end())
+			if (allow_cache)
 			{
-				ptr->obj = i->second.obj;
-				ptr->th = i->second.th;
-				info->signature = i->second.signature;
-				info->th = i->second.th;
-				return;
+				LoadedT::iterator i = cache->find(ptr->path);
+				if (i != cache->end())
+				{
+					ptr->obj = i->second.obj;
+					ptr->th = i->second.th;
+					info->signature = i->second.signature;
+					info->th = i->second.th;
+					return;
+				}
 			}
 
 			if (!objstore::query_object(store, ptr->path, info))
@@ -447,31 +450,32 @@ namespace putki
 			}
 
 			objstore::fetch_obj_result result;
-			if (!objstore::fetch_object(store, ptr->path, info->signature.c_str(), &result))
+			if (!objstore::fetch_object(store, ptr->path, &result))
 			{
 				APP_ERROR("Unable to fetch " << ptr->path);
 				ptr->obj = 0;
 				return;
 			}
 
-			instance_t obj = info->th->alloc();
-			info->th->fill_from_parsed(result.node, obj);
-			fixup_pointers(d, info->th, obj, ptr->ctx, ptr->path);
-			
-			loaded l;
-			l.obj = obj;
-			l.th = info->th;
-			l.signature = info->signature;
-			cache->insert(std::make_pair(std::string(ptr->path), l));
+			fixup_pointers(d, info->th, result.obj, ptr->ctx, ptr->path);
+
+			if (allow_cache)
+			{
+				loaded l;
+				l.obj = result.obj;
+				l.th = info->th;
+				l.signature = info->signature;
+				cache->insert(std::make_pair(std::string(ptr->path), l));
+			}
 
 			ptr->th = info->th;
-			ptr->obj = obj;
+			ptr->obj = result.obj;
 		}
 
 		void ptr_resolve(ptr_raw* ptr)
 		{
 			objstore::object_info info;
-			ptr_resolve_info(ptr, &info);
+			ptr_resolve_internal(ptr, true, &info);
 		}
 
 		void ptr_deref(const ptr_raw* ptr)
@@ -487,7 +491,10 @@ namespace putki
 		{
 			signature::buffer buf;
 			const char* sig = signature::object(th, obj, buf);
-			objstore::store_object(d->conf.temp, path, th, obj, sig);
+			if (!objstore::store_object(d->conf.temp, path, th, obj, sig))
+			{
+				APP_WARNING("Failed to store post build object [" << path << "]");
+			}
 			add_build_root(d, path, 1);
 		}
 
@@ -513,6 +520,28 @@ namespace putki
 
 				const char* path = next.path.c_str();
 
+				bool found = false;
+				objstore::object_info info;
+				switch (next.domain)
+				{
+					case 0: found = objstore::query_object(d->conf.input, path, &info); break;
+					case 1: found = objstore::query_object(d->conf.temp, path, &info); break;
+					default: break;
+				}
+
+				if (!found)
+				{
+					APP_ERROR("Could not find object [" << path << "] from domain " << next.domain);
+					continue;
+				}
+
+				std::string bname = builder_name(d, info.th->id());
+				if (incremental && fetch_cached(d, path, &info, bname.c_str()))
+				{
+					APP_DEBUG("Got cached object, no build needed.");
+					continue;
+				}
+
 				ptr_raw source;
 				source.ctx = &pctx;
 				source.has_resolved = false;
@@ -521,22 +550,12 @@ namespace putki
 
 				APP_DEBUG("Processing object [" << next.path << "] domain=" << next.domain);
 
-				objstore::object_info info;
-				ptr_resolve_info(&source, &info);
+				ptr_resolve_internal(&source, false, &info);
 				if (!source.obj)
 				{
+					APP_ERROR("Could not resolve ptr! [" << next.path << "] from domain " << next.domain);
 					continue;
 				}
-
-				std::string bname = builder_name(d, source.th->id());
-
-				if (incremental && fetch_cached(d, path, &info, bname.c_str()))
-				{
-					APP_DEBUG("Got cached object, no build needed.");
-					continue;
-				}
-
-				source.obj = info.th->clone(source.obj);
 
 				build_info_internal bii;
 				bii.data = d;

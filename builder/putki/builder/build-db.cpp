@@ -517,9 +517,6 @@ namespace putki
 		deplist* inputdeps_get(data *d, const char *path)
 		{
 			sys::scoped_maybe_lock lk(&d->mtx);
-		
-			deplist *dl = new deplist();
-
 			RM::iterator q = d->records.find(path);
 			if (q != d->records.end())
 			{
