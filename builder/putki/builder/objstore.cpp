@@ -23,6 +23,11 @@ namespace putki
 	{
 		struct file_entry
 		{
+			file_entry()
+			{
+				parsed = 0;
+			}
+			parse::data* parsed;
 			std::string path;
 		};
 
@@ -135,6 +140,7 @@ namespace putki
 
 			file_entry* fe = new file_entry();
 			fe->path = fullname;
+			fe->parsed = pd;
 			d->files.push_back(fe);
 
 			parse::node *root = parse::get_root(pd);
@@ -249,6 +255,14 @@ namespace putki
 
 		void free(data *d)
 		{
+			for (size_t i=0;i<d->files.size();i++)
+			{
+				if (d->files[i]->parsed)
+				{
+					parse::free(d->files[i]->parsed);
+				}
+				delete d->files[i];
+			}
 			delete d;
 		}
 
@@ -274,8 +288,30 @@ namespace putki
 			{
 				if (!strcmp(i->second.signature.c_str(), signature))
 				{
-					result->node = i->second.node;
 					result->th = i->second.th;
+					if (i->second.node)
+					{
+						result->node = i->second.node;
+						return true;
+					}
+
+					file_entry* f = i->second.file;
+					if (f->parsed)
+					{
+						APP_ERROR("File has parse data, but object has not?!");
+						return false;
+					}
+
+					f->parsed = parse::parse(f->path.c_str());
+					if (!f->parsed)
+					{
+						APP_INFO("Parse error in file [" << path << "]");
+						return false;
+					}
+
+					parse::node *root = parse::get_root(f->parsed);
+					i->second.node = parse::get_object_item(root, "data");
+					result->node = i->second.node;
 					return true;
 				}
 			}
@@ -419,8 +455,19 @@ namespace putki
 			fn.append(".");
 			fn.append(signature);
 			fn.append(".json");
-			examine_object_file(out_path.c_str(), fn.c_str(), d);
 
+			file_entry* fe = new file_entry();
+			fe->path = out_path.c_str();
+
+			d->files.push_back(fe);
+			object_entry e;
+			e.file = fe;
+			e.path = path;
+			e.cached = true;
+			e.signature = signature;
+			e.node = 0;
+			e.th = th;
+			d->objects.insert(std::make_pair(path, e));
 			return uncache_object(d, d, path, signature);
 		}
 
@@ -469,13 +516,13 @@ namespace putki
 			{
 				if (i->second.cached && !strcmp(i->second.signature.c_str(), signature))
 				{
-					file_entry* f = new file_entry();
-					f->path = i->second.file->path;
-					dest->files.push_back(f);
+					file_entry* fe = new file_entry();
+					fe->path = i->second.file->path;
+					dest->files.push_back(fe);
 					resource_entry re;
 					re.cached = false;
 					re.path = path;
-					re.file = f;
+					re.file = fe;
 					re.signature = signature;
 					re.size = i->second.size;
 					dest->resources.insert(std::make_pair(path, re));

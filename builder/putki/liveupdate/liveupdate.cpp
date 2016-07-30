@@ -19,7 +19,6 @@
 #include <map>
 #include <set>
 
-
 namespace putki
 {
 
@@ -83,216 +82,6 @@ namespace putki
 			int num_edits;
 		};
 		
-		// Editor uses this
-		struct ed_client
-		{
-			ed_session session;
-			sock_t socket;
-		};
-		
-		ed_client *create_editor_connection()
-		{
-			ed_client *c = new ed_client();
-			c->session.finished = false;
-			c->session.ready = false;
-			c->session.num_edits = 0;
-			return c;
-		}
-		
-		void* editor_read_thread(void *thr)
-		{
-			ed_client *cl = (ed_client *) thr;
-			
-			while (true)
-			{
-				sys::scoped_maybe_lock lk(&cl->session.mtx);
-				sock_t skt = cl->socket;
-				while (skt == -1)
-				{
-					cl->session.cond.wait(&cl->session.mtx);
-					skt = cl->socket;
-				}
-				
-				lk.unlock();
-
-				if (skt == -2)
-				{
-					APP_INFO("Exiting thread")
-					return 0;
-				}
-				
-				APP_INFO("Reading back data on socket " << cl->socket);
-				
-				char buf[256];
-				int rd;
-				while ((rd = read(skt, buf, sizeof(buf))) > 0)
-				{
-					// throw away data.
-				}
-				
-				APP_INFO("Connection closed!")
-
-				sys::scoped_maybe_lock lk2(&cl->session.mtx);
-				cl->session.ready = false;
-				cl->session.cond.broadcast();
-			}
-		}
-		
-		// called from the editor.
-		void editor_on_edited(ed_client *conn, db::data *db, const char *path)
-		{
-			sys::scoped_maybe_lock lk(&conn->session.mtx);
-			/*
-			edits_t::iterator i = conn->session.edits.find(path);
-			if (i == conn->session.edits.end())
-			{
-				edit ed;
-				ed.version = 0;
-				ed.sent_version = 0;
-				conn->session.edits.insert(edits_t::value_type(path, ed));
-				i = conn->session.edits.find(path);
-			}
-						
-			type_handler_i *th;
-			instance_t obj;
-			if (!db::fetch(db, path, &th, &obj))
-			{
-				APP_WARNING("Edited object could not be read");
-				return;
-			}
-			
-			sstream tmp;
-			write::write_object_into_stream(tmp, th, obj);
-			const char *str = tmp.c_str();
-
-			i->second.version++;
-			i->second.data = std::string(str, str + tmp.size());
-			conn->session.num_edits++;
-			conn->session.cond.broadcast();
-			*/
-			APP_DEBUG("Inserted edit on " << path);
-		}
-		
-		void run_editor_connection(ed_client *conn)
-		{
-			sockaddr_in addrLocal = {};
-			addrLocal.sin_family = AF_INET;
-			addrLocal.sin_port = htons(EDITOR_PORT);
-			addrLocal.sin_addr.s_addr = htonl(0x7f000001);
-			
-			conn->socket = -1;
-			
-			sys::thread *read_thread = sys::thread_create(editor_read_thread, conn);
-			
-			while (true)
-			{
-				// notify read thread.
-				conn->session.mtx.lock();
-				conn->socket = -1;
-				conn->session.cond.broadcast();
-				conn->session.mtx.unlock();
-		
-				sock_t skt = socket(AF_INET, SOCK_STREAM, 0);
-				if (connect(skt, (sockaddr*)&addrLocal, sizeof(addrLocal)) < 0)
-				{
-					close(skt);
-					usleep(50000);
-					continue;
-				}
-				
-				APP_INFO("Connected to live update server on socket " << skt);
-
-				sys::scoped_maybe_lock lk(&conn->session.mtx);
-				conn->socket = skt;
-				conn->session.ready = true;
-				
-				sstream tmp;
-				edits_t::iterator i = conn->session.edits.begin();
-				while (i != conn->session.edits.end())
-				{
-					APP_INFO("The edit is on is " << i->first)
-					i->second.sent_version = i->second.version;
-					tmp << i->first << "\n";
-					tmp << i->second.data << "\n";
-					tmp << "<end>" << "\n";
-					++i;
-				}
-				
-				int wr = send(skt, tmp.c_str(), (int) tmp.size(), 0);
-				if (wr != tmp.size())
-				{
-					APP_INFO("Failed to write " << tmp.size() << " bytes, closing connection.")
-					close(skt);
-					continue;
-				}
-				
-				// for socket thread
-				conn->session.cond.broadcast();
-			
-				// connection loop.
-				while (true)
-				{
-					APP_INFO("Waiting for edits")
-					
-					// wait either for closed socket or more edits
-					int edits = conn->session.num_edits;
-				
-					while (conn->session.ready && edits == conn->session.num_edits)
-						conn->session.cond.wait(&conn->session.mtx);
-						
-					APP_INFO("Num edits " << conn->session.num_edits)
-						
-					if (!conn->session.ready)
-					{
-						APP_INFO("Lost connection, retrying...")
-						close(skt);
-						conn->socket = -1;
-						break;
-					}
-					
-					tmp.clear();
-					
-					edits_t::iterator e = conn->session.edits.begin();
-					while (e != conn->session.edits.end())
-					{
-						if (e->second.version != e->second.sent_version)
-						{
-							e->second.sent_version = e->second.version;
-							tmp << e->first << "\n";
-							tmp << e->second.data << "\n";
-							tmp << "<end>\n";
-						}
-						e++;
-					}
-					
-					
-					int write = send(skt, tmp.c_str(), (int)tmp.size(), 0);
-					if (write != tmp.size())
-					{
-						APP_INFO("Failed to write " << tmp.size() << " bytes, closing connection.")
-						close(skt);
-						conn->socket = -1;
-						// retry
-						break;
-					}
-				}
-			}
-			
-			if (conn->socket >= 0)
-			{
-				APP_INFO("Shutdown.")
-				sys::scoped_maybe_lock lk(&conn->session.mtx);
-				close(conn->socket);
-				conn->socket = -2;
-			}
-			sys::thread_free(read_thread);
-		}
-		
-		void release_editor_connection(ed_client *conn)
-		{
-		
-		}
-		
 		struct data
 		{
 			sys::mutex mtx;
@@ -337,7 +126,7 @@ namespace putki
 			sys::scoped_maybe_lock lk(&session->mtx);
 
 			APP_INFO("Got object [" << path << "] as follows. I had " << session->num_edits << " edits")
-//			APP_INFO(stream->c_str())
+			APP_INFO(stream->c_str())
 			
 			edits_t::iterator i = session->edits.find(path);
 			if (i != session->edits.end())
@@ -470,7 +259,7 @@ namespace putki
 
 			return 0;
 		}
-		
+
 		void* client_thread(void *arg)
 		{
 			/*
@@ -487,10 +276,7 @@ namespace putki
 			builder::data *builder = 0;
 			runtime::descptr rt = 0;
 			std::string config = "Default";
-			
-			db::data *input_db = 0, *tmp_db = 0;
-			sys::mutex in_db_mtx, out_db_mtx, tmp_db_mtx;
-			
+
 			//
 			std::map<std::string, int> sent;
 			

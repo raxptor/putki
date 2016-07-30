@@ -438,7 +438,7 @@ namespace putki
 				info->th = i->second.th;
 				return;
 			}
-			
+
 			if (!objstore::query_object(store, ptr->path, info))
 			{
 				APP_ERROR("Unable to resolve " << ptr->path);
