@@ -2,6 +2,7 @@
 
 #include <putki/runtime.h>
 #include <stdint.h>
+#include <string.h>
 
 namespace putki
 {

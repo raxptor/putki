@@ -3,6 +3,7 @@
 #include <putki/runtime.h>
 #include <vector>
 #include <set>
+#include <string>
 
 #include "ptr.h"
 

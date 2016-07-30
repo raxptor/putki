@@ -24,7 +24,7 @@ namespace putki
 		typedef std::map<std::string, loaded> LoadedT;
 		typedef std::vector<const char*> AllocStringsT;
 
-		struct to_build
+		struct to_build_entry
 		{
 			std::string path;
 			int domain;
@@ -34,7 +34,7 @@ namespace putki
 		{
 			config conf;
 			HandlerMapT handlers;
-			std::queue<to_build> to_build;
+			std::queue<to_build_entry> to_build;
 			std::set<std::string> has_added;
 			LoadedT loaded_input;
 			LoadedT loaded_temp;
@@ -44,9 +44,9 @@ namespace putki
 		
 		struct build_info_internal
 		{
-			data* data;
+			data* d;
 			std::vector<ptr_raw> outputs;
-			ptr_context* ptr_context;
+			ptr_context* ptr_ctx;
 		};
 
 		data* create(config* conf)
@@ -104,21 +104,21 @@ namespace putki
 			ptr->obj = obj;
 			ptr->th = th;
 			ptr->user_data = 1;
-			ptr->ctx = info->internal->ptr_context;
+			ptr->ctx = info->internal->ptr_ctx;
 
-			info->internal->data->str_allocs.push_back(ptr->path);
+			info->internal->d->str_allocs.push_back(ptr->path);
 			info->internal->outputs.push_back(*ptr);
 		}
 
 		bool store_resource_path(const build_info* info, const char* path, const char* data, size_t size)
 		{
-			if (!objstore::store_resource(info->internal->data->conf.temp, path, data, size))
+			if (!objstore::store_resource(info->internal->d->conf.temp, path, data, size))
 			{
 				RECORD_ERROR(info->record, "Failed to store temp resource [" << path << "] size=" << size);
 				return false;
 			}
 			objstore::resource_info ri;
-			if (!objstore::query_resource(info->internal->data->conf.temp, path, &ri))
+			if (!objstore::query_resource(info->internal->d->conf.temp, path, &ri))
 			{
 				RECORD_ERROR(info->record, "Failed to query stored resource [" << path << "] size=" << size);
 				return false;
@@ -137,13 +137,13 @@ namespace putki
 		size_t read_resource_segment(const build_info* info, const char* path, char* output, size_t beg, size_t end)
 		{
 			objstore::resource_info ri;
-			if (objstore::query_resource(info->internal->data->conf.temp, path, &ri))
+			if (objstore::query_resource(info->internal->d->conf.temp, path, &ri))
 			{
-				return objstore::read_resource_range(info->internal->data->conf.temp, path, ri.signature.c_str(), output, beg, end);
+				return objstore::read_resource_range(info->internal->d->conf.temp, path, ri.signature.c_str(), output, beg, end);
 			}
-			if (objstore::query_resource(info->internal->data->conf.input, path, &ri))
+			if (objstore::query_resource(info->internal->d->conf.input, path, &ri))
 			{
-				return objstore::read_resource_range(info->internal->data->conf.input, path, ri.signature.c_str(), output, beg, end);
+				return objstore::read_resource_range(info->internal->d->conf.input, path, ri.signature.c_str(), output, beg, end);
 			}
 			return 0;
 		}
@@ -151,9 +151,9 @@ namespace putki
 		bool fetch_resource(const build_info* info, const char* path, resource* resource)
 		{
 			objstore::resource_info ri;
-			if (objstore::query_resource(info->internal->data->conf.temp, path, &ri))
+			if (objstore::query_resource(info->internal->d->conf.temp, path, &ri))
 			{
-				if (objstore::fetch_resource(info->internal->data->conf.temp, path, ri.signature.c_str(), &resource->internal))
+				if (objstore::fetch_resource(info->internal->d->conf.temp, path, ri.signature.c_str(), &resource->internal))
 				{
 					resource->signature = strdup(ri.signature.c_str());
 					resource->data = resource->internal.data;
@@ -168,9 +168,9 @@ namespace putki
 					return false;
 				}
 			}
-			if (objstore::query_resource(info->internal->data->conf.input, path, &ri))
+			if (objstore::query_resource(info->internal->d->conf.input, path, &ri))
 			{
-				if (objstore::fetch_resource(info->internal->data->conf.input, path, ri.signature.c_str(), &resource->internal))
+				if (objstore::fetch_resource(info->internal->d->conf.input, path, ri.signature.c_str(), &resource->internal))
 				{
 					resource->signature = strdup(ri.signature.c_str());
 					resource->data = resource->internal.data;
@@ -199,7 +199,7 @@ namespace putki
 			{
 				d->has_added.insert(path);
 
-				to_build tb;
+				to_build_entry tb;
 				tb.path = path;
 				tb.domain = domain;
 				d->to_build.push(tb);
@@ -330,7 +330,7 @@ namespace putki
 				}
 				if (!d->has_added.count(ptr))
 				{
-					to_build p;
+					to_build_entry p;
 					p.path = ptr;
 					p.domain = 0;
 					objstore::object_info oi;
@@ -517,7 +517,7 @@ namespace putki
 					break;
 				}
 
-				to_build next = d->to_build.front();
+				to_build_entry next = d->to_build.front();
 				d->to_build.pop();
 
 				const char* path = next.path.c_str();
@@ -560,8 +560,8 @@ namespace putki
 				}
 
 				build_info_internal bii;
-				bii.data = d;
-				bii.ptr_context = &pctx;
+				bii.d = d;
+				bii.ptr_ctx = &pctx;
 
 				build_info bi;
 				bi.path = path;
@@ -655,7 +655,7 @@ namespace putki
 					{
 						if (!d->has_added.count(p->path))
 						{
-							to_build tb;
+							to_build_entry tb;
 							tb.path = p->path;
 							tb.domain = (int)p->user_data;
 							d->to_build.push(tb);
