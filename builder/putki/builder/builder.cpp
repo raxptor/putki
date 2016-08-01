@@ -307,7 +307,7 @@ namespace putki
 
 				if (is_resource)
 				{
-					if (!objstore::uncache_resource(d->conf.temp, d->conf.temp, out, out_sig))
+					if (!objstore::uncache_resource(d->conf.temp, out, out_sig))
 					{
 						// Is cleanup here actually needed? Probably not.
 						APP_DEBUG("Could not uncache resource " << out << " sig=" << out_sig);
@@ -320,7 +320,7 @@ namespace putki
 				}
 				else
 				{
-					if (!objstore::uncache_object(d->conf.temp, d->conf.temp, out, out_sig))
+					if (!objstore::uncache_object(d->conf.temp, out, out_sig))
 					{
 						// Is cleanup here actually needed? Probably not.
 						APP_DEBUG("Could not uncache object " << out << " sig=" << out_sig);
@@ -334,7 +334,7 @@ namespace putki
 				++o;
 			}
 
-			if (!objstore::uncache_object(d->conf.built, d->conf.built, path, build_db::get_signature(find)))
+			if (!objstore::uncache_object(d->conf.built, path, build_db::get_signature(find)))
 			{
 				APP_DEBUG("Could not uncache object " << path << " sig=" << build_db::get_signature(find));
 				return false;

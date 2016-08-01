@@ -248,10 +248,9 @@ namespace putki
 			}
 		}
 
-		void examine_resource_file(const char *fullname, const char *name, void *userptr)
+		void examine_resource_file(data* d, file_entry* file)
 		{
-			data* d = (data *)userptr;
-			std::string fn(name);
+			std::string fn(file->path);
 
 			bool cached = false;
 			size_t sig = fn.find_last_of('#');
@@ -259,48 +258,55 @@ namespace putki
 			{
 				std::string signature = fn.substr(sig + 1, fn.size() - sig - 1);
 				fn = fn.substr(0, sig);
-
 				size_t dot = signature.find_last_of('.');
 				if (dot != std::string::npos)
 				{
+					file->signature = signature.substr(0, dot);
 					signature.erase(0, dot);
 					fn.append(signature);
 				}
+				else
+				{
+					file->signature = signature;
+				}
 				cached = true;
 			}
-
-			file_entry* fe = new file_entry();
-			fe->path = name;
-			fe->full_path = fullname;
-			d->files.push_back(fe);
+			else
+			{
+				file->signature = file_signature(file->full_path.c_str(), &file->content_length);
+			}
 
 			resource_entry e;
-			e.file = fe;
+			e.file = file;
 			e.path = fn;
 			e.cached = cached;
-			e.signature = file_signature(fullname, &e.size);
+			e.signature = file->signature;
+			e.size = file->content_length;
 			d->resources.insert(std::make_pair(fn, e));
 		}
 
-		void examine_file_object(const char *fullname, const char *name, void *userptr)
+		void insert_file(const char *fullname, const char *name, void *userptr, bool has_objects)
 		{
+			if (name[0] == '.')
+				return;
 			std::string fn(name);
-			size_t pos = fn.find_last_of('.');
-			if (pos == std::string::npos)
-			{
-				return;
-			}
-			if (strcmp(fn.substr(pos, fn.size() - pos).c_str(), ".json"))
-			{
-				return;
-			}
 			file_entry* fe = new file_entry();
 			fe->full_path = fullname;
 			fe->path = name;
-			fe->has_objects = true;
+			fe->has_objects = has_objects;
 			fe->parsed = 0;
 			data* d = (data *)userptr;
 			d->file_map.insert(std::make_pair(std::string(fullname), fe));
+		}
+
+		void insert_file_resource(const char *fullname, const char *name, void *userptr)
+		{
+			insert_file(fullname, name, userptr, false);
+		}
+
+		void insert_file_object(const char *fullname, const char *name, void *userptr)
+		{
+			insert_file(fullname, name, userptr, true);
 		}
 
 		void write_cache(data *d)
@@ -381,8 +387,8 @@ namespace putki
 				d->root.pop_back();
 
 			d->cache_file = d->root + "/.cache";
-			sys::search_tree((d->root + "/objs").c_str(), examine_file_object, d);
-			sys::search_tree((d->root + "/res").c_str(), examine_resource_file, d);
+			sys::search_tree((d->root + "/objs").c_str(), insert_file_object, d);
+			sys::search_tree((d->root + "/res").c_str(), insert_file_resource, d);
 
 			FileMap::iterator fs = d->file_map.begin();
 			while (fs != d->file_map.end())
@@ -391,6 +397,7 @@ namespace putki
 				{
 					APP_WARNING("Failed to stat file [" << fs->first << "]");
 				}
+				fs->second->content_length = fs->second->info.size;
 				d->files.push_back(fs->second);
 				fs++;
 			}
@@ -452,6 +459,27 @@ namespace putki
 					i->second->signature = hdr[3];
 					i->second->from_cache = true;
 
+					if (objects == -1)
+					{
+						resource_entry res;
+						res.cached = d->is_cache;
+						res.file = i->second;
+						res.signature = i->second->signature;
+						res.size = i->second->info.size;
+
+						std::string path(i->second->path);
+						size_t sig = path.find_last_of('#');
+						if (sig != std::string::npos)
+						{
+							size_t dot = path.find_last_of('.');
+							if (dot != std::string::npos)
+							{
+								path.erase(sig, dot - sig);
+							}
+						}
+						d->resources.insert(std::make_pair(path, res));
+					}
+
 					for (int k = 0; k < objects; k++)
 					{
 						const char* obj[4] = {
@@ -499,7 +527,10 @@ namespace putki
 					}
 					signature::buffer buf;
 					cf->second->signature = signature::resource(cf->second->content_bytes, cf->second->content_length, buf);
-					examine_object_file(d, cf->second);
+					if (cf->second->has_objects)
+						examine_object_file(d, cf->second);
+					else
+						examine_resource_file(d, cf->second);
 				}
 				cf++;
 			}
@@ -699,45 +730,25 @@ namespace putki
 			result->data = 0;
 		}
 
-		bool uncache_object(data* dest, data* source, const char *path, const char *signature)
+		bool uncache_object(data* d, const char *path, const char *signature)
 		{
 			if (!signature[0])
 			{
 				APP_ERROR("Uncache object with empty signature!");
 			}
-			std::pair<CacheMap::iterator, CacheMap::iterator> range = source->obj_cache.equal_range(signature);
+			std::pair<CacheMap::iterator, CacheMap::iterator> range = d->obj_cache.equal_range(signature);
 			for (ObjMap::iterator i = range.first; i != range.second; i++)
 			{
 				if (!strcmp(i->second->path.c_str(), path))
 				{
-					file_entry* fe;
-					// TODO: Think this through!
-					FileMap::iterator q = dest->file_map.find(i->second->file->full_path.c_str());
-					if (q != dest->file_map.end())
-					{
-						fe = q->second;
-						fe->signature = i->second->file->signature;
-					}
-					else
-					{
-						fe = new file_entry();
-						fe->path = i->second->file->path;
-						fe->full_path = i->second->file->full_path;
-						fe->has_objects = true;
-						fe->signature = i->second->file->signature;
-						fe->parsed = 0;
-						dest->files.push_back(fe);
-						dest->file_map.insert(std::make_pair(i->second->file->full_path, fe));
-					}
-
 					object_entry *o = new object_entry();
-					dest->all_objs.push_back(o);
-					o->file = fe;
+					d->all_objs.push_back(o);
+					o->file = i->second->file;
 					o->node = 0;
 					o->path = path;
 					o->th = i->second->th;
 					o->signature = signature;
-					dest->objs.insert(std::make_pair(path, o));
+					d->objs.insert(std::make_pair(path, o));
 					return true;
 				}
 			}
@@ -746,6 +757,11 @@ namespace putki
 
 		bool store_object(data* d, const char *path, type_handler_i* th, instance_t obj, const char *signature)
 		{
+			if (uncache_object(d, path, signature))
+			{
+				return true;
+			}
+
 			std::string out_path(d->root);
 			out_path.append("/objs/");
 			out_path.append(path);
@@ -798,7 +814,7 @@ namespace putki
 			o->th = th;
 			d->all_objs.push_back(o);
 			d->obj_cache.insert(std::make_pair(signature, o));
-			return uncache_object(d, d, path, signature);
+			return uncache_object(d, path, signature);
 		}
 
 		bool store_resource(data* d, const char *path, const char* data, size_t length)
@@ -835,30 +851,41 @@ namespace putki
 				return false;
 			}
 
-			examine_resource_file(out_path.c_str(), out_fn.c_str(), d);
-			return uncache_resource(d, d, path, signature_string);
+			FileMap::iterator i = d->file_map.find(out_fn);
+			file_entry* fe;
+			if (i != d->file_map.end())
+			{
+				if (i->second->content_bytes)
+					delete[] i->second->content_bytes;
+				fe = i->second;
+			}
+			else
+			{
+				fe = new file_entry();
+				fe->content_bytes = 0;
+				fe->full_path = out_path;
+				fe->path = out_fn;
+				d->file_map.insert(std::make_pair(fe->full_path, fe));
+			}
+			fe->content_length = length;
+			examine_resource_file(d, fe);
+			return uncache_resource(d, path, signature_string);
 		}
 
-		bool uncache_resource(data* dest, data* source, const char *path, const char *signature)
+		bool uncache_resource(data* d, const char *path, const char *signature)
 		{
-			std::pair<ResMap::iterator, ResMap::iterator> range = source->resources.equal_range(path);
+			std::pair<ResMap::iterator, ResMap::iterator> range = d->resources.equal_range(path);
 			for (ResMap::iterator i = range.first; i != range.second; i++)
 			{
 				if (i->second.cached && !strcmp(i->second.signature.c_str(), signature))
 				{
-					file_entry* fe = new file_entry();
-					fe->full_path = i->second.file->full_path;
-					fe->path = i->second.file->path;
-					fe->signature = i->second.file->signature;
-					fe->parsed = 0;
-					dest->files.push_back(fe);
 					resource_entry re;
 					re.cached = false;
 					re.path = path;
-					re.file = fe;
+					re.file = i->second.file;
 					re.signature = signature;
 					re.size = i->second.size;
-					dest->resources.insert(std::make_pair(path, re));
+					d->resources.insert(std::make_pair(path, re));
 					return true;
 				}
 			}
