@@ -123,6 +123,8 @@ namespace putki
 				RECORD_ERROR(info->record, "Failed to query stored resource [" << path << "] size=" << size);
 				return false;
 			}
+
+			build_db::add_output_resource(info->record, path, info->builder, ri.signature.c_str());
 			return true;
 		}
 		
@@ -295,21 +297,39 @@ namespace putki
 			int o = 0;
 			while (true)
 			{
-				const char* out = build_db::enum_outputs(find, o);
+				bool is_resource;
+				const char* out = build_db::enum_outputs(find, o, &is_resource);
 				if (!out)
 				{
 					break;
 				}
 				const char* out_sig = get_output_signature(find, o);
-				if (!objstore::uncache_object(d->conf.temp, d->conf.temp, out, out_sig))
+
+				if (is_resource)
 				{
-					// Is cleanup here actually needed? Probably not.
-					APP_DEBUG("Could not uncache object " << out << " sig=" << out_sig);
-					return false;
+					if (!objstore::uncache_resource(d->conf.temp, d->conf.temp, out, out_sig))
+					{
+						// Is cleanup here actually needed? Probably not.
+						APP_DEBUG("Could not uncache resource " << out << " sig=" << out_sig);
+						return false;
+					}
+					else
+					{
+						APP_DEBUG("Uncached tmp resource " << out << " sig=" << build_db::get_signature(find));
+					}
 				}
 				else
 				{
-					APP_DEBUG("Uncached tmp object " << out << " sig=" << build_db::get_signature(find));
+					if (!objstore::uncache_object(d->conf.temp, d->conf.temp, out, out_sig))
+					{
+						// Is cleanup here actually needed? Probably not.
+						APP_DEBUG("Could not uncache object " << out << " sig=" << out_sig);
+						return false;
+					}
+					else
+					{
+						APP_DEBUG("Uncached tmp object " << out << " sig=" << build_db::get_signature(find));
+					}
 				}
 				++o;
 			}

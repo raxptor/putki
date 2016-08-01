@@ -13,7 +13,7 @@ namespace putki
 	namespace objstore
 	{
 		struct data;
-		data* open(const char *root_path);
+		data* open(const char *root_path, bool is_cache);
 		void free(data *d);
 
 		struct fetch_obj_result

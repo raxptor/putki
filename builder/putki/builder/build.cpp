@@ -191,9 +191,9 @@ namespace putki
 				pfx[i] = ::tolower(pfx[i]);
 
 			std::string prefix(pfx);
-			objstore::data *input_store = objstore::open("data/");
-			objstore::data *tmp_store = objstore::open((prefix + "/.tmp").c_str());
-			objstore::data *built_store = objstore::open((prefix + "/.built").c_str());
+			objstore::data *input_store = objstore::open("data/", false);
+			objstore::data *tmp_store = objstore::open((prefix + "/.tmp").c_str(), true);
+			objstore::data *built_store = objstore::open((prefix + "/.built").c_str(), true);
 			build_db::data* bdb = build_db::create((prefix + "/.builddb").c_str(), incremental);
 
 			builder::config conf;
