@@ -341,7 +341,10 @@ namespace putki
 						{
 							cf << i->second->second->path << "\n";
 							cf << i->second->second->th->name() << "\n";
-							cf << i->second->second->signature << "\n";
+							if (!i->second->second->signature.empty())
+								cf << i->second->second->signature << "\n";
+							else
+								cf << "?\n";
 							cf << "1\n";
 						}
 					}
@@ -698,6 +701,10 @@ namespace putki
 
 		bool uncache_object(data* dest, data* source, const char *path, const char *signature)
 		{
+			if (!signature[0])
+			{
+				APP_ERROR("Uncache object with empty signature!");
+			}
 			std::pair<CacheMap::iterator, CacheMap::iterator> range = source->obj_cache.equal_range(signature);
 			for (ObjMap::iterator i = range.first; i != range.second; i++)
 			{
