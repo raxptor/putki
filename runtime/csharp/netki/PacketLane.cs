@@ -376,6 +376,12 @@ namespace Netki
 						output[numOut].Data = tmp;
 						output[numOut].Lane = lane;
 						lane.Stats.SendBytes += ofs;
+
+						if (!lane.Out[j].Reliable)
+						{
+							lane.Out[j].Source = null;
+						}
+
 						if (++numOut == output.Length)
 						{
 							return true;
@@ -482,8 +488,6 @@ namespace Netki
 						Bitstream.SyncByte(lane.Out[target].Source);
 						lane.Out[target].Source.Flip();
 					}
-
-					lane.Out[target].Source.userdata = 1; // refcount
 
 					lane.Out[target].Begin = 0;
 					lane.Out[target].End = tosend[i].Data.bytesize;
