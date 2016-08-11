@@ -13,7 +13,7 @@ namespace putki
 	namespace objstore
 	{
 		struct data;
-		data* open(const char *root_path);
+		data* open(const char *root_path, bool is_cache);
 		void free(data *d);
 
 		struct fetch_obj_result
@@ -61,8 +61,8 @@ namespace putki
 		bool store_object(data* d, const char *path, type_handler_i* th, instance_t obj, const char *signature);
 		bool store_resource(data* d, const char *path, const char* data, size_t length);
 
-		bool uncache_object(data* dest, data* source, const char *path, const char *signature);
-		bool uncache_resource(data* dest, data* source, const char *path, const char *signature);
+		bool uncache_object(data* d, const char *path, const char *signature);
+		bool uncache_resource(data* d, const char *path, const char *signature);
 
 		size_t query_by_type(data* d, type_handler_i* th, const char** paths, size_t len);
 	}

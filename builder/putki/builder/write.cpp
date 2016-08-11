@@ -16,8 +16,8 @@ namespace putki
 		void write_object_into_stream(putki::sstream & out, type_handler_i *th, instance_t obj)
 		{
 			out << "{\n";
-			out << "	type: "<< json_str(th->name()) << ",\n";
-			out << "	data: {\n";
+			out << "	\"type\": "<< json_str(th->name()) << ",\n";
+			out << "	\"data\": {\n";
 			th->write_json(obj, out, 1);
 			out << "	}\n";
 			out << "}\n";
