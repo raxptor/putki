@@ -963,7 +963,7 @@ public class CppGenerator
 
             		sb.append(pfx1).append("}");
             		sb.append(pfx1).append("void write_json(putki::instance_t source, putki::sstream & out, int indent) {");
-
+            		
             		boolean firstJson = true;
 
             		ArrayList<Compiler.ParsedField> tmp = new ArrayList<Compiler.ParsedField>();
