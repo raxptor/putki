@@ -112,6 +112,8 @@ namespace Netki
 			public uint OutgoingSeqReliable;
 			public uint LagMsMin;
 
+			public int Errors;
+
 			public Statistics Stats;
 		}
 
@@ -182,14 +184,6 @@ namespace Netki
 						lane.Stats.RecvNonFinal++;
 					}
 
-					if (seq != 0)
-					{
-						if (lane.AckCount < lane.Acks.Length)
-						{						
-							lane.Acks[lane.AckCount++] = seq;
-						}
-					}
-
 					while (true)
 					{
 						uint seqAck = Bitstream.ReadCompressedUint(tmp);
@@ -197,7 +191,7 @@ namespace Netki
 						{
 							for (int j=0;j!=lane.OutCount;j++)
 							{								
-								if (lane.Out[j].SeqId == seqAck)
+								if (lane.Out[j].Reliable && lane.Out[j].Source != null && lane.Out[j].SeqId == seqAck)
 								{
 									double msLag = (packets[i].ArrivalTime - lane.Out[j].InitialSendTime).TotalMilliseconds;
 									if (msLag > 0)
@@ -265,6 +259,11 @@ namespace Netki
 
 				if (packets[i].Internal.Seq <= lane.ReliableSeq)
 				{
+					// already had it but send ack anyway.
+					if (lane.AckCount < lane.Acks.Length)
+					{						
+						lane.Acks[lane.AckCount++] = packets[i].Internal.Seq;
+					}
 					lane.Stats.RecvDupes++;
 					continue;
 				}
@@ -289,14 +288,33 @@ namespace Netki
 					continue;
 				}
 
-				if (lane.ProgressHead - lane.ProgressTail != lane.Progress.Length)
+				if ((packets[i].Internal.Seq - lane.ReliableSeq) > lane.Progress.Length)
 				{
-					uint head = lane.ProgressHead % (uint)lane.Progress.Length;
-					lane.Progress[head].Data = packets[i].Packet;
-					lane.Progress[head].IsFinalPiece = packets[i].Internal.IsFinalPiece;
-					lane.Progress[head].ArrivalTime = packets[i].ArrivalTime;
-					lane.Progress[head].SeqId = packets[i].Internal.Seq;
-					lane.ProgressHead = lane.ProgressHead + 1;
+					// Drop so we don't end up with a full progress queue.
+					// and no room to accept the packet needed.
+					// Console.WriteLine("Dropping inc seq=" + packets[i].Internal.Seq + " because it is too far ahead, waiting for " + (lane.ReliableSeq+1));
+				}
+				else
+				{
+					// Clear out any seqId=0 (these are empty slots).
+					while (lane.ProgressHead != lane.ProgressTail && lane.Progress[lane.ProgressTail % numProgress].SeqId == 0)
+					{
+						lane.ProgressTail++;
+					}
+
+					if (lane.ProgressHead - lane.ProgressTail != lane.Progress.Length)
+					{
+						uint head = lane.ProgressHead % (uint)lane.Progress.Length;
+						lane.Progress[head].Data = packets[i].Packet;
+						lane.Progress[head].IsFinalPiece = packets[i].Internal.IsFinalPiece;
+						lane.Progress[head].ArrivalTime = packets[i].ArrivalTime;
+						lane.Progress[head].SeqId = packets[i].Internal.Seq;
+						lane.ProgressHead = lane.ProgressHead + 1;
+						if (lane.AckCount < lane.Acks.Length)
+						{						
+							lane.Acks[lane.AckCount++] = packets[i].Internal.Seq;
+						}
+					}
 				}
 			}
 		}
@@ -376,6 +394,13 @@ namespace Netki
 						output[numOut].Data = tmp;
 						output[numOut].Lane = lane;
 						lane.Stats.SendBytes += ofs;
+
+						if (!lane.Out[j].Reliable)
+						{
+							setup.Factory.ReturnBuffer(lane.Out[j].Source);
+							lane.Out[j].Source = null;
+						}
+
 						if (++numOut == output.Length)
 						{
 							return true;
@@ -399,6 +424,7 @@ namespace Netki
 					}
 					lane.OutCount = write;
 				}
+
 			}
 
 			// Unsent acks
@@ -484,9 +510,8 @@ namespace Netki
 					}
 
 					lane.Out[target].Source.userdata = 1; // refcount
-
-					lane.Out[target].Begin = 0;
-					lane.Out[target].End = tosend[i].Data.bytesize;
+					lane.Out[target].Begin = lane.Out[target].Source.bytepos;
+					lane.Out[target].End = lane.Out[target].Source.bytesize - lane.Out[target].Source.bytepos;
 					lane.Out[target].IsFinalPiece = true;
 					lane.Out[target].SendTime = now;
 					lane.Out[target].InitialSendTime = now;
@@ -521,6 +546,7 @@ namespace Netki
 					if ((lane.Out.Length - lane.OutCount) < left)
 					{
 						// no room.
+						lane.Errors++;
 						continue;
 					}
 
@@ -538,7 +564,7 @@ namespace Netki
 					}
 
 					source.userdata = 0;
-					uint RangeBegin = 0;
+					uint RangeBegin = source.bytepos;
 					for (uint k=0;k<numSegments;k++)
 					{
 						uint bytesLeft = source.bytesize - RangeBegin;
@@ -551,6 +577,7 @@ namespace Netki
 						uint slot = outSlots[k];
 						source.userdata++;
 						lane.Out[slot].Source = source;
+						lane.Out[slot].Source.userdata = 1; // refcount
 						lane.Out[slot].Begin = RangeBegin;
 						lane.Out[slot].End = RangeBegin + toWrite;
 						lane.Out[slot].IsFinalPiece = k == (numSegments-1);
@@ -592,12 +619,6 @@ namespace Netki
 				}
 
 				uint numProgress = (uint)lane.Progress.Length;
-
-				// Clear out any seqId=0 (these are empty slots).
-				while (lane.ProgressHead != lane.ProgressTail && lane.Progress[lane.ProgressTail % numProgress].SeqId == 0)
-				{
-					lane.ProgressTail++;
-				}
 
 				// And from the head too...
 				while (lane.ProgressHead != lane.ProgressTail && lane.Progress[(numProgress + lane.ProgressHead-1) % numProgress].SeqId == 0)
