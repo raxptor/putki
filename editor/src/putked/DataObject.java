@@ -135,12 +135,12 @@ public class DataObject
 	@SuppressWarnings("unchecked")
 	public void setField(int index, int arrayIndex, Object value)
 	{
-		System.out.println(m_path + ":" + m_type.fields.get(index).name + "[" + arrayIndex +"] = " + value.toString());
 		Compiler.ParsedField fld = m_type.fields.get(index);
 		if (!fld.isArray)
 		{
 			// Maybe check type?
 			m_data[index] = value;
+			BuilderConnection.onObjectChanged(this);
 			return;
 		}
 
@@ -148,10 +148,12 @@ public class DataObject
 		if (arrayIndex == list.size())
 		{
 			list.add(value);
+			BuilderConnection.onObjectChanged(this);
 		}
 		else if (arrayIndex < list.size())
 		{
 			list.set(arrayIndex, value);
+			BuilderConnection.onObjectChanged(this);
 		}
 		else
 		{
@@ -202,6 +204,7 @@ public class DataObject
 				DataObject aux = new DataObject(type, this, m_path + ref);
 				System.out.println("Created aux [" + ref + "] onto [" + m_path + "]");
 				m_auxObjects.put(ref, aux);
+				BuilderConnection.onObjectChanged(aux);
 				return aux;
 			}
 		}
@@ -226,6 +229,7 @@ public class DataObject
 		@SuppressWarnings("unchecked")
 		List<Object> list = (List<Object>) m_data[field];
 		list.remove(index);
+		BuilderConnection.onObjectChanged(this);
 	}
 
 	public void arrayInsert(int field, int index)
@@ -247,6 +251,7 @@ public class DataObject
 		{
 			list.add(index, null);
 		}
+		BuilderConnection.onObjectChanged(this);
 	}
 
 	public DataObject getAux(String ref)

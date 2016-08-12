@@ -181,38 +181,65 @@ namespace putki
 			ptr.close();
 		}
 
-		void make_packages(runtime::descptr rt, const char* build_config, bool incremental, bool make_patch)
-		{	
-			char pfx[1024];
+		
+		void write_prefix(char pfx[1024], runtime::descptr rt, const char* build_config)
+		{
 			sprintf(pfx, "out/%s-%s", runtime::desc_str(rt), build_config);
+		}
+
+		// Must free all the things written into conf
+		void init_builder_configuration(builder::config* conf, runtime::descptr rt, const char* build_config, bool incremental)
+		{
+			char pfx[1024];
+			write_prefix(pfx, rt, build_config);
 
 			size_t len = strlen(pfx);
-			for (int i=0;i<len;i++)
+			for (int i = 0; i<len; i++)
 				pfx[i] = ::tolower(pfx[i]);
-
+			
 			std::string prefix(pfx);
-			objstore::data *input_store = objstore::open("data/", false);
-			objstore::data *tmp_store = objstore::open((prefix + "/.tmp").c_str(), true);
-			objstore::data *built_store = objstore::open((prefix + "/.built").c_str(), true);
-			build_db::data* bdb = build_db::create((prefix + "/.builddb").c_str(), incremental);
+			conf->input = objstore::open("data/", false);
+			conf->temp = objstore::open((prefix + "/.tmp").c_str(), true);
+			conf->built = objstore::open((prefix + "/.built").c_str(), true);
+			conf->build_db = build_db::create((prefix + "/.builddb").c_str(), incremental);
+			conf->build_config = build_config;
+		}
 
+		void destroy_builder_configuration(builder::config* conf)
+		{
+			objstore::free(conf->input);
+			objstore::free(conf->temp);
+			objstore::free(conf->built);
+			build_db::store(conf->build_db);
+			build_db::release(conf->build_db);
+		}
+
+		builder::data* create_and_config_builder(builder::config* conf)
+		{
+			builder::data* builder = builder::create(conf);
+			if (builder)
+			{
+				s_config_fn(builder);
+			}
+			return builder;
+		}
+
+		void make_packages(runtime::descptr rt, const char* build_config, bool incremental, bool make_patch)
+		{
 			builder::config conf;
-			conf.input = input_store;
-			conf.temp = tmp_store;
-			conf.built = built_store;
-			conf.build_db = bdb;
-			conf.build_config = build_config;
-			builder::data* builder = builder::create(&conf);
-			s_config_fn(builder);
-	
+			init_builder_configuration(&conf, rt, build_config, incremental);
+			builder::data* bld = create_and_config_builder(&conf);
+
 			char pkg_path[1024];
-			sprintf(pkg_path, "%s/packages/", prefix.c_str());
+			char pfx[1024];
+			write_prefix(pfx, rt, build_config);
+			sprintf(pkg_path, "%s/packages/", pfx);
 			packaging_config pconf;
 			pconf.package_path = pkg_path;
 			pconf.rt = rt;
-			pconf.bdb = bdb;
+			pconf.bdb = conf.build_db;
 			pconf.make_patch = make_patch;
-			invoke_packager(built_store, &pconf);
+			invoke_packager(conf.built, &pconf);
 
 			// Required assets
 			std::set<std::string> req;
@@ -231,26 +258,27 @@ namespace putki
 			std::set<std::string>::iterator j = req.begin();
 			while (j != req.end())
 			{
-				putki::builder::add_build_root(builder, j->c_str(), 0);
+				putki::builder::add_build_root(bld, j->c_str(), 0);
 				j++;
 			}
 
-			putki::builder::do_build(builder, incremental);
+			putki::builder::do_build(bld, incremental);
 
 			APP_INFO("Done building. Performing post-build steps.")
 
 			postbuild_info pbi;
-			pbi.input = input_store;
-			pbi.temp = tmp_store;
-			pbi.output = built_store;
+			pbi.input = conf.input;
+			pbi.temp = conf.temp;
+			pbi.output = conf.built;
 			pbi.pconf = &pconf;
-			pbi.builder = builder;
+			pbi.builder = bld;
 			invoke_post_build(&pbi);
 
 			// Post-build step may create new packages, but it must make sure they get built too.
 			// So it is up to the post_build_step to run add_build_root for the objects it would like
 			// to package.
-			putki::builder::do_build(builder, incremental);
+			putki::builder::do_build(bld, incremental);
+			builder::free(bld);
 
 			APP_INFO("Done post-build. Writing packages")
 
@@ -260,11 +288,7 @@ namespace putki
 				putki::package::free(pconf.packages[i].pkg);
 			}
 
-			objstore::free(input_store);
-			objstore::free(tmp_store);
-			objstore::free(built_store);
-			build_db::store(bdb);
-			build_db::release(bdb);
+			destroy_builder_configuration(&conf);
 		}
 	}
 }

@@ -62,24 +62,38 @@ namespace putki
 		{
 			std::string data;
 			int version;
-			int sent_version;
+		};
+
+		typedef std::map<std::string, int> seen_edits_map;
+
+		struct builder_info
+		{
+			runtime::descptr rt;
+			std::string config_name;
+			putki::builder::config config;
+			putki::builder::data* builder;
+			seen_edits_map seen_edits;
+			int num_edits;
+
+			sys::mutex build_mtx;
+			
+			sys::condition queue_cond;
+			std::set<std::string> queue;
+
+			sys::condition num_cond;
+			int num_builds;
+
+			sys::thread* thread;
 		};
 		
-		typedef std::map<std::string, edit> edits_t;
-		
+		typedef std::map<std::string, edit> edits_map;
+
 		struct ed_session
 		{
 			std::string name;
-			
-			sys::mutex mtx;
-			sys::condition cond;
-			
 			int clients;
 			bool finished;
 			bool ready;
-			
-			edits_t edits;
-			int num_edits;
 		};
 		
 		struct data
@@ -87,11 +101,20 @@ namespace putki
 			sys::mutex mtx;
 			sys::condition cond;
 			std::vector<ed_session*> editors;
+
+			sys::mutex builders_mtx;
+			std::vector<builder_info*> builders;
+			// 
+			sys::mutex edits_mtx;
+			edits_map edits;
+			int num_edits;
 		};
 		
 		data *create()
 		{
-			return new data();
+			data* d = new data();
+			d->num_edits = 0;
+			return d;
 		}
 		
 		void free(data *d)
@@ -121,15 +144,13 @@ namespace putki
 		}
 
 		// called on the server side from network connection.
-		void editor_on_object(ed_session *session, const char *path, sstream *stream)
+		void editor_on_object(data* d, const char *path, sstream *stream)
 		{
-			sys::scoped_maybe_lock lk(&session->mtx);
+			APP_INFO("Got object [" << path << "]")
+			sys::scoped_maybe_lock lk(&d->edits_mtx);
 
-			APP_INFO("Got object [" << path << "] as follows. I had " << session->num_edits << " edits")
-			APP_INFO(stream->c_str())
-			
-			edits_t::iterator i = session->edits.find(path);
-			if (i != session->edits.end())
+			edits_map::iterator i = d->edits.find(path);
+			if (i != d->edits.end())
 			{
 				const char *data = stream->c_str();
 				i->second.version++;
@@ -138,15 +159,12 @@ namespace putki
 			else
 			{
 				const char *data = stream->c_str();
-				// insert new edits
 				edit e;
 				e.version = 1;
 				e.data = std::string(data, data + stream->size());
-				session->edits.insert(edits_t::value_type(path, e));
+				d->edits.insert(edits_map::value_type(path, e));
 			}
-			
-			session->num_edits++;
-			session->cond.broadcast();
+			d->num_edits++;
 		}
 		
 		void* editor_client_thread(void *arg)
@@ -163,7 +181,6 @@ namespace putki
 			ed_session *ed = new ed_session();
 			ed->finished = false;
 			ed->ready = false;
-			ed->num_edits = 0;
 			ed->clients = 0;
 			
 			sys::scoped_maybe_lock dlk(&d->mtx);
@@ -202,9 +219,6 @@ namespace putki
 						{
 							if (!strcmp(line, "<ready>"))
 							{
-								sys::scoped_maybe_lock(&ed->mtx);
-								ed->ready = true;
-								ed->cond.broadcast();
 								APP_INFO("Editor session is ready")
 							}
 							else
@@ -218,7 +232,7 @@ namespace putki
 						{
 							if (!strcmp(line, "<end>"))
 							{
-								editor_on_object(ed, obj.c_str(), objbuf);
+								editor_on_object(d, obj.c_str(), objbuf);
 								objbuf->clear();
 								objbuf = 0;
 							}
@@ -227,7 +241,6 @@ namespace putki
 								(*objbuf) << line << "\n";
 							}
 						}
-						
 						parsed = scanned + 1;
 					}
 				}
@@ -250,54 +263,92 @@ namespace putki
 			
 			APP_INFO("Editor session " << name.c_str() << " finished.")
 			close(ptr->socket);
-			
 			ed->finished = true;
-			ed->ready = true;
 			delete ptr;
-
 			clean_sessions(d);
-
 			return 0;
+		}
+
+		void* builder_thread(void *arg)
+		{
+			builder_info* info = (builder_info*)arg;
+
+			sys::scoped_maybe_lock lk_(&info->build_mtx);
+			build::packaging_config pconf;
+			pconf.package_path = "live-update-dummy-path/";
+			pconf.rt = info->rt;
+			pconf.bdb = info->config.build_db;
+			pconf.make_patch = true;
+			build::invinvoke_packager(conf.built, &pconf);
+
+			// Required assets
+			std::set<std::string> req;
+			for (size_t i = 0; i != pconf.packages.size(); i++)
+			{
+				for (unsigned int j = 0;; j++)
+				{
+					const char *path = package::get_needed_asset(pconf.packages[i].pkg, j);
+					if (path)
+						req.insert(path);
+					else
+						break;
+				}
+			}
+
+			std::set<std::string>::iterator j = req.begin();
+			while (j != req.end())
+			{
+				putki::builder::add_build_root(bld, j->c_str(), 0);
+				j++;
+			}
+
+			putki::builder::do_build(bld, incremental);
+
+			APP_INFO("Done building. Performing post-build steps.")
+
+				postbuild_info pbi;
+			pbi.input = conf.input;
+			pbi.temp = conf.temp;
+			pbi.output = conf.built;
+			pbi.pconf = &pconf;
+			pbi.builder = bld;
+			invoke_post_build(&pbi);
+
+			// Post-build step may create new packages, but it must make sure they get built too.
+			// So it is up to the post_build_step to run add_build_root for the objects it would like
+			// to package.
+			putki::builder::do_build(bld, incremental);
+
+
+			while (true)
+			{
+				sys::scoped_maybe_lock lk_(&info->build_mtx);
+				while (info->queue.empty())
+				{
+					info->queue_cond.wait(&info->build_mtx);
+				}
+
+				for (std::set<std::string>::iterator i = info->queue.begin(); i != info->queue.end(); i++)
+				{
+					builder::add_build_root(info->builder, i->c_str(), -1);
+				}
+				builder::do_build(info->builder, true);
+			}
 		}
 
 		void* client_thread(void *arg)
 		{
-			/*
-			const char *sourcepath = ".";
-			
+			seen_edits_map seen;
 			thr_info *ptr = (thr_info *) arg;
 			data *d = ptr->d;
-			
-			// wait for session.
-			ed_session *session = 0;
+			builder_info* builder = 0;
 
-			APP_INFO("Client on socket " << ptr->socket << " connected")
-			
-			builder::data *builder = 0;
-			runtime::descptr rt = 0;
-			std::string config = "Default";
-
-			//
-			std::map<std::string, int> sent;
-			
 			int rd;
 			int readpos = 0;
 			int parsed = 0, scanned = 0;
 			char buf[4096];
 			while ((rd = read(ptr->socket, &buf[readpos], sizeof(buf)-readpos)) > 0)
 			{
-				// try to connect to session
-				if (!session)
-				{
-					sys::scoped_maybe_lock dlk(&d->mtx);
-					if (!d->editors.empty())
-					{
-						APP_INFO("Client on socket " << ptr->socket << " attached to session " << d->editors.back()->name)
-						session = d->editors.back();
-						session->clients++;
-					}
-				}
-
 				std::vector<std::string> client_requests;
 				std::vector<std::string> updated_objects;
 				
@@ -339,52 +390,24 @@ namespace putki
 							argstring.erase(0, del + 1);
 						}
 						
-						if (!strcmp(cmd.c_str(), "poll") && builder && session)
+						if (!strcmp(cmd.c_str(), "poll"))
 						{
-							sys::scoped_maybe_lock lk_(&session->mtx);
-							edits_t::iterator e = session->edits.begin();
-							while (e != session->edits.end())
+							// See what objects have been changed but this client does not known of;
+							// put them in updated_objects.
+							sys::scoped_maybe_lock lk_(&d->edits_mtx);
+							edits_map::iterator e = d->edits.begin();
+							while (e != d->edits.end())
 							{
-								if (sent[e->first] != e->second.version)
+								if (seen[e->first] != e->second.version)
 								{
-									type_handler_i *th;
-									instance_t obj;
-									
-									char main_object[1024];
-									if (db::base_asset_path(e->first.c_str(), main_object, sizeof(main_object)))
-									{
-										// trigger a forced load so it isn't later, with our aux object getting overwritten.
-										// if it is not loaded we would create a new object here.
-										if (!db::fetch(input_db, main_object, &th, &obj))
-										{
-											e++;
-											continue;
-										}
-									}
-									else
-									{
-										if (!db::fetch(input_db, e->first.c_str(), &th, &obj))
-										{
-											APP_INFO("Adding new object " << e->first)
-										}
-									}
-			
-									char *tmp = strdup(e->second.data.c_str());
-									if (!update_with_json(input_db, e->first.c_str(), tmp, (int)e->second.data.size()))
-									{
-										APP_WARNING("Json update failed. I am broken now and will exit");
-									}
-									::free(tmp);
-
-									sent[e->first] = e->second.version;
 									updated_objects.push_back(e->first);
-									APP_INFO("Adding to build new version [" << e->first << "]");
+									seen[e->first] = e->second.version;
 								}
 								++e;
 							}
 						}
 						
-						if (!strcmp(cmd.c_str(), "build") && args.size() > 0)
+						if (!strcmp(cmd.c_str(), "get") && args.size() > 0)
 						{
 							client_requests.push_back(args[0]);
 						}
@@ -392,158 +415,129 @@ namespace putki
 						if (!strcmp(cmd.c_str(), "init") && args.size() > 1)
 						{
 							// see what runtime it is.
-							for (int i=0;; i++)
+							runtime::descptr rt = 0;
+							for (int i = 0;; i++)
 							{
 								runtime::descptr p = runtime::get(i);
-								if (!p) break;
-								
-								if (!strcmp(args[0].c_str(), runtime::desc_str(p)))
-									rt = p;
-							}
-							
-							if (!builder)
-							{
-								builder = builder::create(rt, sourcepath, false, args[1].c_str(), 3);
-								if (builder)
+								if (!p)
 								{
-									builder::enable_liveupdate_builds(builder);
-									APP_INFO("Client has builder " << args[0] << ":" << args[1] << ". Loading DB.")
-									input_db = db::create(0, &in_db_mtx);
-									tmp_db = db::create(input_db, &tmp_db_mtx);
-									load_tree_into_db(builder::obj_path(builder), input_db);
-									APP_DEBUG("DB loaded with " << db::size(input_db) << " entries")
-									
-									db::enable_erase_on_overwrite(tmp_db);
+									break;
 								}
+								if (!strcmp(args[0].c_str(), runtime::desc_str(p)))
+								{
+									rt = p;
+								}
+							}
+
+							if (rt)
+							{
+								if (!builder)
+								{
+									sys::scoped_maybe_lock lk_(&d->builders_mtx);
+									if (!builder && !rt)
+									{
+										for (size_t i = 0; i != d->builders.size(); i++)
+										{
+											if (d->builders[i]->rt == rt && !strcmp(d->builders[i]->config_name.c_str(), args[1].c_str()))
+											{
+												APP_INFO("Found a builder for client.");
+												builder = d->builders[i];
+												break;
+											}
+										}
+									}
+									if (!builder)
+									{
+										APP_INFO("Could not find builder for client. Making one");
+										builder_info* info = new builder_info;
+										info->rt = rt;
+										info->config_name = args[1].c_str();
+										info->num_edits = 0;
+										build::init_builder_configuration(&info->config, rt, args[1].c_str(), true);
+										info->builder = build::create_and_config_builder(&info->config);
+										info->thread = sys::thread_create(builder_thread, (void*)info);
+										d->builders.push_back(info);
+										builder = info;
+
+
+									}
+								}
+							}
+							else
+							{
+								APP_INFO("Could not find runtime desc for [" << args[0] << "]!");
 							}
 						}
 						parsed = scanned + 1;
 					}
 				}
-				
-				std::set<std::string> buildset;
 
+				if (!builder)
+				{
+					continue;
+				}
+				
+				std::set<std::string> get_set;
 				for (int i=0;i!=client_requests.size();i++)
 				{
-					const char *orgpath = client_requests[i].c_str();
-
-					char main_object[1024];
-					if (!db::base_asset_path(orgpath, main_object, sizeof(main_object)))
-						strcpy(main_object, orgpath);
-
-					APP_DEBUG("Client requested [" << client_requests[i] << "], for which [" << orgpath << "] will be built.");
-					buildset.insert(main_object);
+					get_set.insert(client_requests[i]);
 				}
-				
-				// this array will be empty till there are builders.
-				for (int k=0;k!=updated_objects.size();k++)
-				{
-					// find all objects that need a rebuild because of this update.
-					build_db::data *bdb = builder::get_build_db(builder);
-					build_db::deplist *dl = build_db::deplist_get(bdb, updated_objects[k].c_str());
-					for (int i=-1;; i++)
-					{
-						const char *path = (i == -1) ? updated_objects[k].c_str() : build_db::deplist_entry(dl, i);
-						if (!path) {
-							break;
-						}
 
-						// main object always -1
-						if (i != -1 && !strcmp(path, updated_objects[k].c_str()))
-							continue;
-					
-						type_handler_i *th;
-						instance_t obj;
-						if (db::fetch(input_db, path, &th, &obj) && !th->in_output())
+				for (int i=0;i!=updated_objects.size(); i++)
+				{
+					get_set.insert(updated_objects[i]);
+					build_db::deplist* list = deplist_get(builder->config.build_db, updated_objects[i].c_str());
+					for (int j=0;;j++)
+					{
+						const char *path = build_db::deplist_entry(list, j);
+						if (!path) 
 						{
-							// skip this, not in output.
-							continue;
-						}
-				
-						buildset.insert(path);
-						
-						if (!dl)
-						{
-							APP_WARNING("deplist_get(build, '" << updated_objects[k] << "') returned 0!")
 							break;
 						}
+						get_set.insert(path);
 					}
+					build_db::deplist_free(list);
 				}
-				
-				std::set<std::string>::iterator bq = buildset.begin();
-				while (bq != buildset.end())
+
+				// Now get_set contains all the objects that need to be sent to the client. 
+				// Either he requested them, or they were changed by a connected editor.
+				sys::scoped_maybe_lock lk(&builder->build_mtx);
+				int num_builds = builder->num_builds;
+				for (std::set<std::string>::iterator i = get_set.begin(); i != get_set.end(); i++)
 				{
-					std::string tobuild = *(bq++);
-					APP_DEBUG("Building [" << tobuild << "]...")
+					builder->queue.insert(*i);
+				}
 
-					char b[1024];
-					if (db::is_aux_path(tobuild.c_str()))
-					{
-						if (db::base_asset_path(tobuild.c_str(), b, 1024))
-						{
-							if (buildset.count(b))
-							{
-								APP_DEBUG("Main object already in set, skipping")
-								continue;
-							}
-							
-							APP_DEBUG("...actually " << b)
-							tobuild = b;
-						}
-					}
+				builder->queue_cond.broadcast();
 
-					// walk up the parent chain of this and find out where we need to start to make this asset.
-					while (true)
-					{
-						if (db::exists(tmp_db, tobuild.c_str(), true) || db::exists(input_db, tobuild.c_str(), true))
-							break;
-	
-						build_db::record *rec = build_db::find(builder::get_build_db(builder), tobuild.c_str());
-						if (!rec || !build_db::get_parent(rec))
-							break;
+				// Once num_builds go up, the builder thread will have built everything in the queue.
+				while (builder->num_builds == num_builds)
+				{
+					builder->num_cond.wait(&builder->build_mtx);
+				}
 
-						tobuild = build_db::get_parent(rec);
-					}
+				package::data *pkg = package::create(builder->config.built);
+				for (std::set<std::string>::iterator i = get_set.begin(); i != get_set.end(); i++)
+				{
+					package::add(pkg, i->c_str(), true);
+				}
 
-					// load asset into source db if missing.
-					if (!db::exists(tmp_db, tobuild.c_str(), true) && !db::exists(input_db, tobuild.c_str(), true))
-					{
-						APP_WARNING("This object cannot be built!")
-						continue;
-					}
+				const unsigned int sz = 256*1024*1024;
+				char *buf = new char[sz];
+				putki::sstream mf;
+				long bytes = package::write(pkg, builder->rt, buf, sz, builder->config.build_db, mf);
 
-					build::resolve_object(input_db, tobuild.c_str());
-					
-					db::data *output_db = db::create(tmp_db, &out_db_mtx);
-					
-					builder::build_source_object(builder, input_db, tmp_db, output_db, tobuild.c_str());
-					build::post_build_ptr_update(input_db, output_db);
-					build::post_build_ptr_update(tmp_db, output_db);
+				APP_INFO("Package is " << bytes << " bytes")
+				int result = send(ptr->socket, buf, bytes, 0);
+				delete[] buf;
 
-					package::data *pkg = package::create(output_db);
-					package::add(pkg, tobuild.c_str(), true);
-					
-					// monster buffer.. make bigger?
-					const unsigned int sz = 256*1024*1024;
-					char *buf = new char[sz];
-					
-					putki::sstream mf;
-					long bytes = package::write(pkg, rt, buf, sz, builder::get_build_db(builder), mf);
-					
-					APP_INFO("Package is " << bytes << " bytes")
-
-					if (send(ptr->socket, buf, bytes, 0) != bytes)
-					{
-						// broken pipe
-						APP_INFO("Failed to write all data, socket was closed?")
-						close(ptr->socket);
-						ptr->socket = -1;
-						break;
-					}
-
-					delete [] buf;
-					
-					db::free_and_destroy_objs(output_db);
+				if (result != bytes)
+				{
+					// broken pipe
+					APP_INFO("Failed to write all data, socket was closed?")
+					close(ptr->socket);
+					ptr->socket = -1;
+					break;
 				}
 
 				if (ptr->socket == -1)
@@ -565,22 +559,9 @@ namespace putki
 
 			APP_INFO("Client session ended")
 
-			if (session)
-			{
-				sys::scoped_maybe_lock dlk(&d->mtx);
-				session->clients--;
-				dlk.unlock();
-				clean_sessions(d);
-			}
-
 			if (ptr->socket != -1)
 				close(ptr->socket);
-			
-			db::free_and_destroy_objs(input_db);
-			db::free_and_destroy_objs(tmp_db);
-	
-			delete ptr;
-			*/
+
 			return 0;
 		}
 		

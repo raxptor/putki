@@ -301,7 +301,7 @@ namespace putki
 							if (!d->askedfor.count(ref))
 							{
 								char req[1024];
-								sprintf(req, "build %s", ref);
+								sprintf(req, "get %s", ref);
 								command(d, req);
 								d->askedfor.insert(ref);
 							}

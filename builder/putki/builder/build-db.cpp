@@ -38,7 +38,6 @@ namespace putki
 			std::string source_path;
 			std::string source_sig;
 			std::string builder;
-			std::string parent_object;
 			std::vector<dep_entry> input_dependencies;
 			std::vector<dep_entry> dependencies;
 			std::vector<std::string> outputs;
@@ -137,10 +136,6 @@ namespace putki
 						{
 							cur->md.type = path;
 						}
-						else if (line[0] == 'c')
-						{
-							cur->parent_object = path;
-						}
 						else
 						{
 							APP_WARNING("UNPARSED " << line)
@@ -167,9 +162,6 @@ namespace putki
 
 					// sources have extra argument signature, outputs have extra argument builder
 					dbtxt << "#:" << i->first << "@" << r.source_sig << "*" << r.builder << "\n";
-
-					if (!r.parent_object.empty())
-						dbtxt << "c:" << r.parent_object << "\n";
 
 					for (unsigned int j = 0; j != r.input_dependencies.size(); j++)
 					{
@@ -286,7 +278,6 @@ namespace putki
 		const char *get_builder(record *r) { return r->builder.c_str(); }
 		const char *get_type(record *r) { return r->md.type.c_str(); }
 		const char *get_signature(record *r) { return r->md.signature.c_str(); }
-		const char *get_parent(record *r) { return r->parent_object.empty() ? 0 : r->parent_object.c_str(); }
 
 		const char *get_output_signature(record *r, int index) {
 			return r->output_signatures[index].c_str();
@@ -304,6 +295,26 @@ namespace putki
 			return r;
 		}
 
+		void cleanup_deps(data *d, record *r)
+		{
+			int count = 0;
+			for (unsigned int i = 0; i != r->input_dependencies.size(); i++)
+			{
+				std::pair<RevDepMap::iterator, RevDepMap::iterator> range = d->depends.equal_range(r->input_dependencies[i].path);
+				for (RevDepMap::iterator j = range.first; j != range.second;)
+				{
+					if (j->second == r->source_path)
+					{
+						count++;
+						d->depends.erase(j++);
+					}
+					else
+					{
+						++j;
+					}
+				}
+			}
+		}
 
 		void commit_record(data *d, record *r)
 		{
@@ -311,6 +322,11 @@ namespace putki
 			sys::scoped_maybe_lock _lk(&d->mtx);
 			d->records.insert(std::make_pair(r->source_path, r));
 			d->committed.insert(std::make_pair(r->source_path, r));
+			cleanup_deps(d, r);
+			for (size_t i = 0; i != r->input_dependencies.size(); i++)
+			{
+				d->depends.insert(std::make_pair(r->input_dependencies[i].path, r->source_path));
+			}
 		}
 
 		void commit_cached_record(data *d, record *r)
@@ -365,11 +381,6 @@ namespace putki
 				return true;
 			}
 			return false;
-		}
-
-		void set_parent(record *r, const char *parent)
-		{
-			r->parent_object = parent;
 		}
 
 		void set_builder(record *r, const char *builder)
@@ -464,27 +475,6 @@ namespace putki
 			return 0;
 		}
 
-		void cleanup_deps(data *d, record *r)
-		{
-			int count = 0;
-			for (unsigned int i = 0; i != r->input_dependencies.size(); i++)
-			{
-				std::pair<RevDepMap::iterator, RevDepMap::iterator> range = d->depends.equal_range(r->input_dependencies[i].path);
-				for (RevDepMap::iterator j = range.first; j != range.second;)
-				{
-					if (j->second == r->source_path)
-					{
-						count++;
-						d->depends.erase(j++);
-					}
-					else
-					{
-						++j;
-					}
-				}
-			}
-		}
-
 		void insert_metadata(record* rec, type_handler_i* th, instance_t obj, const char* path, const char* signature)
 		{
 			rec->md.type = th->name();
@@ -529,7 +519,7 @@ namespace putki
 			}
 
 			APP_DEBUG("Found " << dl->entries.size() << " dependant objects on [" << path << "]")
-				return dl;
+			return dl;
 		}
 
 		deplist* inputdeps_get(data *d, const char *path)
