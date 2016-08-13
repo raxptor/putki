@@ -225,7 +225,7 @@ namespace Netki
 			}
 
 			// Unreliable packets, these are placed in the out queue after reading out the sequence and mode.
-			for (int i=0;i<packets.Length;i++)
+			for (int i=0;i<packetsCount;i++)
 			{
 				if (packets[i].Internal.IsReliable || packets[i].Internal.Seq == 0)
 					continue;
@@ -244,7 +244,7 @@ namespace Netki
 			}
 
 			// Handle reliable. These go straight
-			for (int i=0;i<packets.Length;i++)
+			for (int i=0;i<packetsCount;i++)
 			{
 				if (!packets[i].Internal.IsReliable || packets[i].Internal.Seq == 0)
 					continue;
@@ -404,7 +404,7 @@ namespace Netki
 							lane.Stats.SendResends++;
 						}
 
-						uint resendMsAdd = (uint)(Math.Pow(lane.Out[j].SendCount-1, 1.5f) * lane.ResendMs);
+						uint resendMsAdd = (uint)(Math.Pow(lane.Out[j].SendCount-1, 1.5f) * lane.ResendMs) + setup.MinResendTimeMs;
 						if (resendMsAdd > 800)
 						{
 							resendMsAdd = 800;
