@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 
 namespace Netki
 {
@@ -84,6 +85,7 @@ namespace Netki
 				Progress = new InProgress[slots];
 				Done = new Done[slots];
 				Acks = new uint[slots];
+				PeerAcks = new uint[slots*2];
 				Id = id;
 				LagMsMin = 0;
 				ResendMs = 200;
@@ -104,8 +106,13 @@ namespace Netki
 
 			public uint[] Acks;
 			public ushort AckCount;
+			public bool SendAckPacket;
 
 			public uint ReliableSeq;
+
+			public uint[] PeerAcks;
+			public uint PeerAckCount;
+			public uint PeerReliableSeq;
 
 			public uint ResendMs;
 			public uint OutgoingSeqUnreliable;
@@ -139,6 +146,12 @@ namespace Netki
 			public uint MaxPacketSize;
 			public uint ReservedHeaderBytes;
 			public uint MinResendTimeMs;
+		}
+
+		[Conditional("DEBUG")]
+		private static void Log(string s)
+		{
+			Console.WriteLine("PL: " +s);
 		}
 
 		// This will start reading from the buffers and modify the incoming array.
@@ -177,7 +190,14 @@ namespace Netki
 
 				if (reliable)
 				{
+					lane.SendAckPacket = true;
 					packets[i].Internal.IsFinalPiece = Bitstream.ReadBits(tmp, 1) == 1;
+					uint sack = Bitstream.ReadCompressedUint(tmp);
+
+					if (lane.PeerReliableSeq < sack)
+					{
+						lane.PeerReliableSeq = sack;
+					}
 
 					if (!packets[i].Internal.IsFinalPiece)
 					{
@@ -187,39 +207,13 @@ namespace Netki
 					while (true)
 					{
 						uint seqAck = Bitstream.ReadCompressedUint(tmp);
-						if (seqAck != 0)
+						if (seqAck == 0)
+							break;
+						if (seqAck > lane.PeerReliableSeq && lane.PeerAckCount < lane.PeerAcks.Length)
 						{
-							for (int j=0;j!=lane.OutCount;j++)
-							{								
-								if (lane.Out[j].Reliable && lane.Out[j].Source != null && lane.Out[j].SeqId == seqAck)
-								{
-									double msLag = (packets[i].ArrivalTime - lane.Out[j].InitialSendTime).TotalMilliseconds;
-									if (msLag > 0)
-									{
-										uint ms = (uint) msLag;
-										if (ms < lane.LagMsMin || lane.LagMsMin == 0)
-										{
-											if (ms >= setup.MinResendTimeMs)
-											{
-												lane.LagMsMin = ms;
-												lane.ResendMs = 2 * ms;
-											}
-										}
-									}
-
-									if (lane.Out[j].Source != null)
-									{
-										if (--lane.Out[j].Source.userdata == 0)
-										{
-											setup.Factory.ReturnBuffer(lane.Out[j].Source);
-										}
-										lane.Out[j].Source = null;
-									}
-								}
-							}
-							continue;
+							Log(lane.Id + " received future ack " + seqAck);
+							lane.PeerAcks[lane.PeerAckCount++] = seqAck;
 						}
-						break;
 					}
 				}
 				else
@@ -259,6 +253,7 @@ namespace Netki
 
 				if (packets[i].Internal.Seq <= lane.ReliableSeq)
 				{
+					Log("Lane " + lane.Id + " reecived " + packets[i].Internal.Seq + " but had it already");
 					// already had it but send ack anyway.
 					if (lane.AckCount < lane.Acks.Length)
 					{						
@@ -267,6 +262,9 @@ namespace Netki
 					lane.Stats.RecvDupes++;
 					continue;
 				}
+
+				Log("Lane " + lane.Id + " reecived " + packets[i].Internal.Seq + "!");
+
 
 				// If packet arrives a second time, ignore.
 				uint numProgress = (uint)lane.Progress.Length;
@@ -292,7 +290,7 @@ namespace Netki
 				{
 					// Drop so we don't end up with a full progress queue.
 					// and no room to accept the packet needed.
-					// Console.WriteLine("Dropping inc seq=" + packets[i].Internal.Seq + " because it is too far ahead, waiting for " + (lane.ReliableSeq+1));
+					Log("Dropping inc seq=" + packets[i].Internal.Seq + " because it is too far ahead, waiting for " + (lane.ReliableSeq+1));
 				}
 				else
 				{
@@ -322,10 +320,73 @@ namespace Netki
 		// Return if there is more to come.
 		public static bool ProcessLanesSend(LaneSetup setup, Lane[] lanes, DateTime now, Send[] output, out uint numOut)
 		{
+			for (int i=0;i<lanes.Length;i++)
+			{
+				Lane lane = lanes[i];
+					
+				// First clean out send.
+				for (int j=0;j!=lane.OutCount;j++)
+				{	
+					if (lane.Out[j].Source == null)
+					{
+						continue;
+					}
+					uint ts = lane.Out[j].SeqId;
+					if (ts > lane.PeerReliableSeq)
+					{
+						// need to find it in the list
+						bool found = false;
+						for (uint w=0;w<lane.PeerAckCount;w++)
+						{
+							if (lane.PeerAcks[w] == ts)
+							{
+								found = true;
+							}
+						}
+						if (!found)
+						{
+							continue;
+						}
+					}
+					Log(lane.Id + " removes out " + j + " which is seq=" + ts);
+					double msLag = (now - lane.Out[j].InitialSendTime).TotalMilliseconds;
+					if (msLag > 0)
+					{
+						uint ms = (uint) msLag;
+						if (ms < lane.LagMsMin || lane.LagMsMin == 0)
+						{
+							if (ms >= setup.MinResendTimeMs)
+							{
+								lane.LagMsMin = ms;
+								lane.ResendMs = 2 * ms;
+							}
+						}
+					}
+					if (--lane.Out[j].Source.userdata == 0)
+					{
+						setup.Factory.ReturnBuffer(lane.Out[j].Source);
+					}
+					lane.Out[j].Source = null;
+				}
+				lane.PeerAckCount = 0;
+			}
+
+
+
 			numOut = 0;
 			for (int i=0;i<lanes.Length;i++)
 			{
 				Lane lane = lanes[i];
+
+				// clean out acks that are behind or equal to reliableseq (which is always transmitted)
+				ushort writeAckPos = 0;
+				for (int k=0;k<lane.AckCount && k < 4;k++)
+				{
+					if (lane.Acks[k] > lane.ReliableSeq)
+						lane.Acks[writeAckPos++] = lane.Acks[k];
+				}
+				lane.AckCount = writeAckPos;
+
 				int holes = 0;
 				for (int j=0;j<lane.OutCount;j++)
 				{
@@ -343,10 +404,10 @@ namespace Netki
 							lane.Stats.SendResends++;
 						}
 
-						uint resendMsAdd = lane.Out[j].SendCount * lane.Out[j].SendCount * lane.ResendMs;
-						if (resendMsAdd > 5000)
+						uint resendMsAdd = (uint)(Math.Pow(lane.Out[j].SendCount-1, 1.5f) * lane.ResendMs);
+						if (resendMsAdd > 800)
 						{
-							resendMsAdd = 5000;
+							resendMsAdd = 800;
 						}
 
 						lane.Out[j].SendTime = lane.Out[j].SendTime.AddMilliseconds(resendMsAdd);
@@ -357,14 +418,17 @@ namespace Netki
 						Bitstream.PutBits(tmp, 1, lane.Out[j].Reliable ? 1u : 0u);
 						Bitstream.PutCompressedUint(tmp, lane.Out[j].SeqId);
 
+						Log("Lane" + lane.Id + " sends seq=" + lane.Out[j].SeqId + " sendadd = " + resendMsAdd);
 						if (lane.Out[j].Reliable)
 						{
 							Bitstream.PutBits(tmp, 1, lane.Out[j].IsFinalPiece ? 1u : 0u);
+							Bitstream.PutCompressedUint(tmp, lane.ReliableSeq);
 
 							// flush out a max number of acks or all.
 							int wrote = 0;
 							for (int k=0;k<lane.AckCount && k < 4;k++)
 							{
+								Log(lane.Id + " sending ack " + lane.Acks[k]);
 								Bitstream.PutCompressedUint(tmp, lane.Acks[k]);
 								wrote++;
 							}
@@ -374,6 +438,7 @@ namespace Netki
 								lane.Acks[k] = lane.Acks[k + wrote];
 							}
 							lane.AckCount = (ushort)(lane.AckCount - wrote);
+							lane.SendAckPacket = false;
 						}
 
 						Bitstream.SyncByte(tmp);
@@ -431,13 +496,15 @@ namespace Netki
 			for (int i=0;i<lanes.Length;i++)
 			{
 				Lane lane = lanes[i];
-				if (lane.AckCount > 0)
+				if (lane.SendAckPacket)
 				{
+					lane.SendAckPacket = false;
 					Bitstream.Buffer tmp = setup.Factory.GetBuffer(setup.MaxPacketSize);
 					tmp.bytepos = setup.ReservedHeaderBytes;
 					Bitstream.PutBits(tmp, 1, 1); // reliable
 					Bitstream.PutCompressedUint(tmp, 0); // ack only
 					Bitstream.PutBits(tmp, 1, 1); // final
+					Bitstream.PutCompressedUint(tmp, lane.ReliableSeq);
 
 					for (int k=0;k<lane.AckCount;k++)
 					{
@@ -494,6 +561,7 @@ namespace Netki
 					if (target == lane.Out.Length)
 					{
 						// Dropped
+						Log("DROP 2");
 						continue;
 					}
 
@@ -570,7 +638,7 @@ namespace Netki
 						uint bytesLeft = source.bytesize - RangeBegin;
 						if (bytesLeft == 0)
 						{
-							Console.WriteLine("ERROR: bytesLeft=0!");
+							Log("ERROR: bytesLeft=0!");
 							continue;
 						}
 						uint toWrite = bytesLeft < segmentSize ? bytesLeft : segmentSize;
@@ -730,7 +798,7 @@ namespace Netki
 						if (++aggregateCount >= (aggregateIdx.Length-1))
 						{
 							// THis should never happen.
-							Console.WriteLine("ERROR: Progress buffer reset because aggregateIdx overflowed.");
+							Log("ERROR: Progress buffer reset because aggregateIdx overflowed.");
 							lane.ProgressHead = 0;
 							lane.ProgressTail = 0;
 							break;
