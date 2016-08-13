@@ -218,6 +218,8 @@ namespace Netki
 				}
 				else
 				{
+					Log(lane.Id + " received unreliable seqId = " + seq);
+						
 					packets[i].Internal.IsFinalPiece = true;
 				}
 
@@ -324,10 +326,10 @@ namespace Netki
 			{
 				Lane lane = lanes[i];
 					
-				// First clean out send.
+				// First clean out send, only reliable packets.
 				for (int j=0;j!=lane.OutCount;j++)
 				{	
-					if (lane.Out[j].Source == null)
+					if (lane.Out[j].Source == null || !lane.Out[j].Reliable)
 					{
 						continue;
 					}
@@ -577,12 +579,14 @@ namespace Netki
 						lane.Out[target].Source.Flip();
 					}
 
+					Log(lane.Id + " scheduling unreliable seqId = " + (lane.OutgoingSeqUnreliable+1));
 					lane.Out[target].Source.userdata = 1; // refcount
 					lane.Out[target].Begin = lane.Out[target].Source.bytepos;
 					lane.Out[target].End = lane.Out[target].Source.bytesize - lane.Out[target].Source.bytepos;
 					lane.Out[target].IsFinalPiece = true;
 					lane.Out[target].SendTime = now;
 					lane.Out[target].InitialSendTime = now;
+					lane.Out[target].SendTime = now;
 					lane.Out[target].SendCount = 0;
 					lane.Out[target].SeqId = ++lane.OutgoingSeqUnreliable;
 					lane.Out[target].Reliable = false;
