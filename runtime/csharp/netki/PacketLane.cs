@@ -577,7 +577,6 @@ namespace Netki
 						lane.Out[target].Source.Flip();
 					}
 
-					lane.Out[target].Source.userdata = 1; // refcount
 					lane.Out[target].Begin = lane.Out[target].Source.bytepos;
 					lane.Out[target].End = lane.Out[target].Source.bytesize - lane.Out[target].Source.bytepos;
 					lane.Out[target].IsFinalPiece = true;
