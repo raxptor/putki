@@ -241,6 +241,7 @@ namespace Netki
 					lane.Done[head].ArrivalTime = packets[i].ArrivalTime;
 					lane.Done[head].CompletionTime = packets[i].ArrivalTime;
 					lane.Done[head].Lane = lane;
+					packets[i].Packet = null;
 					lane.DoneHead = lane.DoneHead + 1;
 				}
 			}
@@ -314,7 +315,17 @@ namespace Netki
 						{						
 							lane.Acks[lane.AckCount++] = packets[i].Internal.Seq;
 						}
+						packets[i].Packet = null;
 					}
+				}
+			}
+
+			// Cleanup buffers
+			for (int i=0;i<packetsCount;i++)
+			{
+				if (packets[i].Packet != null)
+				{
+					setup.Factory.ReturnBuffer(packets[i].Packet);
 				}
 			}
 		}
@@ -364,6 +375,7 @@ namespace Netki
 							}
 						}
 					}
+					Log("Userdata = " + lane.Out[j].Source.userdata);
 					if (--lane.Out[j].Source.userdata == 0)
 					{
 						setup.Factory.ReturnBuffer(lane.Out[j].Source);
@@ -649,7 +661,6 @@ namespace Netki
 						uint slot = outSlots[k];
 						source.userdata++;
 						lane.Out[slot].Source = source;
-						lane.Out[slot].Source.userdata = 1; // refcount
 						lane.Out[slot].Begin = RangeBegin;
 						lane.Out[slot].End = RangeBegin + toWrite;
 						lane.Out[slot].IsFinalPiece = k == (numSegments-1);
@@ -776,6 +787,7 @@ namespace Netki
 								uint ki = aggregateIdx[k];
 								Bitstream.Insert(total, lane.Progress[ki].Data);
 								lane.Progress[ki].SeqId = 0;
+								setup.Factory.ReturnBuffer(lane.Progress[ki].Data);
 							}
 							total.Flip();
 							output[numOut].ArrivalTime = lane.Progress[aggregateIdx[0]].ArrivalTime;
