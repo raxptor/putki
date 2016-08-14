@@ -406,7 +406,7 @@ namespace Netki
 							lane.Stats.SendResends++;
 						}
 
-						uint resendMsAdd = (uint)(Math.Pow(lane.Out[j].SendCount-1, 1.5f) * lane.ResendMs) + setup.MinResendTimeMs;
+						uint resendMsAdd = (uint)(Math.Pow(lane.Out[j].SendCount-1, 1.5f) * lane.ResendMs) + lane.ResendMs;
 						if (resendMsAdd > 800)
 						{
 							resendMsAdd = 800;
