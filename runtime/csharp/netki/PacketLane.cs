@@ -69,11 +69,13 @@ namespace Netki
 			public uint SendResends;
 			public uint SendAckOnly;
 			public uint SendBytes;
+			public uint SendUnreliable;
 			public uint RecvCount;
 			public uint RecvDupes;
 			public uint RecvNonFinal;
 			public uint RecvAckOnly;
 			public uint RecvBytes;
+			public uint RecvUnreliable;
 		}
 
 		public class Lane
@@ -243,6 +245,7 @@ namespace Netki
 					lane.Done[head].Lane = lane;
 					packets[i].Packet = null;
 					lane.DoneHead = lane.DoneHead + 1;
+					lane.Stats.RecvUnreliable++;
 				}
 			}
 
@@ -478,6 +481,7 @@ namespace Netki
 						{
 							setup.Factory.ReturnBuffer(lane.Out[j].Source);
 							lane.Out[j].Source = null;
+							lane.Stats.SendUnreliable++;
 						}
 
 						if (++numOut == output.Length)
