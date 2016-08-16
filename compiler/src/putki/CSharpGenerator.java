@@ -167,6 +167,19 @@ public class CSharpGenerator
                         writeExpr(sb, tmp + "Obj", fld);
                         sb.append(";");
                         sb.append(npfx).append("}");
+                        if (fld.defValue != null)
+                        {
+                        	sb.append(npfx).append("else");
+                        	sb.append(npfx).append("{");
+                        	String cast = "";
+                        	String valuePrefix = "";
+                        	if (fld.type == FieldType.FLOAT)
+                        		cast = "(float)";
+                        	if (fld.type == FieldType.ENUM)
+                        		valuePrefix = "Outki." + fld.resolvedEnum.name + ".";
+                        	sb.append(npfx).append("\t" + ref + " = " + cast + valuePrefix + fld.defValue + ";");
+                        	sb.append(npfx).append("}");
+                        }
                     }
                     else
                     {
