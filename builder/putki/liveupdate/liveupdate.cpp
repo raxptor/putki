@@ -274,39 +274,13 @@ namespace putki
 			builder_info* info = (builder_info*)arg;
 
 			sys::scoped_maybe_lock lk_(&info->build_mtx);
-			build::packaging_config pconf;
-			pconf.package_path = "live-update-dummy-path/";
-			pconf.rt = info->rt;
-			pconf.bdb = info->config.build_db;
-			pconf.make_patch = true;
-			build::invinvoke_packager(conf.built, &pconf);
 
-			// Required assets
-			std::set<std::string> req;
-			for (size_t i = 0; i != pconf.packages.size(); i++)
-			{
-				for (unsigned int j = 0;; j++)
-				{
-					const char *path = package::get_needed_asset(pconf.packages[i].pkg, j);
-					if (path)
-						req.insert(path);
-					else
-						break;
-				}
-			}
+			APP_INFO("Doing initial incremental build without writing packages...");
+			build::add_build_roots(info->builder, &info->config, info->rt, info->config_name.c_str());
+			putki::builder::do_build(info->builder, true);
+			APP_INFO("Done building. Performing post-build steps.");
 
-			std::set<std::string>::iterator j = req.begin();
-			while (j != req.end())
-			{
-				putki::builder::add_build_root(bld, j->c_str(), 0);
-				j++;
-			}
-
-			putki::builder::do_build(bld, incremental);
-
-			APP_INFO("Done building. Performing post-build steps.")
-
-				postbuild_info pbi;
+			build::postbuild_info pbi;
 			pbi.input = conf.input;
 			pbi.temp = conf.temp;
 			pbi.output = conf.built;

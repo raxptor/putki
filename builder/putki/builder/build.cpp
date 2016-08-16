@@ -49,6 +49,7 @@ namespace putki
 
 		struct packaging_config
 		{
+			bool find_roots_only;
 			std::string package_path;
 			runtime::descptr rt;
 			build_db::data *bdb;
@@ -90,8 +91,16 @@ namespace putki
 
 		void commit_package(putki::package::data *package, packaging_config *packaging, const char *out_path)
 		{
+			if (packaging->find_roots_only)
+			{
+				pkg_conf pk;
+				pk.path = std::string("dummy-path/") + out_path;
+				pk.pkg = package;
+				packaging->packages.push_back(pk);
+				return;
+			}
+
 			pkg_conf pk;
-			
 			bool make_patch = packaging->make_patch;
 		
 			// expect old packages to be there.
@@ -224,6 +233,38 @@ namespace putki
 			return builder;
 		}
 
+		void add_build_roots(builder::data* builder_data, builder::config* conf, runtime::descptr rt, const char* build_config)
+		{
+			packaging_config pconf;
+			pconf.find_roots_only = true;
+			pconf.package_path;
+			pconf.rt = rt;
+			pconf.bdb = conf->build_db;
+			pconf.make_patch = false;
+			invoke_packager(conf->built, &pconf);
+
+			// Required assets
+			std::set<std::string> req;
+			for (size_t i = 0; i != pconf.packages.size(); i++)
+			{
+				for (unsigned int j = 0;; j++)
+				{
+					const char *path = package::get_needed_asset(pconf.packages[i].pkg, j);
+					if (path)
+						req.insert(path);
+					else
+						break;
+				}
+			}
+
+			std::set<std::string>::iterator j = req.begin();
+			while (j != req.end())
+			{
+				putki::builder::add_build_root(builder_data, j->c_str(), 0);
+				j++;
+			}
+		}
+
 		void make_packages(runtime::descptr rt, const char* build_config, bool incremental, bool make_patch)
 		{
 			builder::config conf;
@@ -235,6 +276,7 @@ namespace putki
 			write_prefix(pfx, rt, build_config);
 			sprintf(pkg_path, "%s/packages/", pfx);
 			packaging_config pconf;
+			pconf.find_roots_only = false;
 			pconf.package_path = pkg_path;
 			pconf.rt = rt;
 			pconf.bdb = conf.build_db;

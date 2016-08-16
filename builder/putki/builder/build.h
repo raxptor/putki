@@ -36,6 +36,7 @@ namespace putki
 
 		void init_builder_configuration(builder::config* conf, runtime::descptr rt, const char* build_config, bool incremental);
 		builder::data* create_and_config_builder(builder::config* conf);
+		void add_build_roots(builder::data* builder_data, builder::config* conf, runtime::descptr rt, const char* build_config);
 		void destroy_builder_configuration(builder::config* conf);
 	}
 }
