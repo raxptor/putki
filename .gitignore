@@ -18,5 +18,4 @@ Debug
 build
 .DS_Store
 _gen
-
-
+dist
