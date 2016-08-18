@@ -67,7 +67,7 @@ namespace Netki
 		public struct SeqTimes
 		{
 			public uint Seq;
-			public DateTime When;
+			public DateTime Timestamp;
 		}
 
 		public class Lane
@@ -94,6 +94,7 @@ namespace Netki
 			public uint RecvHead;
 			public uint RecvSeqCursor;  // Complete data pos.
 			public uint RecvTail;       // Read/decode cursor
+			public uint RecvLastSeenSeq;
 			public AckRange[] RecvFutureAcks;
 			public uint RecvFutureAckCount;
 
@@ -196,16 +197,16 @@ namespace Netki
 							Log(lane, "Ack chunk but it is too tiny");
 							break;
 						}
-						uint recvSeqCursor, maxRecv;
+						uint lastSeenSeq, recvSeqCursor, maxRecv;
 						pos = ReadU32(data, pos, out lastSeenSeq);
 						pos = ReadU32(data, pos, out recvSeqCursor);
 						pos = ReadU32(data, pos, out maxRecv);
 						byte count = data[pos++];
 						
-						uint idx = lastSeenSeq % SeqTimesSize;
-						if (lane.SeqTimes[idx].Seq == lastSeenSeq)
+						uint idx = lastSeenSeq % Lane.SendSeqTimesSize;
+						if (lane.SendSeqTimes[idx].Seq == lastSeenSeq)
 						{
-							float time = (packets[i].Timestamp - lane.SeqTimes[idx].Timestamp).TotalMilliseconds;
+							double time = (packets[i].ArrivalTime - lane.SendSeqTimes[idx].Timestamp).TotalMilliseconds;
 							Log(lane, "Ronudtrip time=" + time);
 						}
 
@@ -236,6 +237,11 @@ namespace Netki
 						{
 							wasOld = true;
 							Log(lane, "Out of order recv");
+						}
+
+						if (seq > lane.RecvLastSeenSeq)
+						{
+							lane.RecvLastSeenSeq = seq;
 						}
 
 						if (!wasOld)
@@ -302,6 +308,10 @@ namespace Netki
 						{
 							Log(lane, " => Was continuation of stream");
 							lane.RecvSeqCursor = segEnd;
+						}
+						if (seq > lane.RecvLastSeenSeq)
+						{
+							lane.RecvLastSeenSeq = seq;
 						}
 
 						bool morework;
@@ -470,6 +480,7 @@ namespace Netki
 					data[writePos] = 0x0; // 0 = reliable sequence update.
 					writePos = WriteU32(data, writePos + 1, lane.RecvSeqCursor); // How far have received all data.
 					writePos = WriteU32(data, writePos, lane.RecvTail + (uint)lane.RecvBuffer.Length); // How far can receive.
+					writePos = WriteU32(data, writePos, lane.RecvLastSeenSeq);
 					Log(lane, "Sending ack (counts=" + lane.SendFutureAckCount + ") RecvSeqCursor=" + lane.RecvSeqCursor + " RecvMax=" + (lane.RecvTail + (uint)lane.RecvBuffer.Length));
 
 					// Future ranges.
