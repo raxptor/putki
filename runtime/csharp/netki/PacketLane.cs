@@ -192,10 +192,14 @@ namespace Netki
 
 				if (reliable)
 				{
-					lane.SendAckPacket = true;
+					if (seq != 0)
+					{
+						lane.SendAckPacket = true;
+					}
 					packets[i].Internal.IsFinalPiece = Bitstream.ReadBits(tmp, 1) == 1;
 					uint sack = Bitstream.ReadCompressedUint(tmp);
 
+					Log("Lane" + lane.Id + " got rel, seq=" + seq + " sack=" + sack + " prevper=" + lane.PeerReliableSeq + " sz=" + tmp.bytesize);
 					if (lane.PeerReliableSeq < sack)
 					{
 						lane.PeerReliableSeq = sack;
@@ -220,8 +224,6 @@ namespace Netki
 				}
 				else
 				{
-					Log(lane.Id + " received unreliable seqId = " + seq);
-						
 					packets[i].Internal.IsFinalPiece = true;
 				}
 
@@ -289,6 +291,7 @@ namespace Netki
 				{
 					// Already got the packet for this sequence id.
 					lane.Stats.RecvDupes++;
+					Log("Throwing because had it, it was seq=" + packets[i].Internal.Seq);
 					continue;
 				}
 
@@ -435,9 +438,9 @@ namespace Netki
 						Bitstream.PutBits(tmp, 1, lane.Out[j].Reliable ? 1u : 0u);
 						Bitstream.PutCompressedUint(tmp, lane.Out[j].SeqId);
 
-						Log("Lane" + lane.Id + " sends seq=" + lane.Out[j].SeqId + " sendadd = " + resendMsAdd);
 						if (lane.Out[j].Reliable)
 						{
+							Log("Lane" + lane.Id + " sends seq=" + lane.Out[j].SeqId + " sendadd = " + resendMsAdd);
 							Bitstream.PutBits(tmp, 1, lane.Out[j].IsFinalPiece ? 1u : 0u);
 							Bitstream.PutCompressedUint(tmp, lane.ReliableSeq);
 
