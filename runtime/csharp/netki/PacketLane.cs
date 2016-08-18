@@ -63,6 +63,12 @@ namespace Netki
 			public uint RecvBytes;
 			public uint RecvUnreliable;
 		}
+		
+		public struct SeqTimes
+		{
+			public uint Seq;
+			public DateTime When;
+		}
 
 		public class Lane
 		{
@@ -75,6 +81,7 @@ namespace Netki
 				SendBuffer = new byte[bufferSize];
 				SendFutureAcks = new AckRange[4];
 				RecvFutureAcks = new AckRange[4];
+				SendSeqTimes = new SeqTimes[SendSeqTimesSize];
 				Id = id;
 				LagMsMin = 0;
 				ResendMs = 500;
@@ -100,6 +107,9 @@ namespace Netki
 			public uint SendFutureAckCount;
 			public DateTime SendResetTime;
 			public bool DoSendAcks;
+			
+			public const uint SendSeqTimesSize = 128;
+			public SeqTimes[] SendSeqTimes = new SeqTimes[SendSeqTimesSize];
 
 			// 
 			public OutUBuf[] OutU;
@@ -187,9 +197,17 @@ namespace Netki
 							break;
 						}
 						uint recvSeqCursor, maxRecv;
+						pos = ReadU32(data, pos, out lastSeenSeq);
 						pos = ReadU32(data, pos, out recvSeqCursor);
 						pos = ReadU32(data, pos, out maxRecv);
 						byte count = data[pos++];
+						
+						uint idx = lastSeenSeq % SeqTimesSize;
+						if (lane.SeqTimes[idx].Seq == lastSeenSeq)
+						{
+							float time = (packets[i].Timestamp - lane.SeqTimes[idx].Timestamp).TotalMilliseconds;
+							Log(lane, "Ronudtrip time=" + time);
+						}
 
 						if ((end-pos) < count * 8)
 						{
@@ -572,6 +590,9 @@ namespace Netki
 				}
 				else
 				{
+					uint idx = lane.OutgoingSeq % Lane.SendSeqTimesSize;
+					lane.SendSeqTimes[idx].Seq = lane.OutgoingSeq;
+					lane.SendSeqTimes[idx].Timestamp = now;
 					WriteU32(data, setup.ReservedHeaderBytes, lane.OutgoingSeq++);
 
 					buf.bytesize = writePos;
