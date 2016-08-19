@@ -11,14 +11,6 @@ namespace Netki
 
 	public static class PacketLane
 	{
-		public struct InProgress
-		{
-			public uint SeqId;
-			public Bitstream.Buffer Data;
-			public DateTime ArrivalTime;
-			public bool IsFinalPiece;
-		}
-
 		public struct AckRange
 		{
 			public uint Begin;
@@ -63,11 +55,14 @@ namespace Netki
 			public uint RecvBytes;
 			public uint RecvUnreliable;
 		}
-		
-		public struct SeqTimes
+
+		public struct InFlight
 		{
-			public uint Seq;
-			public DateTime Timestamp;
+			public uint Begin;
+			public uint End;
+			public DateTime ResendTime;
+			public DateTime FirstSendTime;
+			public byte ResendCount;
 		}
 
 		public class Lane
@@ -80,11 +75,9 @@ namespace Netki
 				RecvBuffer = new byte[bufferSize];
 				SendBuffer = new byte[bufferSize];
 				SendFutureAcks = new AckRange[4];
-				RecvFutureAcks = new AckRange[4];
-				SendSeqTimes = new SeqTimes[SendSeqTimesSize];
+				SendInFlights = new InFlight[64];
 				Id = id;
 				LagMsMin = 0;
-				ResendMs = 500;
 				SendPeerRecvMax = 2048; // assume at least 4k buffer
 			}
 
@@ -95,8 +88,6 @@ namespace Netki
 			public uint RecvSeqCursor;  // Complete data pos.
 			public uint RecvTail;       // Read/decode cursor
 			public uint RecvLastSeenSeq;
-			public AckRange[] RecvFutureAcks;
-			public uint RecvFutureAckCount;
 
 			// 
 			public byte[] SendBuffer;
@@ -106,11 +97,9 @@ namespace Netki
 			public uint SendCursor;
 			public AckRange[] SendFutureAcks;
 			public uint SendFutureAckCount;
-			public DateTime SendResetTime;
+			public InFlight[] SendInFlights;
+			public uint SendInFlightCount;
 			public bool DoSendAcks;
-			
-			public const uint SendSeqTimesSize = 128;
-			public SeqTimes[] SendSeqTimes = new SeqTimes[SendSeqTimesSize];
 
 			// 
 			public OutUBuf[] OutU;
@@ -120,9 +109,10 @@ namespace Netki
 			public uint DoneHead;
 			public uint DoneTail;
 
-			public uint ResendMs;
 			public uint OutgoingSeq;
 			public uint LagMsMin;
+			public float[] LagTimings = new float[16];
+			public uint LagTimingCount;
 
 			public int Errors;
 			public Statistics Stats;
@@ -149,7 +139,6 @@ namespace Netki
 			public BufferFactory Factory;
 			public uint MaxPacketSize;
 			public uint ReservedHeaderBytes;
-			public uint MinResendTimeMs;
 		}
 
 		[Conditional("DEBUG")]
@@ -183,8 +172,9 @@ namespace Netki
 				uint end = packets[i].Pos + packets[i].Length;
 				Lane lane = packets[i].Lane;
 
-				uint seq;
+				uint seq, lastSeenSeq;
 				pos = ReadU32(data, pos, out seq);
+				pos = ReadU32(data, pos, out lastSeenSeq);
 
 				while ((end - pos) > 5)
 				{
@@ -197,18 +187,10 @@ namespace Netki
 							Log(lane, "Ack chunk but it is too tiny");
 							break;
 						}
-						uint lastSeenSeq, recvSeqCursor, maxRecv;
-						pos = ReadU32(data, pos, out lastSeenSeq);
+						uint recvSeqCursor, maxRecv;
 						pos = ReadU32(data, pos, out recvSeqCursor);
 						pos = ReadU32(data, pos, out maxRecv);
 						byte count = data[pos++];
-						
-						uint idx = lastSeenSeq % Lane.SendSeqTimesSize;
-						if (lane.SendSeqTimes[idx].Seq == lastSeenSeq)
-						{
-							double time = (packets[i].ArrivalTime - lane.SendSeqTimes[idx].Timestamp).TotalMilliseconds;
-							Log(lane, "Ronudtrip time=" + time);
-						}
 
 						if ((end-pos) < count * 8)
 						{
@@ -216,7 +198,6 @@ namespace Netki
 							break;
 						}
 
-						bool wasOld = false;
 						if (maxRecv >= lane.SendPeerRecvMax)
 						{
 							lane.SendPeerRecvMax = maxRecv;
@@ -224,7 +205,6 @@ namespace Netki
 						}
 						else
 						{
-							wasOld = true;
 							Log(lane, "Out of order acks, maxRecv=" + maxRecv + " previous=" + lane.SendPeerRecvMax);
 						}
 
@@ -235,7 +215,6 @@ namespace Netki
 						}
 						else
 						{
-							wasOld = true;
 							Log(lane, "Out of order recv");
 						}
 
@@ -244,32 +223,133 @@ namespace Netki
 							lane.RecvLastSeenSeq = seq;
 						}
 
-						if (!wasOld)
+						for (int k=0;k<lane.SendInFlightCount;k++)
 						{
-							lane.RecvFutureAckCount = 0;
-							for (uint j=0;j<count;j++)
+							if (lane.SendInFlights[k].End == 0)
 							{
-								if (j < lane.RecvFutureAcks.Length)
+								continue;
+							}
+							if (lane.SendInFlights[k].Begin < recvSeqCursor && lane.SendInFlights[k].End <= recvSeqCursor)
+							{								
+								Log(lane, "   - clearing in flight - [" + lane.SendInFlights[k].Begin + "," + lane.SendInFlights[k].End + "]");
+								// Use only timing for stuff that was not merged, or succeed on the first attempt.
+								if (lane.SendInFlights[k].ResendCount == 0 /*&& ackEnd == lane.SendInFlights[k].End*/)
 								{
-									pos = ReadU32(data, pos, out lane.RecvFutureAcks[j].Begin);
-									pos = ReadU32(data, pos, out lane.RecvFutureAcks[j].End);
-									Log(lane, " => AckRange " + j + " = [" + lane.RecvFutureAcks[j].Begin + ", " + lane.RecvFutureAcks[j].End + "]");
-									lane.RecvFutureAckCount = j + 1;
+									float roundtripMs = (float) (packets[i].ArrivalTime - lane.SendInFlights[k].FirstSendTime).TotalMilliseconds;
+									lane.LagTimings[(lane.LagTimingCount++) % lane.LagTimings.Length] = roundtripMs;
+									if (roundtripMs > 1000)
+										Log(lane, "aah");
+									Log(lane, "Roundtrip time=" + roundtripMs);
 								}
-								else
-								{
-									pos += 8;
-								}
+								lane.SendInFlights[k].End = 0;
 							}
 						}
-						else
+
+						for (uint j=0;j<count;j++)
 						{
-							pos = pos + (uint)(8 * count);
+							if (j < count)
+							{
+								uint ackBeg, ackEnd;
+								pos = ReadU32(data, pos, out ackBeg);
+								pos = ReadU32(data, pos, out ackEnd);
+								Log(lane, " => AckRange " + j + " = [" + ackBeg + "," + ackEnd + "]");
+								if (ackEnd > ackBeg)
+								{
+									for (int k=0;k<lane.SendInFlightCount;k++)
+									{
+										if (lane.SendInFlights[k].End == 0)
+										{
+											continue;
+										}
+										if (ackBeg == lane.SendInFlights[k].Begin)
+										{
+											if (ackEnd >= lane.SendInFlights[k].End)
+											{
+												Log(lane, "   - clearing in flight - [" + lane.SendInFlights[k].Begin + "," + lane.SendInFlights[k].End + "]");
+												// Use only timing for stuff that was not merged, or succeed on the first attempt.
+												if (lane.SendInFlights[k].ResendCount == 0 /*&& ackEnd == lane.SendInFlights[k].End*/)
+												{
+													float roundtripMs = (float) (packets[i].ArrivalTime - lane.SendInFlights[k].FirstSendTime).TotalMilliseconds;
+													lane.LagTimings[(lane.LagTimingCount++) % lane.LagTimings.Length] = roundtripMs;
+													Log(lane, "Roundtrip time=" + roundtripMs);
+												}
+												lane.SendInFlights[k].End = 0;
+												continue;
+											}
+											else
+											{
+												Log(lane, "   - shrunk in flight - [" + lane.SendInFlights[k].Begin + "," + lane.SendInFlights[k].End + "]");												
+												lane.SendInFlights[k].End = ackEnd;
+											}
+										}
+										else if (end == lane.SendInFlights[k].End)
+										{
+											if (ackEnd < lane.SendInFlights[k].Begin)
+											{
+												Log(lane, "   - clearing in flight - [" + lane.SendInFlights[k].Begin + "," + lane.SendInFlights[k].End + "]");
+												lane.SendInFlights[k].End = 0;
+											}
+											else if (ackBeg > lane.SendInFlights[k].Begin)
+											{
+												Log(lane, "   - shrunk in flight - [" + lane.SendInFlights[k].Begin + "," + lane.SendInFlights[k].End + "]");
+												lane.SendInFlights[k].Begin = ackBeg;
+											}
+										}
+										else if (lane.SendInFlights[k].End <= recvSeqCursor)
+										{
+											Log(lane, "   - ");
+										}
+									}
+							    }
+								else
+								{
+									Log(lane, "  => Throwing away junk ackrange");
+								}
+							}
+							else
+							{
+								pos += 8;
+							}
 						}
+					}
+					else if (type == 2)
+					{
+						// Unreliable
+						if ((end - pos) < 2)
+						{
+							Log(lane, "Too small unreliable data chunk!");
+							break;
+						}
+
+						byte size = data[pos++];
+						if ((end - pos) < size)
+						{
+							Log(lane, "Truncated unreliable data!");
+							break;
+						}
+
+						if ((lane.DoneTail - lane.DoneHead) == lane.Done.Length)
+						{
+							Log(lane, "Dropping unreliable because queue is full");
+							pos += size;
+						}
+
+						Bitstream.Buffer tmp = setup.Factory.GetBuffer(size);
+						uint idx = (uint)(lane.DoneHead % lane.Done.Length);
+						lane.Done[idx].ArrivalTime = packets[i].ArrivalTime;
+						lane.Done[idx].CompletionTime = packets[i].ArrivalTime;
+						lane.Done[idx].Data = tmp;
+						lane.Done[idx].Lane = packets[i].Lane;
+						lane.Done[idx].Reliable = false;
+						lane.Done[idx].SeqId = seq;
+						tmp.bytesize = size;
+						Array.Copy(data, pos, tmp.buf, 0, size);
+						lane.DoneHead++;
+						Log(lane, "Unreliable of size " + size + " arrived on seq " + seq);
 					}
 					else if (type == 1)
 					{
-						// Data segment
+						// Reliable data segment
 						if ((end - pos) < 9)
 						{
 							Log(lane, "Too small stream data chunk!");
@@ -314,6 +394,7 @@ namespace Netki
 							lane.RecvLastSeenSeq = seq;
 						}
 
+						// Merge ranges.
 						bool morework;
 						do
 						{
@@ -330,7 +411,7 @@ namespace Netki
 									    lane.SendFutureAcks[b].End > lane.SendFutureAcks[b].Begin &&
 									    lane.SendFutureAcks[a].End > lane.SendFutureAcks[a].Begin)
 									{
-										Log(lane, "Merging range [" + lane.SendFutureAcks[a].Begin + "," + lane.SendFutureAcks[a].End + "," + lane.SendFutureAcks[b].End);
+										Log(lane, "Merging range [" + lane.SendFutureAcks[a].Begin + "," + lane.SendFutureAcks[a].End + "," + lane.SendFutureAcks[b].End + "]");
 										lane.SendFutureAcks[a].End = lane.SendFutureAcks[b].End;
 										lane.SendFutureAcks[b].Begin = 0;
 										lane.SendFutureAcks[b].End = 0;
@@ -415,6 +496,12 @@ namespace Netki
 			return readPos + 4;
 		}
 
+		static uint ComputeSegmentSizeRequirement(uint length)
+		{
+			// must match below.
+			return length + 9;
+		}
+
 		static uint WriteSegmentFromCircular(Lane l, byte[] data, uint writePos, uint maxWritePos, byte[] source, uint begin, uint maxCount, out uint count)
 		{
 			count = 0;
@@ -459,18 +546,10 @@ namespace Netki
 			{
 				Lane lane = lanes[i];
 
-				// Resend mechanism.
-				if (now >= lane.SendResetTime && lane.SendCursor != lane.SendPeerRecv)
-				{
-					lane.SendCursor = lane.SendPeerRecv;
-					lane.SendResetTime = now.AddMilliseconds(lane.ResendMs);
-					Log(lane, "Resetting send cursor because of timeout");
-				}
-
 				Bitstream.Buffer buf = setup.Factory.GetBuffer(setup.MaxPacketSize);
 				byte[] data = buf.buf;
-				uint writePos = setup.ReservedHeaderBytes + 4;
-				uint maxWritePos = setup.MaxPacketSize - writePos;
+				uint writePos = setup.ReservedHeaderBytes + 8;
+				uint maxWritePos = setup.MaxPacketSize;
 
 				bool containsAnything = false;
 
@@ -480,7 +559,6 @@ namespace Netki
 					data[writePos] = 0x0; // 0 = reliable sequence update.
 					writePos = WriteU32(data, writePos + 1, lane.RecvSeqCursor); // How far have received all data.
 					writePos = WriteU32(data, writePos, lane.RecvTail + (uint)lane.RecvBuffer.Length); // How far can receive.
-					writePos = WriteU32(data, writePos, lane.RecvLastSeenSeq);
 					Log(lane, "Sending ack (counts=" + lane.SendFutureAckCount + ") RecvSeqCursor=" + lane.RecvSeqCursor + " RecvMax=" + (lane.RecvTail + (uint)lane.RecvBuffer.Length));
 
 					// Future ranges.
@@ -494,106 +572,154 @@ namespace Netki
 					containsAnything = true;
 				}
 
-				// Send previsouly unsent data up to the recv window, excluding already received acks.
-				uint inQueue = lane.SendHead - lane.SendCursor;
-				uint maxSend = lane.SendPeerRecvMax - lane.SendCursor;
-
-				uint toInsert = inQueue < maxSend ? inQueue : maxSend;
-				Log(lane, "writePos=" + writePos + " sendCursor=" + lane.SendCursor + " sendEnd=" + lane.SendHead + " maxSend=" + maxSend + " toInsert=" + toInsert + " peerRecvMax=" + lane.SendPeerRecvMax);
-
-				if (toInsert > 0)
+				// Clear out old records.
+				uint outCount = 0;
+				for (uint j=0;j<lane.SendInFlightCount;j++)
 				{
-					uint beg = lane.SendCursor;
-					uint fin = lane.SendCursor + toInsert;
-					while (beg < fin)
-					{
-						uint end = fin;
-
-						// Subtract all future acks.
-						for (uint q=0;q<lane.RecvFutureAckCount;q++)
-						{
-							if (beg >= lane.RecvFutureAcks[q].End)
-							{
-								continue;
-							}
-							if (beg == lane.RecvFutureAcks[q].Begin)
-							{
-								beg = lane.RecvFutureAcks[q].End;
-							}
-							if (end > lane.RecvFutureAcks[q].Begin)
-							{
-								if (beg < lane.RecvFutureAcks[q].Begin)
-								{
-									end = lane.RecvFutureAcks[q].Begin;
-								}
-								else
-								{
-									beg = lane.RecvFutureAcks[q].End;
-								}
-							}
-						}
-
-						if (end <= beg)
-						{
-							continue;
-						}
-
-						uint count = end - beg;
-						uint bytes;
-						writePos = WriteSegmentFromCircular(lane, data, writePos, maxWritePos, lane.SendBuffer, beg, count, out bytes);
-
-						if (bytes > 0)
-						{
-							containsAnything = true;
-							beg += bytes;
-							lane.SendResetTime = now.AddMilliseconds(lane.ResendMs);
-						}
-
-						if (count != bytes)
-						{
-							break;
-						}
-					}
-					if (lane.SendCursor > 100000)
-					{
-						Log(";|;|;");
-					}
-					lane.SendCursor = beg;
+					if (lane.SendInFlights[j].End == 0)
+						continue;
+					if (j != outCount)
+						lane.SendInFlights[outCount] = lane.SendInFlights[j];
+					++outCount;
 				}
-	
-				/* -----
-				// Unreliable 
-				uint roomUnreliable = maxWritePos - writePos;
+				lane.SendInFlightCount = outCount;
+
+				double resendMs = 1000.0f;
+
+				// If have something to send and data to compute for
+				if ((outCount > 0 || lane.SendHead != lane.SendCursor) && lane.LagTimingCount > 2)
+				{
+					// Compute resend time
+					uint mx = lane.LagTimingCount < (uint)lane.LagTimings.Length ? lane.LagTimingCount : (uint)lane.LagTimings.Length;
+					float min = lane.LagTimings[0];
+					float sum = min;
+					for (int k=1;k<mx;k++)
+					{
+						sum += lane.LagTimings[k];
+						if (lane.LagTimings[k] < min)
+							min = lane.LagTimings[k];
+					}
+
+					float avg = sum / mx;
+					resendMs = 1.05f * (min + 2.0f * (avg - min));
+					Log(lane, "Roundtrip ms min=" + min + " avg=" + avg + " resendMs=" + resendMs);
+				}
+
+				bool didResends = false;
+				for (uint j=0;j<lane.SendInFlightCount;j++)
+				{
+					if (lane.SendInFlights[j].ResendTime > now)
+					{
+						continue;
+					}
+
+					uint count = lane.SendInFlights[j].End - lane.SendInFlights[j].Begin;
+					if ((maxWritePos - writePos) < ComputeSegmentSizeRequirement(count))
+					{
+						Log(lane, "Ignoring resend segment " + lane.SendInFlights[j].Begin + "," + lane.SendInFlights[j].End + " because it would not fit!");
+						// Try again without the acks maybe.
+						hasMore = true;
+						continue;
+					}
+
+					Log(lane, "Resending segemnt [" + lane.SendInFlights[j].Begin + "," + lane.SendInFlights[j].End + "] resendCount=" + lane.SendInFlights[j].ResendCount + " PeerRecvSeq=" + lane.SendPeerRecv);
+
+					uint numWritten;
+					writePos = WriteSegmentFromCircular(lane, data, writePos, maxWritePos, lane.SendBuffer, 
+					                                    lane.SendInFlights[j].Begin, count, out numWritten);
+
+					Assert(numWritten == count, "Did not actually fit buffer!");
+
+					++lane.SendInFlights[j].ResendCount;
+					lane.SendInFlights[j].ResendTime = now.AddMilliseconds(resendMs * lane.SendInFlights[j].ResendCount);
+
+					didResends = true;
+					containsAnything = true;
+				}
+
+				if (!didResends && lane.SendHead != lane.SendCursor && lane.SendInFlightCount < lane.SendInFlights.Length)
+				{
+					// Send previsouly unsent data up to the recv window, excluding already received acks.
+					uint inQueue = lane.SendHead - lane.SendCursor;
+					uint maxSend = lane.SendPeerRecvMax - lane.SendCursor;
+					uint toInsert = inQueue < maxSend ? inQueue : maxSend;
+					Log(lane, "writePos=" + writePos + " sendCursor=" + lane.SendCursor + " sendEnd=" + lane.SendHead + " maxSend=" + maxSend + " toInsert=" + toInsert + " peerRecvMax=" + lane.SendPeerRecvMax);
+					if (toInsert > 0)
+					{
+						uint beg = lane.SendCursor;
+						uint fin = lane.SendCursor + toInsert;
+						while (beg < fin)
+						{
+							uint end = fin;
+							uint count = end - beg;
+							uint bytes;
+
+							writePos = WriteSegmentFromCircular(lane, data, writePos, maxWritePos, lane.SendBuffer, beg, count, out bytes);
+
+							if (bytes > 0)
+							{
+								uint idx = lane.SendInFlightCount++;
+								lane.SendInFlights[idx].Begin = beg;
+								lane.SendInFlights[idx].End = beg + bytes;
+								lane.SendInFlights[idx].FirstSendTime = now;
+								lane.SendInFlights[idx].ResendTime = now.AddMilliseconds((double)resendMs);
+								lane.SendInFlights[idx].ResendCount = 0;
+								containsAnything = true;
+								beg += bytes;
+							}
+
+							if (count != bytes)
+							{
+								// Filled up buffer.
+								break;
+							}
+						}
+						lane.SendCursor = beg;
+					}
+				}
+
+				// Unreliable
 				for (uint k=0;k<lane.OutUCount;k++)
 				{
 					if (lane.OutU[k].Length == 0)
 					{
 						continue;
 					}
-					const uint extraU = 6;
-					bool isRoom = lane.OutU[k].Length < (roomUnreliable + extraU);
+					const uint extraU = 2;
+					bool isRoom = (lane.OutU[k].Length + extraU) < (maxWritePos - writePos);
 					if (!isRoom)
 					{
 						hasMore = true;
 					}
 					else
-					{						
+					{
+						Log(lane, "Adding unreliable packet sz=" + lane.OutU[k].Length);
 						data[writePos+0] = 0x2; // 2 unreliable
-						WriteU32(data, writePos + 1, seq);
-						data[writePos+5] = (byte)(lane.OutU[k].Length);
-
+						data[writePos+1] = (byte)(lane.OutU[k].Length);
+						writePos += extraU;
 						byte[] u = lane.OutU[k].Data;
 						uint p = lane.OutU[k].Pos;
 						uint l = lane.OutU[k].Length;
 						for (uint j=0;j<l;j++)
 						{
-							data[writePos + extraU + j] = u[p+j];
+							data[writePos + j] = u[p+j];
 						}
-						writePos += extraU + l;
+						writePos += l;
+						containsAnything = true;
 						lane.OutU[k].Length = 0;
 					}
 				}
-				*/
+
+				uint write = 0;
+				for (uint u=0;u<lane.OutUCount;u++)
+				{
+					if (lane.OutU[u].Length == 0)
+						continue;
+					if (u != write)
+						lane.OutU[write] = lane.OutU[u];
+					write++;
+				}
+				lane.OutUCount = write;
 
 				if (!containsAnything)
 				{
@@ -601,10 +727,8 @@ namespace Netki
 				}
 				else
 				{
-					uint idx = lane.OutgoingSeq % Lane.SendSeqTimesSize;
-					lane.SendSeqTimes[idx].Seq = lane.OutgoingSeq;
-					lane.SendSeqTimes[idx].Timestamp = now;
 					WriteU32(data, setup.ReservedHeaderBytes, lane.OutgoingSeq++);
+					WriteU32(data, setup.ReservedHeaderBytes + 4, lane.RecvLastSeenSeq);
 
 					buf.bytesize = writePos;
 					output[numOut].Data = buf;
@@ -619,7 +743,7 @@ namespace Netki
 			return hasMore;
 		}
 
-		public struct ToSend
+		public struct ToSendWithBuffer
 		{
 			public Lane Lane;
 			public bool Reliable;
@@ -627,9 +751,9 @@ namespace Netki
 		}
 
 		// Will hold the buffers until they are sent
-		public static void ScheduleSend(LaneSetup setup, DateTime now, ToSend[] tosend, uint count)
+		public static void ScheduleSend(LaneSetup setup, DateTime now, ToSendWithBuffer[] tosend, uint count)
 		{
-			ToSendPacket[] pkt = new ToSendPacket[tosend.Length];
+			ToSend[] pkt = new ToSend[tosend.Length];
 			for (uint i=0;i<count;i++)
 			{
 				pkt[i].Data = tosend[i].Data.buf;
@@ -641,8 +765,7 @@ namespace Netki
 			ScheduleSend(setup, now, pkt, count);
 		}
 
-
-		public struct ToSendPacket
+		public struct ToSend
 		{
 			public Lane Lane;
 			public bool Reliable;
@@ -652,7 +775,7 @@ namespace Netki
 		}
 
 		// Will hold the buffers until they are sent
-		public static void ScheduleSend(LaneSetup setup, DateTime now, ToSendPacket[] tosend, uint count)
+		public static void ScheduleSend(LaneSetup setup, DateTime now, ToSend[] tosend, uint count)
 		{
 			for (uint i=0;i<count;i++)
 			{
@@ -718,17 +841,22 @@ namespace Netki
 		static void InsertUnreliable(LaneSetup setup, Lane lane, byte[] data, uint pos, uint len)
 		{
 			uint count = lane.OutUCount;
+			uint idx;
 			if (count < lane.OutU.Length)
 			{
-				lane.OutU[count].Data = data;
-				lane.OutU[count].Pos = pos;
-				lane.OutU[count].Length = len;
-				lane.OutUCount++;
+				idx = lane.OutUCount++;
 			}
 			else
 			{
+				// Clear all pending and start over. Maybe shift array, but order most be preserved.
 				Log(lane, "UDrop, send queue is full");
+				idx = 0;
+				lane.OutUCount = 1;
 			}
+
+			lane.OutU[idx].Data = data;
+			lane.OutU[idx].Pos = pos;
+			lane.OutU[idx].Length = len;
 		}
 
 		// Return if there is more to come.
@@ -788,11 +916,23 @@ namespace Netki
 					output[numOut].CompletionTime = DateTime.Now;
 					output[numOut].Data = res;
 					output[numOut].Lane = lane;
+					output[numOut].Reliable = true;
 					if (++numOut == output.Length)
 					{
 						return true;
 					}
 				}
+
+				// Unreliable
+				while (lane.DoneTail != lane.DoneHead)
+				{
+					output[numOut] = lane.Done[(lane.DoneTail++) % lane.Done.Length];
+					if (++numOut == output.Length)
+					{
+						return true;
+					}
+				}
+
 			}
 			return false;
 		}
