@@ -116,6 +116,8 @@ namespace Netki
 
 			public int Errors;
 			public Statistics Stats;
+
+			public DateTime LastIncomingTime;
 		}
 
 		public struct IncomingInternal
@@ -144,13 +146,17 @@ namespace Netki
 		[Conditional("DEBUG")]
 		private static void Log(string s)
 		{
+			#if PACKETLANE_LOG
 			Console.WriteLine("PL: " +s);
+			#endif
 		}
 
 		[Conditional("DEBUG")]
 		private static void Log(Lane l, string s)
 		{
-			Console.WriteLine("PL[" + l.Id + "]:" +s);
+			#if PACKETLANE_LOG
+			Log("PL[" + l.Id + "]:" +s);
+			#endif
 		}
 
 		[Conditional("DEBUG")]
@@ -331,21 +337,23 @@ namespace Netki
 						if ((lane.DoneTail - lane.DoneHead) == lane.Done.Length)
 						{
 							Log(lane, "Dropping unreliable because queue is full");
-							pos += size;
 						}
-
-						Bitstream.Buffer tmp = setup.Factory.GetBuffer(size);
-						uint idx = (uint)(lane.DoneHead % lane.Done.Length);
-						lane.Done[idx].ArrivalTime = packets[i].ArrivalTime;
-						lane.Done[idx].CompletionTime = packets[i].ArrivalTime;
-						lane.Done[idx].Data = tmp;
-						lane.Done[idx].Lane = packets[i].Lane;
-						lane.Done[idx].Reliable = false;
-						lane.Done[idx].SeqId = seq;
-						tmp.bytesize = size;
-						Array.Copy(data, pos, tmp.buf, 0, size);
-						lane.DoneHead++;
-						Log(lane, "Unreliable of size " + size + " arrived on seq " + seq);
+						else
+						{
+							Bitstream.Buffer tmp = setup.Factory.GetBuffer(size);
+							uint idx = (uint)(lane.DoneHead % lane.Done.Length);
+							lane.Done[idx].ArrivalTime = packets[i].ArrivalTime;
+							lane.Done[idx].CompletionTime = packets[i].ArrivalTime;
+							lane.Done[idx].Data = tmp;
+							lane.Done[idx].Lane = packets[i].Lane;
+							lane.Done[idx].Reliable = false;
+							lane.Done[idx].SeqId = seq;
+							tmp.bytesize = size;
+							Array.Copy(data, pos, tmp.buf, 0, size);
+							lane.DoneHead++;
+							Log(lane, "Unreliable of size " + size + " arrived on seq " + seq);	
+						}
+						pos += size;
 					}
 					else if (type == 1)
 					{
@@ -525,7 +533,7 @@ namespace Netki
 		}
 
 		// Return if there is more to come.
-		public static bool ProcessLanesSend(LaneSetup setup, Lane[] lanes, DateTime now, Send[] output, out uint numOut)
+		public static bool ProcessLanesSend(LaneSetup setup, Lane[] lanes, DateTime lastRecvTime, DateTime now, Send[] output, out uint numOut)
 		{
 			numOut = 0;
 
@@ -600,18 +608,25 @@ namespace Netki
 							min = lane.LagTimings[k];
 					}
 
+					if (min < 1.0f)
+					{
+						min = 1.0f;
+					}
+
 					float avg = sum / mx;
-					resendMs = 1.05f * (min + 2.0f * (avg - min));
+					resendMs = 2.05f * (min + 0.5f * (avg - min));
 					Log(lane, "Roundtrip ms min=" + min + " avg=" + avg + " resendMs=" + resendMs);
 				}
 
 				bool didResends = false;
 				for (uint j=0;j<lane.SendInFlightCount;j++)
 				{
-					if (lane.SendInFlights[j].ResendTime > now)
+					if (lane.SendInFlights[j].ResendTime >= now)
 					{
 						continue;
 					}
+
+					double over = (now - lane.SendInFlights[j].ResendTime).TotalMilliseconds;
 
 					uint count = lane.SendInFlights[j].End - lane.SendInFlights[j].Begin;
 					if ((maxWritePos - writePos) < ComputeSegmentSizeRequirement(count))
@@ -622,7 +637,7 @@ namespace Netki
 						continue;
 					}
 
-					Log(lane, "Resending segemnt [" + lane.SendInFlights[j].Begin + "," + lane.SendInFlights[j].End + "] resendCount=" + lane.SendInFlights[j].ResendCount + " PeerRecvSeq=" + lane.SendPeerRecv);
+					Log(lane, "Resending segemnt [" + lane.SendInFlights[j].Begin + "," + lane.SendInFlights[j].End + "] resendCount=" + lane.SendInFlights[j].ResendCount + " PeerRecvSeq=" + lane.SendPeerRecv + " msover=" + over);
 
 					uint numWritten;
 					writePos = WriteSegmentFromCircular(lane, data, writePos, maxWritePos, lane.SendBuffer, 
@@ -671,6 +686,7 @@ namespace Netki
 							if (count != bytes)
 							{
 								// Filled up buffer.
+								hasMore = true;
 								break;
 							}
 						}
@@ -751,7 +767,7 @@ namespace Netki
 		}
 
 		// Will hold the buffers until they are sent
-		public static void ScheduleSend(LaneSetup setup, DateTime now, ToSendWithBuffer[] tosend, uint count)
+		public static void ScheduleSend(LaneSetup setup, ToSendWithBuffer[] tosend, uint count)
 		{
 			ToSend[] pkt = new ToSend[tosend.Length];
 			for (uint i=0;i<count;i++)
@@ -762,7 +778,7 @@ namespace Netki
 				pkt[i].Reliable = tosend[i].Reliable;
 				pkt[i].Lane = tosend[i].Lane;
 			}
-			ScheduleSend(setup, now, pkt, count);
+			ScheduleSend(setup, pkt, count);
 		}
 
 		public struct ToSend
@@ -775,7 +791,7 @@ namespace Netki
 		}
 
 		// Will hold the buffers until they are sent
-		public static void ScheduleSend(LaneSetup setup, DateTime now, ToSend[] tosend, uint count)
+		public static void ScheduleSend(LaneSetup setup, ToSend[] tosend, uint count)
 		{
 			for (uint i=0;i<count;i++)
 			{
@@ -800,7 +816,7 @@ namespace Netki
 			uint required = len;
 			if (len >= 255)
 			{
-				required += 3;
+				required += 5;
 				makeBig = true;
 			}
 			else
@@ -822,11 +838,17 @@ namespace Netki
 			}
 			else
 			{
-				output[lane.SendHead % output.Length] = (byte)(255);
+				byte[] tmp = new byte[4];	
+				WriteU32(tmp, 0, len);
+				output[lane.SendHead % output.Length] = 255;
 				lane.SendHead++;
-				output[lane.SendHead % output.Length] = (byte)(len / 256);
+				output[lane.SendHead % output.Length] = tmp[0];
 				lane.SendHead++;
-				output[lane.SendHead % output.Length] = (byte)(len % 256);
+				output[lane.SendHead % output.Length] = tmp[1];
+				lane.SendHead++;
+				output[lane.SendHead % output.Length] = tmp[2];
+				lane.SendHead++;
+				output[lane.SendHead % output.Length] = tmp[3];
 				lane.SendHead++;
 			}
 
@@ -886,11 +908,15 @@ namespace Netki
 						{
 							break;
 						}
-						byte d1 = lane.RecvBuffer[(lane.RecvTail + 1) % lane.RecvBuffer.Length];
-						byte d2 = lane.RecvBuffer[(lane.RecvTail + 2) % lane.RecvBuffer.Length];
-						size = (uint)(d2 << 8) + d1;
-						start = lane.RecvTail + 3;
-						if (available < (size + 3))
+						byte[] u32 = new byte[4] {
+							lane.RecvBuffer[(lane.RecvTail + 1) % lane.RecvBuffer.Length],
+							lane.RecvBuffer[(lane.RecvTail + 2) % lane.RecvBuffer.Length],
+							lane.RecvBuffer[(lane.RecvTail + 3) % lane.RecvBuffer.Length],
+							lane.RecvBuffer[(lane.RecvTail + 4) % lane.RecvBuffer.Length]
+						};
+						ReadU32(u32, 0, out size);
+						start = lane.RecvTail + 5;
+						if (available < (size + 5))
 						{
 							break;
 						}
@@ -899,7 +925,7 @@ namespace Netki
 					{
 						size = d0;
 						start = lane.RecvTail + 1;
-						if (available < (size + 2))
+						if (available < (size + 1))
 						{
 							break;
 						}
@@ -912,6 +938,7 @@ namespace Netki
 					}
 					res.bytesize = size;
 					lane.RecvTail = start + size;
+					lane.DoSendAcks = true; // this changes the receive window.
 					output[numOut].ArrivalTime = DateTime.Now;
 					output[numOut].CompletionTime = DateTime.Now;
 					output[numOut].Data = res;
