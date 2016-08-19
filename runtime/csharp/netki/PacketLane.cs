@@ -141,6 +141,7 @@ namespace Netki
 			public BufferFactory Factory;
 			public uint MaxPacketSize;
 			public uint ReservedHeaderBytes;
+			public float MinRoundTripMs;
 		}
 
 		[Conditional("DEBUG")]
@@ -242,10 +243,16 @@ namespace Netki
 								if (lane.SendInFlights[k].ResendCount == 0 /*&& ackEnd == lane.SendInFlights[k].End*/)
 								{
 									float roundtripMs = (float) (packets[i].ArrivalTime - lane.SendInFlights[k].FirstSendTime).TotalMilliseconds;
-									lane.LagTimings[(lane.LagTimingCount++) % lane.LagTimings.Length] = roundtripMs;
-									if (roundtripMs > 1000)
-										Log(lane, "aah");
 									Log(lane, "Roundtrip time=" + roundtripMs);
+									if (roundtripMs < 15.0)
+									{
+										roundtripMs = 15.0f;
+									}
+									if (roundtripMs < setup.MinRoundTripMs)
+									{
+										roundtripMs = setup.MinRoundTripMs;
+									}
+									lane.LagTimings[(lane.LagTimingCount++) % lane.LagTimings.Length] = roundtripMs;
 								}
 								lane.SendInFlights[k].End = 0;
 							}
@@ -637,7 +644,7 @@ namespace Netki
 						continue;
 					}
 
-					Log(lane, "Resending segemnt [" + lane.SendInFlights[j].Begin + "," + lane.SendInFlights[j].End + "] resendCount=" + lane.SendInFlights[j].ResendCount + " PeerRecvSeq=" + lane.SendPeerRecv + " msover=" + over);
+					Log(lane, "Resending segmnt [" + lane.SendInFlights[j].Begin + "," + lane.SendInFlights[j].End + "] resendCount=" + lane.SendInFlights[j].ResendCount + " PeerRecvSeq=" + lane.SendPeerRecv + " msover=" + over);
 
 					uint numWritten;
 					writePos = WriteSegmentFromCircular(lane, data, writePos, maxWritePos, lane.SendBuffer, 
@@ -658,7 +665,7 @@ namespace Netki
 					uint inQueue = lane.SendHead - lane.SendCursor;
 					uint maxSend = lane.SendPeerRecvMax - lane.SendCursor;
 					uint toInsert = inQueue < maxSend ? inQueue : maxSend;
-					Log(lane, "writePos=" + writePos + " sendCursor=" + lane.SendCursor + " sendEnd=" + lane.SendHead + " maxSend=" + maxSend + " toInsert=" + toInsert + " peerRecvMax=" + lane.SendPeerRecvMax);
+					Log(lane, "writePos=" + writePos + " sendCursor=" + lane.SendCursor + " sendEnd=" + lane.SendHead + " maxSend=" + maxSend + " toInsert=" + toInsert + " peerRecvMax=" + lane.SendPeerRecvMax + " resendMs=" + resendMs);
 					if (toInsert > 0)
 					{
 						uint beg = lane.SendCursor;
@@ -876,7 +883,11 @@ namespace Netki
 				lane.OutUCount = 1;
 			}
 
-			lane.OutU[idx].Data = data;
+			if (lane.OutU[idx].Data == null || lane.OutU[idx].Data.Length < len)
+			{
+				lane.OutU[idx].Data = new byte[len];
+			}
+			Array.Copy(data, pos, lane.OutU[idx].Data, 0, len);
 			lane.OutU[idx].Pos = pos;
 			lane.OutU[idx].Length = len;
 		}
