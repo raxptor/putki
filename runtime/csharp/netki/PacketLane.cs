@@ -1,3 +1,4 @@
+#define PACKETLANE_LOG
 using System;
 using System.Diagnostics;
 
@@ -43,17 +44,18 @@ namespace Netki
 
 		public struct Statistics
 		{
-			public uint SendCount;
-			public uint SendResends;
-			public uint SendAckOnly;
-			public uint SendBytes;
-			public uint SendUnreliable;
-			public uint RecvCount;
-			public uint RecvDupes;
-			public uint RecvNonFinal;
-			public uint RecvAckOnly;
-			public uint RecvBytes;
-			public uint RecvUnreliable;
+			public uint SentPackets;
+			public uint SentBytesTotal;
+			public uint SentMessagesReliable;
+			public uint SentMessagesUnreliable;
+			public uint SentBytesReliable;
+			public uint SentBytesUnreliable;
+			public uint RecvPackets;
+			public uint RecvBytesTotal;
+			public uint RecvMessagesReliable;
+			public uint RecvMessagesUnreliable;
+			public uint RecvBytesReliable;
+			public uint RecvBytesUnreliable;
 		}
 
 		public struct InFlight
@@ -328,13 +330,15 @@ namespace Netki
 					else if (type == 2)
 					{
 						// Unreliable
-						if ((end - pos) < 2)
+						if ((end - pos) < 3)
 						{
 							Log(lane, "Too small unreliable data chunk!");
 							break;
 						}
 
-						byte size = data[pos++];
+						uint size = (uint)data[pos+0] + 256 * (uint)data[pos+1];
+						pos += 2;
+
 						if ((end - pos) < size)
 						{
 							Log(lane, "Truncated unreliable data!");
@@ -708,7 +712,7 @@ namespace Netki
 					{
 						continue;
 					}
-					const uint extraU = 2;
+					const uint extraU = 3;
 					bool isRoom = (lane.OutU[k].Length + extraU) < (maxWritePos - writePos);
 					if (!isRoom)
 					{
@@ -718,7 +722,8 @@ namespace Netki
 					{
 						Log(lane, "Adding unreliable packet sz=" + lane.OutU[k].Length);
 						data[writePos+0] = 0x2; // 2 unreliable
-						data[writePos+1] = (byte)(lane.OutU[k].Length);
+						data[writePos+1] = (byte)(lane.OutU[k].Length & 0xff);
+						data[writePos+2] = (byte)(lane.OutU[k].Length >> 8);
 						writePos += extraU;
 						byte[] u = lane.OutU[k].Data;
 						uint p = lane.OutU[k].Pos;
