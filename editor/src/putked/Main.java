@@ -528,6 +528,9 @@ public class Main extends Application
         stage.setScene(scene);
 
 //    	stage.getIcons().add(new Image(getClass().getResourceAsStream("misc/putkico-5.png")));
+
+        BuilderConnection.start();
+
         stage.show();
     }
 }

@@ -91,7 +91,6 @@ namespace putki
 		struct ed_session
 		{
 			std::string name;
-			int clients;
 			bool finished;
 			bool ready;
 		};
@@ -133,9 +132,9 @@ namespace putki
 			sys::scoped_maybe_lock lk(&d->mtx);
 			for (int i=0;i!=d->editors.size();i++)
 			{
-				if (!d->editors[i]->clients && d->editors[i]->finished)
+				if (d->editors[i]->finished)
 				{
-					APP_INFO("Cleaning up finished session " << d->editors[i]->name << " because no clients remain on it")
+					APP_INFO("Cleaning up finished editor session " << d->editors[i]->name)
 					delete d->editors[i];
 					d->editors.erase(d->editors.begin() + i);
 					i--;
@@ -181,8 +180,7 @@ namespace putki
 			ed_session *ed = new ed_session();
 			ed->finished = false;
 			ed->ready = false;
-			ed->clients = 0;
-			
+
 			sys::scoped_maybe_lock dlk(&d->mtx);
 			d->editors.push_back(ed);
 			d->cond.broadcast();
@@ -207,6 +205,12 @@ namespace putki
 					{
 						buf[scanned] = 0x0;
 						const char *line = &buf[parsed];
+						APP_DEBUG("Editor:" << line);
+
+						if (!strcmp(line, "<keepalive>"))
+						{
+							continue;
+						}
 						
 						// ignore empty lines
 						if (scanned == parsed)
@@ -280,19 +284,17 @@ namespace putki
 			putki::builder::do_build(info->builder, true);
 			APP_INFO("Done building. Performing post-build steps.");
 
+			// TODO: Fix post build things someow 
+			/*
 			build::postbuild_info pbi;
-			pbi.input = conf.input;
-			pbi.temp = conf.temp;
-			pbi.output = conf.built;
-			pbi.pconf = &pconf;
+			pbi.input = info->config.input;
+			pbi.temp = info->config.temp;
+			pbi.output = info->config.built;
+			pbi.pconf = &info->config;
 			pbi.builder = bld;
 			invoke_post_build(&pbi);
-
-			// Post-build step may create new packages, but it must make sure they get built too.
-			// So it is up to the post_build_step to run add_build_root for the objects it would like
-			// to package.
 			putki::builder::do_build(bld, incremental);
-
+			*/
 
 			while (true)
 			{

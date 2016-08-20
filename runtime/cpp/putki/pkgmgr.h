@@ -11,10 +11,10 @@ namespace putki
 		struct resolve_status;
 		
 		// will call back and send beg/end/target to 0 when done, then expects everything to be loaded after that.
-		typedef bool (*load_external_file_fn)(int file_index, const char *path, uint32_t beg, uint32_t end, void *target);
+		typedef bool(*load_external_file_fn)(int file_index, const char *path, size_t beg, size_t end, void *target);
 
 		// look at the first bytes and say if valid and how big the header is.
-		bool get_header_info(char *beg, char *end, uint32_t *total_header_size, uint32_t *total_data_size);
+		bool get_header_info(char *beg, char *end, size_t *total_header_size, size_t *total_data_size);
 
 		// parse from buffer, takes ownership.
 		// if opt_out is passed in, it will be filled with resolve stauts.

@@ -1,20 +1,78 @@
 package putked;
 
-import java.io.BufferedReader;
 import java.io.DataOutputStream;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.net.Socket;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map.Entry;
+import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
-public class BuilderConnection
+public class BuilderConnection implements Runnable
 {
-	public static void onObjectChanged(DataObject object)
+	static class Change
 	{
-
-
+		public DataObject object;
+		public int version;
 	}
 
-	public static void connectionThread()
+	static HashMap<String, Change> m_changedObjects = new HashMap<String, Change>();
+	static final Lock m_changeLock = new ReentrantLock();
+	static boolean m_acceptChanges = false;
+	static final Condition m_hasChanges = m_changeLock.newCondition();
+
+	public static void onObjectChanged(DataObject object)
+	{
+		Change c = new Change();
+		c.object = object;
+		String path = object.getPath();
+		m_changeLock.lock();
+		if (!m_acceptChanges)
+		{
+			m_changeLock.unlock();
+			return;
+		}
+
+		try
+		{
+			if (m_changedObjects.containsKey(path))
+			{
+				c.version = m_changedObjects.get(path).version + 1;
+			}
+			else
+			{
+				c.version = 1;
+			}
+			m_changedObjects.put(path, c);
+			m_hasChanges.signal();
+		}
+		catch (Exception e)
+		{
+			System.out.println(e.toString());
+		}
+		finally
+		{
+			m_changeLock.unlock();
+		}
+	}
+
+	static Thread s_thr = null;
+
+	public static void start()
+	{
+		m_changeLock.lock();
+		m_acceptChanges = true;
+		m_changedObjects.clear();
+		m_changeLock.unlock();
+
+		s_thr = new Thread(new BuilderConnection());
+		s_thr.setDaemon(true);
+		s_thr.start();
+	}
+
+	public void run()
 	{
 		do
 		{
@@ -23,21 +81,58 @@ public class BuilderConnection
 			{
 				sock = new Socket("localhost", 5555);
 				DataOutputStream output = new DataOutputStream(sock.getOutputStream());
-				// BufferedReader input = new BufferedReader(new InputStreamReader(sock.getInputStream()));
 				output.writeBytes("<ready>\n");
+
+				HashMap<String, Integer> changesSent = new HashMap<String, Integer>();
+
 				while (true)
 				{
+					ArrayList<DataObject> toSend = new ArrayList<DataObject>();
+					m_changeLock.lock();
 					try
 					{
-						Thread.sleep(250);
-					}
-					catch (InterruptedException ie)
-					{
+						boolean changes;
+						do
+						{
+							output.writeBytes("<keepalive>\n");
 
+							changes = false;
+							for(Entry<String, Change> entry : m_changedObjects.entrySet())
+							{
+							    String path = entry.getKey();
+							    int version = entry.getValue().version;
+							    if (!changesSent.containsKey(path) || changesSent.get(path) != version)
+							    {
+							    	toSend.add(entry.getValue().object);
+							    	changesSent.put(path,  version);
+							    	changes = true;
+							    }
+							}
+							if (!changes)
+							{
+								m_hasChanges.awaitNanos(1000000000);
+							}
+						}
+						while (!changes);
+					}
+					catch (Exception e)
+					{
+						break;
+					}
+					finally
+					{
+						m_changeLock.unlock();
+					}
+
+					for(DataObject obj : toSend)
+					{
+						output.writeBytes(obj.getPath() + "\n");
+						output.writeBytes(Main.s_dataWriter.writeAsset(obj, false).toString());
+						output.writeBytes("<end>\n");
 					}
 				}
 			}
-			catch (IOException e)
+			catch (Exception e)
 			{
 
 			}
@@ -48,8 +143,9 @@ public class BuilderConnection
 					try
 					{
 						sock.close();
+						Thread.sleep(500);
 					}
-					catch (IOException e)
+					catch (Exception e)
 					{
 
 					}

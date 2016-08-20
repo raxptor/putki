@@ -10,7 +10,7 @@ namespace putki
 {
 	namespace pkgloader
 	{
-		bool load_external_file(int file_index, const char *path, uint32_t beg, uint32_t end, void *target)
+		bool load_external_file(int file_index, const char *path, size_t beg, size_t end, void *target)
 		{
 			if (!path)
 			{
@@ -69,7 +69,7 @@ namespace putki
 			char header_peek[16];
 			in.read(header_peek, sizeof(header_peek));
 			
-			uint32_t hdr_size, data_size;
+			size_t hdr_size, data_size;
 			if (!pkgmgr::get_header_info(header_peek, header_peek + sizeof(header_peek), &hdr_size, &data_size))
 			{
 				PTK_ERROR("Header could not be parsed in " << file)
