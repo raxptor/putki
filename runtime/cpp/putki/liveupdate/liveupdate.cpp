@@ -220,6 +220,12 @@ namespace putki
 			// attempt cross-resolve.
 			for(unsigned int i=0; i<d->pending.size(); i++)
 			{
+				if (!pkgmgr::path_in_package_slot(d->pending[i].pkg, 0, true))
+				{
+					LIVEUPDATE_DEBUG("I got an empty package?!");
+					continue;
+				}
+
 				LIVEUPDATE_DEBUG("Processing package with " << pkgmgr::path_in_package_slot(d->pending[i].pkg, 0, true))
 
 				// if there are no unresolved references, send directly.
@@ -329,7 +335,9 @@ namespace putki
 				
 			if (d->readpos < hdr_size + data_size)
 				return;
-				
+			
+			LIVEUPDATE_DEBUG("Got package with " << d->readpos << " bytes");
+
 			data::pkg_e pe;
 			pe.rs = pkgmgr::alloc_resolve_status();
 

@@ -6,6 +6,7 @@ import java.net.Socket;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map.Entry;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -94,8 +95,6 @@ public class BuilderConnection implements Runnable
 						boolean changes;
 						do
 						{
-							output.writeBytes("<keepalive>\n");
-
 							changes = false;
 							for(Entry<String, Change> entry : m_changedObjects.entrySet())
 							{
@@ -110,7 +109,8 @@ public class BuilderConnection implements Runnable
 							}
 							if (!changes)
 							{
-								m_hasChanges.awaitNanos(1000000000);
+								m_hasChanges.await(500, TimeUnit.MILLISECONDS);
+								output.writeBytes("<keepalive>\n");
 							}
 						}
 						while (!changes);

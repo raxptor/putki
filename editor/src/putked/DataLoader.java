@@ -353,7 +353,7 @@ public class DataLoader
 				case STRUCT_INSTANCE:
 				{
 					Tmp t = new Tmp();
-					t.result = new DataObject(field.resolvedRefStruct, obj.getRootAsset(), obj.getPath() + ":" + field.name);
+					t.result = new DataObject(field.resolvedRefStruct, obj.getRootAsset(), obj.getPath());
 					parseData(status, t);
 					if (!status.error)
 					{

@@ -6,8 +6,10 @@
 #include <putki/builder/write.h>
 #include <putki/builder/build-db.h>
 #include <putki/builder/package.h>
+#include <putki/builder/objstore.h>
 #include <putki/builder/log.h>
 #include <putki/builder/parse.h>
+#include <putki/builder/signature.h>
 #include <putki/sys/thread.h>
 #include <putki/sys/sstream.h>
 #include <putki/sys/socket.h>
@@ -163,6 +165,7 @@ namespace putki
 				e.data = std::string(data, data + stream->size());
 				d->edits.insert(edits_map::value_type(path, e));
 			}
+			
 			d->num_edits++;
 		}
 		
@@ -205,17 +208,18 @@ namespace putki
 					{
 						buf[scanned] = 0x0;
 						const char *line = &buf[parsed];
-						APP_DEBUG("Editor:" << line);
-
-						if (!strcmp(line, "<keepalive>"))
-						{
-							continue;
-						}
-						
+						APP_INFO("Editor:" << line);
+		
 						// ignore empty lines
 						if (scanned == parsed)
 						{
 							parsed++;
+							continue;
+						}
+
+						if (!strcmp(line, "<keepalive>"))
+						{
+							parsed = scanned + 1;
 							continue;
 						}
 						
@@ -273,28 +277,38 @@ namespace putki
 			return 0;
 		}
 
+		struct builder_thr_info
+		{
+			data* d;
+			builder_info* info;
+		};
+
 		void* builder_thread(void *arg)
 		{
-			builder_info* info = (builder_info*)arg;
+			builder_thr_info* thr = (builder_thr_info*)arg;
+			builder_info* info = thr->info;
+			data* d = thr->d;
+			delete thr;
 
-			sys::scoped_maybe_lock lk_(&info->build_mtx);
+			{
+				sys::scoped_maybe_lock lk_outer(&info->build_mtx);
+				APP_INFO("Doing initial incremental build without writing packages...");
+				build::add_build_roots(info->builder, &info->config, info->rt, info->config_name.c_str());
+				putki::builder::do_build(info->builder, true);
+				APP_INFO("Done building. Performing post-build steps. (not)");
 
-			APP_INFO("Doing initial incremental build without writing packages...");
-			build::add_build_roots(info->builder, &info->config, info->rt, info->config_name.c_str());
-			putki::builder::do_build(info->builder, true);
-			APP_INFO("Done building. Performing post-build steps.");
-
-			// TODO: Fix post build things someow 
-			/*
-			build::postbuild_info pbi;
-			pbi.input = info->config.input;
-			pbi.temp = info->config.temp;
-			pbi.output = info->config.built;
-			pbi.pconf = &info->config;
-			pbi.builder = bld;
-			invoke_post_build(&pbi);
-			putki::builder::do_build(bld, incremental);
-			*/
+				// TODO: Fix post build things someow 
+				/*
+				build::postbuild_info pbi;
+				pbi.input = info->config.input;
+				pbi.temp = info->config.temp;
+				pbi.output = info->config.built;
+				pbi.pconf = &info->config;
+				pbi.builder = bld;
+				invoke_post_build(&pbi);
+				putki::builder::do_build(bld, incremental);
+				*/
+			}
 
 			while (true)
 			{
@@ -303,12 +317,30 @@ namespace putki
 				{
 					info->queue_cond.wait(&info->build_mtx);
 				}
-
 				for (std::set<std::string>::iterator i = info->queue.begin(); i != info->queue.end(); i++)
 				{
 					builder::add_build_root(info->builder, i->c_str(), -1);
 				}
+
+				/*
+				 * eed to update and insert
+				{
+					sys::scoped_maybe_lock lk_edits(&d->edits_mtx);
+					for (std::set<std::string>::iterator i = info->queue.begin(); i != info->queue.end(); i++)
+					{
+						objstore::object_info objinfo;
+						if (objstore::query_object(info->config.input, i->c_str(), &objinfo))
+						{
+						}
+						const char* obj_data = d->edits[*i].data.c_str();
+						objstore::store_object(info->inf)
+					}
+				}
+				*/
 				builder::do_build(info->builder, true);
+
+				info->num_builds++;
+				info->num_cond.broadcast();
 			}
 		}
 
@@ -424,18 +456,20 @@ namespace putki
 									}
 									if (!builder)
 									{
-										APP_INFO("Could not find builder for client. Making one");
+										APP_INFO("Could not find builder for client. Making one [" << runtime::desc_str(rt) << ":" << args[1] << "]");
 										builder_info* info = new builder_info;
 										info->rt = rt;
 										info->config_name = args[1].c_str();
 										info->num_edits = 0;
 										build::init_builder_configuration(&info->config, rt, args[1].c_str(), true);
 										info->builder = build::create_and_config_builder(&info->config);
+
+										builder_thr_info* ti = new builder_thr_info();
+										ti->info = info;
+										ti->d = d;
 										info->thread = sys::thread_create(builder_thread, (void*)info);
 										d->builders.push_back(info);
 										builder = info;
-
-
 									}
 								}
 							}
@@ -475,6 +509,11 @@ namespace putki
 					build_db::deplist_free(list);
 				}
 
+				if (get_set.empty())
+				{
+					continue;
+				}
+
 				// Now get_set contains all the objects that need to be sent to the client. 
 				// Either he requested them, or they were changed by a connected editor.
 				sys::scoped_maybe_lock lk(&builder->build_mtx);
@@ -482,6 +521,11 @@ namespace putki
 				for (std::set<std::string>::iterator i = get_set.begin(); i != get_set.end(); i++)
 				{
 					builder->queue.insert(*i);
+				}
+
+				if (builder->queue.empty())
+				{
+					continue;
 				}
 
 				builder->queue_cond.broadcast();
@@ -495,7 +539,7 @@ namespace putki
 				package::data *pkg = package::create(builder->config.built);
 				for (std::set<std::string>::iterator i = get_set.begin(); i != get_set.end(); i++)
 				{
-					package::add(pkg, i->c_str(), true);
+					package::add(pkg, i->c_str(), true, false);
 				}
 
 				const unsigned int sz = 256*1024*1024;

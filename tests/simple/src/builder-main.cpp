@@ -72,8 +72,8 @@ void app_build_packages(putki::objstore::data *out, putki::build::packaging_conf
 {
 	{
 		putki::package::data *pkg = putki::package::create(out);
-		putki::package::add(pkg, "everything", true);
-		putki::package::add(pkg, "triply-nested", true);
+		putki::package::add(pkg, "everything", true, true);
+		putki::package::add(pkg, "triply-nested", true, true);
 		putki::build::commit_package(pkg, pconf, "default.pkg");
 	}
 }
