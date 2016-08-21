@@ -68,17 +68,12 @@ public class CppGenerator
 			}
 		}
 
-		boolean added = false;
 		for (int i=0;i<input.length();i++)
 		{
 			if (i > 0 && upc[i])
 			{
 				if (sb.length() > 0 && sb.charAt(sb.length()-1) != '_')
 					sb.append('_');
-			}
-			else
-			{
-				added = false;
 			}
 
 			char c = input.charAt(i);
@@ -963,7 +958,7 @@ public class CppGenerator
 
             		sb.append(pfx1).append("}");
             		sb.append(pfx1).append("void write_json(putki::instance_t source, putki::sstream & out, int indent) {");
-            		
+
             		boolean firstJson = true;
 
             		ArrayList<Compiler.ParsedField> tmp = new ArrayList<Compiler.ParsedField>();

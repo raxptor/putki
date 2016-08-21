@@ -4,6 +4,11 @@
 
 #include <putki/pkgmgr.h>
 #include <putki/pkgloader.h>
+#include <putki/liveupdate/liveupdate.h>
+#include <putki/log/log.h>
+#include <iostream>
+
+#include <unistd.h>
 
 int main()
 {
@@ -11,15 +16,39 @@ int main()
 	putki::pkgmgr::loaded_package* pkg = putki::pkgloader::from_file("default.pkg");
 	outki::everything* everything = (outki::everything*) putki::pkgmgr::resolve(pkg, "everything");
 
-	for (unsigned int i = 0; i < everything->root_structs_size; i++)
+	putki::set_loglevel(putki::LOG_DEBUG);
+	putki::liveupdate::init();
+	putki::liveupdate::data* data = 0;
+
+	while (true)
 	{
-		outki::root_struct* rs = everything->root_structs[i];
-		if (!rs)
+		std::cout << "vt inline text=" << everything->vt_inline.text << std::endl;
+	
+		if (data && !putki::liveupdate::connected(data))
 		{
-			continue;
+			putki::liveupdate::disconnect(data);
+			data = 0;
 		}
-		switch (rs->rtti_type_id())
+		if (!data)
 		{
+			data = putki::liveupdate::connect();
+		}
+
+		if (LIVE_UPDATE(&everything))
+		{
+			std::cout << "Everything changed!\n" << std::endl;
+		}
+
+		
+		for (unsigned int i = 0; i < everything->root_structs_size; i++)
+		{
+			outki::root_struct* rs = everything->root_structs[i];
+			if (!rs)
+			{
+				continue;
+			}
+			switch (rs->rtti_type_id())
+			{
 			case outki::sub_sub_sub_struct1::TYPE_ID:
 			{
 				outki::sub_sub_sub_struct1* s = (outki::sub_sub_sub_struct1*)(rs);
@@ -35,7 +64,14 @@ int main()
 				outki::sub_struct1* s = (outki::sub_struct1*)(rs);
 				break;
 			}
+			}
 		}
+		usleep(100*1000);
+		if (data)
+		{
+			putki::liveupdate::update(data);
+		}
+
 	}
 
 	return 0;

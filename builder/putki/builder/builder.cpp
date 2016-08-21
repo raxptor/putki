@@ -56,12 +56,38 @@ namespace putki
 			return d;
 		}
 
-		void free(data *d)
+		void free_strings(data* d)
 		{
 			for (size_t i = 0; i < d->str_allocs.size(); i++)
 			{
 				::free((void*)d->str_allocs[i]);
 			}
+			d->str_allocs.clear();
+		}
+
+		void clear_cache(LoadedT* cache)
+		{
+			LoadedT::iterator i = cache->begin();
+			while (i != cache->end())
+			{
+				i->second.th->free(i->second.obj);
+				++i;
+			}
+			cache->clear();
+		}
+
+		void clear(data* d)
+		{
+			clear_cache(&d->loaded_input);
+			clear_cache(&d->loaded_temp);
+			clear_cache(&d->loaded_built);
+			free_strings(d);
+			d->has_added.clear();
+		}
+
+		void free(data *d)
+		{
+			clear(d);
 			delete d;
 		}
 
@@ -207,6 +233,15 @@ namespace putki
 				d->to_build.push(tb);
 			}
 		}
+
+		struct free_deplist_obj
+		{
+			build_db::deplist* dl;
+			~free_deplist_obj()
+			{
+				build_db::deplist_free(dl);
+			}
+		};
 		
 		bool fetch_cached(data* d, const char* path, objstore::object_info* info, const char* bname, build_db::InputDepSigs& sigs)
 		{
@@ -217,6 +252,9 @@ namespace putki
 			}
 
 			build_db::deplist* dl = build_db::inputdeps_get(find);
+			free_deplist_obj freeer;
+			freeer.dl = dl;
+
 			int di = 0;
 			while (true)
 			{
@@ -286,7 +324,7 @@ namespace putki
 				++di;
 			}
 
-			APP_DEBUG("fetch_cached: I have a match")
+			APP_DEBUG("fetch_cached: I have a match on " << path << " for builder " << bname);
 			build_db::InputDepSigs::iterator i = sigs.begin();
 			while (i != sigs.end())
 			{
@@ -548,6 +586,17 @@ namespace putki
 				{
 					case 0: found = objstore::query_object(d->conf.input, path, &info); break;
 					case 1: found = objstore::query_object(d->conf.temp, path, &info); break;
+					case -1:
+					{
+						next.domain = 0;
+						found = objstore::query_object(d->conf.input, path, &info);
+						if (!found)
+						{
+							next.domain = 1;
+							found = objstore::query_object(d->conf.temp, path, &info);
+						}
+						break;
+					}
 					default: break;
 				}
 
@@ -657,15 +706,33 @@ namespace putki
 					deps++;
 				}
 
+				ptr_query_result ptrs;
+				source.th->query_pointers(source.obj, &ptrs, true, true);
+
+				// Clear pointers to non-existant runtime dependencies. Note this happens before signature computation step.
+				for (size_t i = 0; i < ptrs.pointers.size();i++)
+				{
+					ptr_raw* p = ptrs.pointers[i];
+
+					if (p->path != 0 && p->path[0])
+					{
+						objstore::object_info res;
+						if (objstore::query_object(d->conf.input, p->path, &res) || objstore::query_object(d->conf.temp, p->path, &res))
+						{
+							continue;
+						}
+						APP_DEBUG("Clearing pointer to [" << p->path << "] because object could not be found. Will be null pointer.")
+						p->path = 0;
+						p->obj = 0;
+					}
+				}
+
 				signature::buffer sigbuf;
 				const char* sig = signature::object(source.th, source.obj, sigbuf);
 			
 				build_db::flush_log(bi.record);
 				build_db::insert_metadata(bi.record, source.th, source.obj, source.path, sig);
 				build_db::commit_record(d->conf.build_db, bi.record);
-
-				ptr_query_result ptrs;
-				source.th->query_pointers(source.obj, &ptrs, true, true);
 
 				// Add runtime dependencies.
 				for (size_t i = 0; i < ptrs.pointers.size();i++)
@@ -685,6 +752,8 @@ namespace putki
 				}
 
 				objstore::store_object(d->conf.built, path, info.th, source.obj, sig);
+
+				source.th->free(source.obj);
 			}
 		}
 	}

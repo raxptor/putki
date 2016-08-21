@@ -121,7 +121,7 @@ namespace putki
 		}
 
 		// look at the first bytes and say if valid and how big the header is.
-		bool get_header_info(char *beg, char *end, uint32_t *total_header_size, uint32_t *total_data_size)
+		bool get_header_info(char *beg, char *end, size_t* total_header_size, size_t* total_data_size)
 		{		
 			if (end - beg < 16)
 				return false;
@@ -255,10 +255,10 @@ namespace putki
 				{
 					// Allocate at tail_ptr and fire off load call.
 					ext_loader(lp->slots[i].file_index, parsed_imports[lp->slots[i].file_index].import_path,
-					           (char*)lp->slots[i].obj - fake_base,
-						     (char*)lp->slots[i].obj_end - fake_base,
-						     tail_ptr);
-						     
+					           (size_t)((char*)lp->slots[i].obj - fake_base),
+					           (size_t)((char*)lp->slots[i].obj_end - fake_base),
+					           tail_ptr);
+
 					lp->slots[i].obj_end = tail_ptr + ((char*)lp->slots[i].obj_end - (char*)lp->slots[i].obj);
 					lp->slots[i].obj = tail_ptr;
 					tail_ptr = (char*)lp->slots[i].obj_end;
@@ -282,6 +282,7 @@ namespace putki
 					{
 						char* obj_ptr = (char*)lp->slots[i].obj;
 						char* aux_beg = obj_ptr + record->size;
+						PTK_WARNING("Post loading " << record->id << " type id " << lp->slots[i].type_id << " path " << lp->slots[i].path);
 						if (record->post_blob_load(obj_ptr, aux_beg, (char*)lp->slots[i].obj_end) != lp->slots[i].obj_end)
 						{
 							PTK_WARNING("Post load by type (" << lp->slots[i].type_id << ") did not consume all data.");

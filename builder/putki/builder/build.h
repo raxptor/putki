@@ -8,7 +8,7 @@ namespace putki
 {
 	namespace package { struct data; }
 	namespace db { struct data; }
-	namespace builder { struct data; }
+	namespace builder { struct data; struct config; }
 
 	namespace build
 	{
@@ -33,5 +33,10 @@ namespace putki
 		void set_builder_configurator(builder_setup_fn fn);
 		void set_packager(packaging_fn fn);
 		void add_postbuild_fn(postbuild_fn fn);
+
+		void init_builder_configuration(builder::config* conf, runtime::descptr rt, const char* build_config, bool incremental);
+		builder::data* create_and_config_builder(builder::config* conf);
+		void add_build_roots(builder::data* builder_data, builder::config* conf, runtime::descptr rt, const char* build_config);
+		void destroy_builder_configuration(builder::config* conf);
 	}
 }

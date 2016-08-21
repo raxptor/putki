@@ -13,7 +13,7 @@ namespace putki
 	namespace objstore
 	{
 		struct data;
-		data* open(const char *root_path, bool is_cache);
+		data* open(const char *root_path, const char* cache_file, bool is_cache);
 		void free(data *d);
 
 		struct fetch_obj_result
@@ -58,6 +58,7 @@ namespace putki
 
 		bool fetch_object(data* d, const char* path, fetch_obj_result* result);
 
+		bool store_object_json_memonly(data* d, const char* path, const char* json, size_t json_length);
 		bool store_object(data* d, const char *path, type_handler_i* th, instance_t obj, const char *signature);
 		bool store_resource(data* d, const char *path, const char* data, size_t length);
 

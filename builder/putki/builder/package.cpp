@@ -27,7 +27,7 @@ namespace putki
 		struct preliminary
 		{
 			std::string path;
-			bool save_path;
+			bool save_path, add_deps;
 		};
 
 		struct entry
@@ -470,26 +470,35 @@ namespace putki
 				e.th = info.th;
 				data->blobs[addpath] = e;
 
-				std::vector<std::string> next_add;
-				int ptrs = 0;
-				while (true)
+				if (scandep)
 				{
-					const char* ptr = build_db::get_pointer(r, ptrs++);
-					if (!ptr)
+					std::vector<std::string> next_add;
+					int ptrs = 0;
+					while (true)
 					{
-						break;
+						const char* ptr = build_db::get_pointer(r, ptrs++);
+						if (!ptr)
+						{
+							break;
+						}
+						next_add.push_back(ptr);
 					}
-					next_add.push_back(ptr);
+					add(data, 0, &next_add, store_path_for_dependencies, true, bdb);
 				}
-				add(data, 0, &next_add, store_path_for_dependencies, true, bdb);
 			}
 		}
 
-		void add(data *data, const char *path, bool storepath)
+		void add(package::data *data, const char *path)
+		{
+			add(data, path, true, true);
+		}
+
+		void add(data *data, const char *path, bool storepath, bool add_deps)
 		{
 			preliminary p;
 			p.path = path;
 			p.save_path = storepath;
+			p.add_deps = add_deps;
 			data->list.push_back(p);
 		}
 
@@ -505,7 +514,7 @@ namespace putki
 		long write(data *data, runtime::descptr rt, char *buffer, long available, build_db::data *build_db, sstream & manifest)
 		{
 			for (unsigned int i = 0;i < data->list.size();i++)
-				add(data, data->list[i].path.c_str(), 0, data->list[i].save_path, true, build_db);
+				add(data, data->list[i].path.c_str(), 0, data->list[i].save_path, data->list[i].add_deps, build_db);
 
 			APP_DEBUG("Writing " << runtime::desc_str(rt) << " package with " << data->blobs.size() << " blobs.")
 
@@ -566,6 +575,9 @@ namespace putki
 					packlist[i]->obj = 0;
 					continue;
 				}
+
+				putki::sstream tmp;
+				res.th->write_json(res.obj, tmp, 0);
 
 				packlist[i]->th = res.th;
 				packlist[i]->obj = res.obj;
@@ -661,7 +673,7 @@ namespace putki
 				const int PKG_FLAG_EXTERNAL   = 2;
 				const int PKG_FLAG_INTERNAL   = 4;
 				const int PKG_FLAG_UNRESOLVED = 8;
-				
+
 				const char *path;
 				unsigned short flags = 0;
 				
