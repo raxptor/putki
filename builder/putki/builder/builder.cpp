@@ -740,6 +740,8 @@ namespace putki
 				}
 
 				objstore::store_object(d->conf.built, path, info.th, source.obj, sig);
+
+				source.th->free(source.obj);
 			}
 		}
 	}

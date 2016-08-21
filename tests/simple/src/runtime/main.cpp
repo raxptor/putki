@@ -22,6 +22,8 @@ int main()
 
 	while (true)
 	{
+		std::cout << "vt inline text=" << everything->vt_inline.text << std::endl;
+	
 		if (data && !putki::liveupdate::connected(data))
 		{
 			putki::liveupdate::disconnect(data);
@@ -37,7 +39,6 @@ int main()
 			std::cout << "Everything changed!\n" << std::endl;
 		}
 
-		std::cout << "vt inline text=" << everything->vt_inline.text << std::endl;
 		
 		for (unsigned int i = 0; i < everything->root_structs_size; i++)
 		{

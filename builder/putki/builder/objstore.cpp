@@ -223,17 +223,18 @@ namespace putki
 				}
 				else
 				{
-					object_entry* e = new object_entry();
 					ObjMap::iterator o = d->objs.find(objname);
 					if (o != d->objs.end())
 					{
-						e = o->second;
+						d->objs.erase(o);
 					}
+					object_entry* e = new object_entry();
 					e->file = file;
-					e->node = root;
+					e->node = parse::get_object_item(root, "data");;
 					e->path = objname;
 					e->th = th;
 					d->objs.insert(std::make_pair(objname, e));
+					d->all_objs.push_back(e);
 				}
 			}
 			else
@@ -263,10 +264,11 @@ namespace putki
 						}
 						object_entry* e = new object_entry();
 						e->file = file;
-						e->node = root;
+						e->node = parse::get_object_item(aux_obj, "data");
 						e->path = auxpath;
 						e->th = th;
 						d->objs.insert(std::make_pair(auxpath, e));
+						d->all_objs.push_back(e);
 						if (is_cache)
 						{
 							APP_ERROR("Cache should not have aux objs!");
@@ -419,7 +421,9 @@ namespace putki
 			d->is_cache = is_cache;
 			d->root = root_path;
 			while (d->root.size() > 0 && d->root[d->root.size() - 1] == '/')
+			{
 				d->root.pop_back();
+				}
 
 			d->cache_file = cache_file;
 			sys::search_tree((d->root + "/objs").c_str(), insert_file_object, d);
@@ -483,6 +487,7 @@ namespace putki
 						}
 						signature::buffer buf;
 						i->second->signature = signature::resource(i->second->content_bytes, i->second->content_length, buf);
+
 						if (strcmp(i->second->signature.c_str(), hdr[3]))
 						{
 							APP_DEBUG("  Signature changed on " << hdr[0] << " from " << hdr[3] << " to " << i->second->signature.c_str());
@@ -595,6 +600,10 @@ namespace putki
 					delete[] d->files[i]->content_bytes;
 				}
 				delete d->files[i];
+			}
+			for (size_t i=0;i<d->all_objs.size();i++)
+			{
+				delete d->all_objs[i];
 			}
 			delete d;
 		}
@@ -968,7 +977,10 @@ namespace putki
 			if (i != d->file_map.end())
 			{
 				if (i->second->content_bytes)
+				{
 					delete[] i->second->content_bytes;
+				}
+				i->second->content_bytes = 0;
 				fe = i->second;
 			}
 			else
@@ -978,6 +990,7 @@ namespace putki
 				fe->full_path = out_path;
 				fe->path = out_fn;
 				d->file_map.insert(std::make_pair(fe->full_path, fe));
+				d->files.push_back(fe);
 			}
 			fe->content_length = length;
 			examine_resource_file(d, fe);
