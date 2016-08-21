@@ -23,6 +23,7 @@ namespace putki
 			std::string type;
 			std::string signature;
 			std::set<std::string> pointers;
+			std::set<std::string> files;
 		};
 
 		typedef std::pair<LogType, std::string> logentry_t;
@@ -128,6 +129,10 @@ namespace putki
 						{
 							cur->md.pointers.insert(path);
 						}
+						else if (line[0] == 'd')
+						{
+							cur->md.files.insert(path);
+						}
 						else if (line[0] == 's')
 						{
 							cur->md.signature = path;
@@ -186,6 +191,9 @@ namespace putki
 					std::set<std::string>::iterator pi = r.md.pointers.begin();
 					while (pi != r.md.pointers.end())
 						dbtxt << "p:" << (*pi++) << "\n";
+					std::set<std::string>::iterator fi = r.md.files.begin();
+					while (fi != r.md.files.end())
+						dbtxt << "d:" << (*fi++) << "\n";
 				}
 
 			if (!dbtxt.good())
@@ -263,12 +271,24 @@ namespace putki
 			return 0;
 		}
 
-		const char *get_pointer(record *r, unsigned int index)
+		const char* get_pointer(record *r, unsigned int index)
 		{
 			if (index >= r->md.pointers.size())
 				return 0;
 
 			std::set<std::string>::iterator it = r->md.pointers.begin();
+			for (unsigned int i = 0; i < index; i++)
+				it++;
+
+			return (*it).c_str();
+		}
+
+		const char* get_file_pointer(record *r, unsigned int index)
+		{
+			if (index >= r->md.files.size())
+				return 0;
+
+			std::set<std::string>::iterator it = r->md.files.begin();
 			for (unsigned int i = 0; i < index; i++)
 				it++;
 
@@ -496,6 +516,18 @@ namespace putki
 				if (p->path != 0 && p->path[0])
 				{
 					rec->md.pointers.insert(p->path);
+				}
+			}
+
+			file_query_result files;
+			th->query_files(obj, &files, true, true);
+			rec->md.files.clear();
+			for (size_t i = 0; i < files.files.size(); i++)
+			{
+				std::string& f = files.files[i];
+				if (!f.empty())
+				{
+					rec->md.files.insert(f);
 				}
 			}
 		}

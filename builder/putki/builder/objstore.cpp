@@ -697,6 +697,7 @@ namespace putki
 			{
 				if (!i->second.cached)
 				{
+					result->path = path;
 					result->signature = i->second.signature;
 					result->size = i->second.size;
 					return true;

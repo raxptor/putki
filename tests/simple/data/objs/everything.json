@@ -6,7 +6,8 @@
 		"T3": "triply-nested",
 		"VPtr": "",
 		"RootStructs": ["subsubstruct",
-		"root1", "thisisnull"],
+		"root1",
+		"thisisnull"],
 		"VAuxPtr": "#roz9h",
 		"VTInline": {
 			"A": 3.4,
@@ -17,7 +18,8 @@
 		"BuildConfiguration": "buildconfig",
 		"Built": "",
 		"WRes": ["data-1",
-		"test/data-2"]
+		"test/data-2"],
+		"EmbedFile": "data2\u002etxt"
 	},
 	"aux": [
 		{

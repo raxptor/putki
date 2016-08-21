@@ -31,6 +31,7 @@ namespace putki
 
 		// 
 		const char *get_pointer(record *r, unsigned int index);
+		const char *get_file_pointer(record *r, unsigned int index);
 		const char *get_type(record *r);
 		const char *get_signature(record *r);
 		const char *get_builder(record *r);

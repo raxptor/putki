@@ -542,7 +542,13 @@ namespace putki
 					builder->num_cond.wait(&builder->build_mtx);
 				}
 
-				package::data *pkg = package::create(builder->config.built);
+				objstore::data* filesrc[] = {
+					builder->config.input,
+					builder->config.temp,
+					0
+				};
+
+				package::data *pkg = package::create(builder->config.built, filesrc);
 				for (std::set<std::string>::iterator i = get_set.begin(); i != get_set.end(); i++)
 				{
 					package::add(pkg, i->c_str(), true, false);

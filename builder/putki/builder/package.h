@@ -13,12 +13,12 @@ namespace putki
 	{
 		struct data;
 
-		data * create(objstore::data* store);
+		data* create(objstore::data* store, objstore::data** res_sources);
 		void free(data *);
 
 		// need storepath = true to be able to look it up from the package in runtime.
 		void add(package::data *data, const char *path, bool storepath, bool add_deps);
-
+		void add_file(package::data *data, const char *path, bool storepath);
 		void add(package::data *data, const char *path);
 
 		const char *get_needed_asset(data *d, unsigned int i);

@@ -20,7 +20,8 @@ namespace putki
 		static const int PKG_FLAG_EXTERNAL   = 2;
 		static const int PKG_FLAG_INTERNAL   = 4;
 		static const int PKG_FLAG_UNRESOLVED = 8;
-	
+		static const int PKG_FLAG_RESOURCE   = 16;
+
 		struct package_slot
 		{
 			const char *path;
@@ -216,7 +217,14 @@ namespace putki
 				{
 					lp->slots[i].file_index = parse_int16(&hdr_rp);
 					lp->slots[i].file_slot_index = parse_int16(&hdr_rp);
-					lp->slots[i].type_id = parse_int16(&hdr_rp);
+					if (flags & PKG_FLAG_RESOURCE)
+					{
+						lp->slots[i].type_id = 0;
+					}
+					else
+					{
+						lp->slots[i].type_id = parse_int16(&hdr_rp);
+					}
 					lp->slots[i].obj = fake_base + parse_int32(&hdr_rp);
 					lp->slots[i].obj_end = fake_base + parse_int32(&hdr_rp);
 				}
@@ -225,8 +233,15 @@ namespace putki
 					lp->slots[i].file_index = -1;
 					lp->slots[i].obj = data + (parse_int32(&hdr_rp) - hdr_sz);
 					lp->slots[i].obj_end = data + (parse_int32(&hdr_rp) - hdr_sz);
-					lp->slots[i].type_id = parse_int16(&hdr_rp);
-					
+					if (flags & PKG_FLAG_RESOURCE)
+					{
+						lp->slots[i].type_id = 0;
+					}
+					else
+					{
+						lp->slots[i].type_id = parse_int16(&hdr_rp);
+					}
+
 					// where to insert the external references.
 					if (lp->slots[i].obj_end > tail_ptr)
 						tail_ptr = (char*)lp->slots[i].obj_end;
@@ -268,21 +283,21 @@ namespace putki
 						
 			// flush loads
 			if (ext_loads)
+			{
 				ext_loader(0, 0, 0, 0, 0);
+			}
 			
 			// resolve objects
 			for (unsigned int i=0;i!=slot_count;i++)
 			{
-				if (lp->slots[i].obj)
+				if (lp->slots[i].obj && !(lp->slots[i].flags & PKG_FLAG_RESOURCE))
 				{
 					const size_t ps0 = ptrs.entries.size();
-
 					const type_record* record = get_type_record(lp->slots[i].type_id);
 					if (record && record->post_blob_load)
 					{
 						char* obj_ptr = (char*)lp->slots[i].obj;
 						char* aux_beg = obj_ptr + record->size;
-						PTK_WARNING("Post loading " << record->id << " type id " << lp->slots[i].type_id << " path " << lp->slots[i].path);
 						if (record->post_blob_load(obj_ptr, aux_beg, (char*)lp->slots[i].obj_end) != lp->slots[i].obj_end)
 						{
 							PTK_WARNING("Post load by type (" << lp->slots[i].type_id << ") did not consume all data.");

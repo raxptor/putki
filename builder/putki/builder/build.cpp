@@ -49,6 +49,7 @@ namespace putki
 
 		struct packaging_config
 		{
+			builder::config* config;
 			bool find_roots_only;
 			std::string package_path;
 			runtime::descptr rt;
@@ -87,6 +88,16 @@ namespace putki
 			{
 				s_postbuild_fns[i](info);
 			}
+		}
+
+		package::data* create_package(packaging_config* config)
+		{
+			objstore::data* filesrc[] = {
+				config->config->input,
+				config->config->temp,
+				0
+			};
+			return package::create(config->config->built, filesrc);
 		}
 
 		void commit_package(putki::package::data *package, packaging_config *packaging, const char *out_path)
@@ -240,6 +251,7 @@ namespace putki
 			pconf.rt = rt;
 			pconf.bdb = conf->build_db;
 			pconf.make_patch = false;
+			pconf.config = conf;
 			invoke_packager(conf->built, &pconf);
 
 			// Required assets
@@ -280,6 +292,7 @@ namespace putki
 			pconf.rt = rt;
 			pconf.bdb = conf.build_db;
 			pconf.make_patch = make_patch;
+			pconf.config = &conf;
 			invoke_packager(conf.built, &pconf);
 
 			// Required assets
