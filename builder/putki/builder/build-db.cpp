@@ -49,8 +49,8 @@ namespace putki
 			metadata md;
 		};
 
+		typedef std::map<std::string, record*> Committed;
 		typedef std::multimap<std::string, record*> RM;
-		typedef std::multimap<std::string, record*> Committed;
 		typedef std::multimap<std::string, std::string> RevDepMap;
 
 		struct data
@@ -321,6 +321,13 @@ namespace putki
 			flush_log(r);
 			sys::scoped_maybe_lock _lk(&d->mtx);
 			d->records.insert(std::make_pair(r->source_path, r));
+
+			Committed::iterator existing = d->committed.find(r->source_path);
+			if (existing != d->committed.end())
+			{
+				d->committed.erase(existing);
+				APP_DEBUG("Removing previously commited entry for [" << r->source_path << "]")
+			}
 			d->committed.insert(std::make_pair(r->source_path, r));
 			cleanup_deps(d, r);
 			for (size_t i = 0; i != r->input_dependencies.size(); i++)

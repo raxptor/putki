@@ -313,32 +313,38 @@ namespace putki
 			while (true)
 			{
 				sys::scoped_maybe_lock lk_(&info->build_mtx);
+
+				putki::builder::clear(info->builder);
 				while (info->queue.empty())
 				{
 					info->queue_cond.wait(&info->build_mtx);
 				}
+				
 				for (std::set<std::string>::iterator i = info->queue.begin(); i != info->queue.end(); i++)
 				{
 					builder::add_build_root(info->builder, i->c_str(), -1);
 				}
 
-				/*
-				 * eed to update and insert
+				sys::scoped_maybe_lock lk_edits(&d->edits_mtx);
+				for (edits_map::iterator j=d->edits.begin();j!=d->edits.end();j++)
 				{
-					sys::scoped_maybe_lock lk_edits(&d->edits_mtx);
-					for (std::set<std::string>::iterator i = info->queue.begin(); i != info->queue.end(); i++)
+					seen_edits_map::iterator k = info->seen_edits.find(j->first);
+					if (k == info->seen_edits.end() || k->second != j->second.version)
 					{
-						objstore::object_info objinfo;
-						if (objstore::query_object(info->config.input, i->c_str(), &objinfo))
+						info->seen_edits[j->first] = j->second.version;
+						APP_DEBUG("Updating builder with edit on [" << j->first << "] version=" << j->second.version);
+						const std::string& obj_data = j->second.data;
+						if (!objstore::store_object_json_memonly(info->config.input, j->first.c_str(), obj_data.c_str(), obj_data.size()))
 						{
+							APP_ERROR("Could not parse object [" << j->first << "] sent by editor?!");
 						}
-						const char* obj_data = d->edits[*i].data.c_str();
-						objstore::store_object(info->inf)
 					}
 				}
-				*/
+				lk_edits.unlock();
+
 				builder::do_build(info->builder, true);
 
+				info->queue.clear();
 				info->num_builds++;
 				info->num_cond.broadcast();
 			}
@@ -456,7 +462,7 @@ namespace putki
 									}
 									if (!builder)
 									{
-										APP_INFO("Could not find builder for client. Making one [" << runtime::desc_str(rt) << ":" << args[1] << "]");
+										APP_INFO("Could not find builder for client. Making one [" <<runtime::desc_str(rt) << ":" << args[1] << "]");
 										builder_info* info = new builder_info;
 										info->rt = rt;
 										info->config_name = args[1].c_str();
@@ -467,7 +473,7 @@ namespace putki
 										builder_thr_info* ti = new builder_thr_info();
 										ti->info = info;
 										ti->d = d;
-										info->thread = sys::thread_create(builder_thread, (void*)info);
+										info->thread = sys::thread_create(builder_thread, (void*)ti);
 										d->builders.push_back(info);
 										builder = info;
 									}

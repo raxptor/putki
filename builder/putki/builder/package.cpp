@@ -576,6 +576,10 @@ namespace putki
 					continue;
 				}
 
+				putki::sstream tmp;
+				res.th->write_json(res.obj, tmp, 0);
+				APP_DEBUG("Pkg " << packlist[i]->path << "	goes " << tmp.str().c_str());
+
 				packlist[i]->th = res.th;
 				packlist[i]->obj = res.obj;
 
@@ -670,7 +674,7 @@ namespace putki
 				const int PKG_FLAG_EXTERNAL   = 2;
 				const int PKG_FLAG_INTERNAL   = 4;
 				const int PKG_FLAG_UNRESOLVED = 8;
-				
+
 				const char *path;
 				unsigned short flags = 0;
 				

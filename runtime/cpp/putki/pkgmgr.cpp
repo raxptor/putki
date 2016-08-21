@@ -282,6 +282,7 @@ namespace putki
 					{
 						char* obj_ptr = (char*)lp->slots[i].obj;
 						char* aux_beg = obj_ptr + record->size;
+						PTK_WARNING("Post loading " << record->id << " type id " << lp->slots[i].type_id << " path " << lp->slots[i].path);
 						if (record->post_blob_load(obj_ptr, aux_beg, (char*)lp->slots[i].obj_end) != lp->slots[i].obj_end)
 						{
 							PTK_WARNING("Post load by type (" << lp->slots[i].type_id << ") did not consume all data.");

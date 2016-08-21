@@ -1,7 +1,6 @@
 package putked;
 
 import java.io.DataOutputStream;
-import java.io.IOException;
 import java.net.Socket;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -26,9 +25,11 @@ public class BuilderConnection implements Runnable
 
 	public static void onObjectChanged(DataObject object)
 	{
+		DataObject actual = object.getRoot();
+
 		Change c = new Change();
-		c.object = object;
-		String path = object.getPath();
+		c.object = actual;
+		String path = actual.getPath();
 		m_changeLock.lock();
 		if (!m_acceptChanges)
 		{

@@ -7,7 +7,8 @@
 #include <putki/liveupdate/liveupdate.h>
 #include <putki/log/log.h>
 #include <iostream>
-#include <Windows.h>
+
+#include <unistd.h>
 
 int main()
 {
@@ -64,7 +65,7 @@ int main()
 			}
 			}
 		}
-		Sleep(100);
+		usleep(100*1000);
 		if (data)
 		{
 			putki::liveupdate::update(data);

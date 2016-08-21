@@ -353,7 +353,7 @@ public class DataLoader
 				case STRUCT_INSTANCE:
 				{
 					Tmp t = new Tmp();
-					t.result = new DataObject(field.resolvedRefStruct, obj.getRootAsset(), obj.getPath());
+					t.result = new DataObject(field.resolvedRefStruct, obj.getAuxRoot(), obj, obj.getPath());
 					parseData(status, t);
 					if (!status.error)
 					{
@@ -367,7 +367,7 @@ public class DataLoader
 					int aux = s.indexOf('#');
 					if (aux != -1)
 					{
-						obj.setField(field.index, arrayIndex, obj.getRootAsset().getPath() + s.substring(aux));
+						obj.setField(field.index, arrayIndex, obj.getAuxRoot().getPath() + s.substring(aux));
 					}
 					else
 					{
@@ -470,14 +470,14 @@ public class DataLoader
 						{
 							ParsedStruct struct = Main.s_compiler.getTypeByName(parseValue(status));
 							if (!status.error && struct != null)
-								tmp2.result = new DataObject(struct, tmp.result.getRootAsset(), tmp.result.getPath() + tmp2.ref);
+								tmp2.result = new DataObject(struct, tmp.result.getAuxRoot(), null, tmp.result.getPath() + tmp2.ref);
 						}
 						else if (name.equals("data"))
 						{
 							parseData(status,  tmp2);
 							if (!status.error)
 							{
-								tmp.result.getRootAsset().addAux(tmp2.ref, tmp2.result);
+								tmp.result.getAuxRoot().addAux(tmp2.ref, tmp2.result);
 							}
 						}
 					}

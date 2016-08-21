@@ -207,9 +207,9 @@ namespace putki
 				pfx[i] = ::tolower(pfx[i]);
 			
 			std::string prefix(pfx);
-			conf->input = objstore::open("data/", false);
-			conf->temp = objstore::open((prefix + "/.tmp").c_str(), true);
-			conf->built = objstore::open((prefix + "/.built").c_str(), true);
+			conf->input = objstore::open("data/", (prefix + "/.input_cache").c_str(), false);
+			conf->temp = objstore::open((prefix + "/.tmp").c_str(), (prefix + "/.tmp_cache").c_str(), true);
+			conf->built = objstore::open((prefix + "/.built").c_str(), (prefix + "/.built_cache").c_str(), true);
 			conf->build_db = build_db::create((prefix + "/.builddb").c_str(), incremental);
 			conf->build_config = build_config;
 		}
@@ -237,7 +237,6 @@ namespace putki
 		{
 			packaging_config pconf;
 			pconf.find_roots_only = true;
-			pconf.package_path;
 			pconf.rt = rt;
 			pconf.bdb = conf->build_db;
 			pconf.make_patch = false;

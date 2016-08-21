@@ -88,6 +88,7 @@ namespace putki
 
 		//
 		data* create(config* conf);
+		void clear(data *d);
 		void free(data *d);
 
 		void add_handlers(data* d, const handler_info* begin, const handler_info* end);
