@@ -10,6 +10,13 @@ namespace putki
 	{
 		struct loaded_package;
 		struct resolve_status;
+
+		struct resource_data
+		{
+			const char* data;
+			size_t size;
+			intptr_t internal;
+		};
 		
 		// will call back and send beg/end/target to 0 when done, then expects everything to be loaded after that.
 		typedef bool(*load_external_file_fn)(int file_index, const char *path, size_t beg, size_t end, void *target);
@@ -37,5 +44,9 @@ namespace putki
 		const char *path_in_package_slot(loaded_package *, unsigned int slot, bool only_if_content);
 		int num_unresolved_slots(loaded_package *);
 		int next_unresolved_slot(loaded_package *p, int start);
+
+		// load resource
+		bool load_resource(loaded_package* p, resource_id_t id, resource_data* res);
+		void free_resource(resource_data* res);
 	}
 }

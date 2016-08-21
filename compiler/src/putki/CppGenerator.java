@@ -165,13 +165,14 @@ public class CppGenerator
 		}
 	}
 
-	static String ouktiFieldtypePod(Compiler.FieldType f)
+	static String outkiFieldtypePod(Compiler.FieldType f)
 	{
 		switch (f)
 		{
+			case FILE:
+				return "putki::resource_id_t";
 			case STRING:
 			case PATH:
-			case FILE:
 				return "const char*";
 			case INT32:
 				return "int32_t";
@@ -280,7 +281,7 @@ public class CppGenerator
 			{
 				return enumName(pf.resolvedEnum);
 			}
-			return ouktiFieldtypePod(pf.type);
+			return outkiFieldtypePod(pf.type);
 		}
 		else
 		{

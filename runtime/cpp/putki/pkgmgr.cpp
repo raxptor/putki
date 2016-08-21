@@ -393,13 +393,11 @@ namespace putki
 			}
 			return -1;
 		}
-		
 
 		void register_for_liveupdate(loaded_package *lp)
 		{
 			// maybe check here that there is nothing unresolved left. or we might start pointing into junk when stuff
 			// start pointing into this.
-
 			for (unsigned int i=0; i!=lp->slots_size; i++)
 			{
 				if (lp->slots[i].obj && lp->slots[i].path)
@@ -441,6 +439,16 @@ namespace putki
 				return pkg->slots[slot].path;
 			}
 			return 0;
+		}
+
+		bool load_resource(loaded_package* p, resource_id_t id, resource_data* res)
+		{
+			return false;
+		}
+
+		void free_resource(resource_data* res)
+		{
+
 		}
 	}
 

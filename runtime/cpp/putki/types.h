@@ -5,6 +5,7 @@
 namespace putki
 {
 	typedef void* instance_t;
+	typedef const char* resource_id_t;
 
 	struct ptr_info;
 	typedef void(*ptrwalker_callback)(ptr_info* info, void* user_data);
