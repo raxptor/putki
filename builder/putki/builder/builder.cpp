@@ -233,6 +233,15 @@ namespace putki
 				d->to_build.push(tb);
 			}
 		}
+
+		struct free_deplist_obj
+		{
+			build_db::deplist* dl;
+			~free_deplist_obj()
+			{
+				build_db::deplist_free(dl);
+			}
+		};
 		
 		bool fetch_cached(data* d, const char* path, objstore::object_info* info, const char* bname, build_db::InputDepSigs& sigs)
 		{
@@ -243,6 +252,9 @@ namespace putki
 			}
 
 			build_db::deplist* dl = build_db::inputdeps_get(find);
+			free_deplist_obj freeer;
+			freeer.dl = dl;
+
 			int di = 0;
 			while (true)
 			{

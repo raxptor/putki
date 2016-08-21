@@ -179,14 +179,9 @@ namespace putki
 			parse::data *pd;
 			if (file->content_bytes != 0)
 			{
+				// Note that the parse data will point into content_bytes.. so better not
+				// manipulate or free it!
 				pd = parse::parse_json((char*)file->content_bytes, file->content_length);
-				// takes ownership on successful parse.
-				if (!pd)
-				{
-					delete[] file->content_bytes;
-				}
-				file->content_bytes = 0;
-				file->content_length = 0;
 			}
 			else
 			{
@@ -327,6 +322,7 @@ namespace putki
 			fe->parsed = 0;
 			data* d = (data *)userptr;
 			d->file_map.insert(std::make_pair(std::string(fullname), fe));
+			d->files.push_back(fe);
 		}
 
 		void insert_file_resource(const char *fullname, const char *name, void *userptr)
@@ -423,7 +419,7 @@ namespace putki
 			while (d->root.size() > 0 && d->root[d->root.size() - 1] == '/')
 			{
 				d->root.pop_back();
-				}
+			}
 
 			d->cache_file = cache_file;
 			sys::search_tree((d->root + "/objs").c_str(), insert_file_object, d);
@@ -437,7 +433,6 @@ namespace putki
 					APP_WARNING("Failed to stat file [" << fs->first << "]");
 				}
 				fs->second->content_length = fs->second->info.size;
-				d->files.push_back(fs->second);
 				fs++;
 			}
 
@@ -514,7 +509,11 @@ namespace putki
 							size_t dot = path.find_last_of('.');
 							if (dot != std::string::npos)
 							{
-								path.erase(sig, dot - sig);
+								path = path.erase(sig, dot - sig);
+							}
+							else
+							{
+								path = path.erase(sig);
 							}
 						}
 						d->resources.insert(std::make_pair(path, res));
@@ -597,6 +596,8 @@ namespace putki
 				}
 				if (d->files[i]->content_bytes)
 				{
+					APP_DEBUG("FREE [" << d->files[i]->path << "] outBytes= " << (void*)d->files[i]->content_bytes);
+
 					delete[] d->files[i]->content_bytes;
 				}
 				delete d->files[i];
@@ -986,7 +987,6 @@ namespace putki
 			else
 			{
 				fe = new file_entry();
-				fe->content_bytes = 0;
 				fe->full_path = out_path;
 				fe->path = out_fn;
 				d->file_map.insert(std::make_pair(fe->full_path, fe));

@@ -578,7 +578,6 @@ namespace putki
 
 				putki::sstream tmp;
 				res.th->write_json(res.obj, tmp, 0);
-				APP_DEBUG("Pkg " << packlist[i]->path << "	goes " << tmp.str().c_str());
 
 				packlist[i]->th = res.th;
 				packlist[i]->obj = res.obj;
