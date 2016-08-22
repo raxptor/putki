@@ -206,7 +206,7 @@ public class DataLoader
 				});
 				return null;
 			}
-			if (Character.isDigit(b) || b == '.')
+			if (Character.isDigit(b) || b == '.' || b == '-')
 			{
 				if (number == -1)
 					number = pos;
