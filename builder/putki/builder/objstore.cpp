@@ -603,8 +603,6 @@ namespace putki
 				}
 				if (d->files[i]->content_bytes)
 				{
-					APP_DEBUG("FREE [" << d->files[i]->path << "] outBytes= " << (void*)d->files[i]->content_bytes);
-
 					delete[] d->files[i]->content_bytes;
 				}
 				delete d->files[i];
@@ -664,8 +662,11 @@ namespace putki
 				result->th = th;
 				result->obj = th->alloc();
 				th->fill_from_parsed(o->node, result->obj);
-				signature::buffer buf;
-				o->signature = signature::object(th, result->obj, buf);
+				if (o->signature.empty())
+				{
+					signature::buffer buf;
+					o->signature = signature::object(th, result->obj, buf);
+				}
 				return true;
 			}
 

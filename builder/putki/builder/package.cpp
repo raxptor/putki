@@ -28,6 +28,7 @@ namespace putki
 		{
 			std::string path;
 			bool save_path, add_deps;
+			bool is_file;
 		};
 
 		struct entry
@@ -338,7 +339,32 @@ namespace putki
 			return false;
 		}
 
-		void add_file(package::data* data, const char* path, bool storepath)
+		void add_file(package::data *data, const char *path, bool storepath)
+		{
+			preliminary p;
+			p.add_deps = false;
+			p.path = path;
+			p.save_path = storepath;
+			p.is_file = true;
+			data->list.push_back(p);
+		}
+
+		void add(package::data *data, const char *path)
+		{
+			add(data, path, true, true);
+		}
+
+		void add(data *data, const char *path, bool storepath, bool add_deps)
+		{
+			preliminary p;
+			p.path = path;
+			p.save_path = storepath;
+			p.add_deps = add_deps;
+			p.is_file = false;
+			data->list.push_back(p);
+		}
+
+		void add_file_internal(package::data* data, const char* path, bool storepath)
 		{
 			if (!path)
 			{
@@ -378,21 +404,14 @@ namespace putki
 			// implemented
 			const bool store_path_for_dependencies = true;
 
-			if (path)
-			{
-				APP_DEBUG("Adding single [" << path << "] to package")
-			}
-			else if (bulkadd)
-			{
-				if (bulkadd->empty())
-				{
-					return;
-				}
-				APP_DEBUG("Adding " << bulkadd->size() << " elements in bulk")
-			}
-			else
+			if (!path && !bulkadd)
 			{
 				APP_ERROR("Both path and bulkadd are null")
+			}
+
+			if (bulkadd && bulkadd->empty())
+			{
+				return;
 			}
 
 			// filter away those already added.
@@ -510,7 +529,7 @@ namespace putki
 						{
 							break;
 						}
-						add_file(data, path, store_path_for_dependencies);
+						add_file_internal(data, path, store_path_for_dependencies);
 					}
 
 					if (bulkadd)
@@ -555,27 +574,13 @@ namespace putki
 						{
 							break;
 						}
-						add_file(data, path, store_path_for_dependencies);
+						add_file_internal(data, path, store_path_for_dependencies);
 						files++;
 					}
 
 					add(data, 0, &next_add, store_path_for_dependencies, true, bdb);
 				}
 			}
-		}
-
-		void add(package::data *data, const char *path)
-		{
-			add(data, path, true, true);
-		}
-
-		void add(data *data, const char *path, bool storepath, bool add_deps)
-		{
-			preliminary p;
-			p.path = path;
-			p.save_path = storepath;
-			p.add_deps = add_deps;
-			data->list.push_back(p);
 		}
 
 		const char *get_needed_asset(data *d, unsigned int i)
@@ -590,7 +595,16 @@ namespace putki
 		long write(data *data, runtime::descptr rt, char *buffer, long available, build_db::data *build_db, sstream & manifest)
 		{
 			for (unsigned int i = 0;i < data->list.size();i++)
-				add(data, data->list[i].path.c_str(), 0, data->list[i].save_path, data->list[i].add_deps, build_db);
+			{
+				if (data->list[i].is_file)
+				{
+					add_file_internal(data, data->list[i].path.c_str(), data->list[i].save_path);
+				}
+				else
+				{
+					add(data, data->list[i].path.c_str(), 0, data->list[i].save_path, data->list[i].add_deps, build_db);
+				}
+			}
 
 			APP_DEBUG("Writing " << runtime::desc_str(rt) << " package with " << data->blobs.size() << " blobs.")
 
