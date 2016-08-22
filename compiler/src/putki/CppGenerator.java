@@ -614,6 +614,9 @@ public class CppGenerator
 				case INT32:
 					sb.append(indent).append("putki::pack_int32_field((char*)&" + refOut + ", " + refIn + ");");
 					break;
+				case BOOL:
+					sb.append(indent).append(refOut + " = " + refIn + " ? 1 : 0;");
+					break;
 				case BYTE:
 				case FLOAT:
 					sb.append(indent).append(refOut + " = " + refIn + ";");
