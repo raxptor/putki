@@ -890,18 +890,6 @@ namespace putki
 			out_path.append(".json");
 			putki::sstream ts;
 
-			write::write_object_into_stream(ts, th, obj);
-			sys::mk_dir_for_path(out_path.c_str());
-			if (!sys::write_file(out_path.c_str(), ts.str().c_str(), (unsigned long)ts.str().size()))
-			{
-				return false;
-			}
-
-			std::string fn(path);
-			fn.append(".");
-			fn.append(signature);
-			fn.append(".json");
-
 			file_entry* fe;
 			// TODO: Think this through!
 			FileMap::iterator q = d->file_map.find(out_path.c_str());
@@ -915,6 +903,11 @@ namespace putki
 			}
 			else
 			{
+				std::string fn(path);
+				fn.append(".");
+				fn.append(signature);
+				fn.append(".json");
+
 				fe = new file_entry();
 				fe->path = fn;
 				fe->full_path = out_path.c_str();
@@ -922,6 +915,13 @@ namespace putki
 				fe->parsed = 0;
 				d->files.push_back(fe);
 				d->file_map.insert(std::make_pair(fe->full_path, fe));
+			}
+
+			write::write_object_into_stream(ts, th, obj);
+			sys::mk_dir_for_path(out_path.c_str());
+			if (!sys::write_file(out_path.c_str(), ts.str().c_str(), (unsigned long)ts.str().size()))
+			{
+				return false;
 			}
 
 			sys::stat(fe->full_path.c_str(), &fe->info);

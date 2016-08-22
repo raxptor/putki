@@ -342,7 +342,7 @@ namespace putki
 				if (objstore::query_resource(data->resource_source[i], path, &info))
 				{
 					std::string res_path = info.path;
-					APP_INFO("Adding resource [" << path << "] signature=" << info.signature);
+					APP_DEBUG("Adding resource [" << path << "] signature=" << info.signature);
 					entry e;
 					e.is_file = true;
 					e.save_path = storepath;
