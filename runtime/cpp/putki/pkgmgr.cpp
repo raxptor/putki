@@ -443,12 +443,22 @@ namespace putki
 
 		bool load_resource(loaded_package* p, resource_id_t id, resource_data* res)
 		{
+			for (size_t i = 0; i < p->slots_size; i++)
+			{
+				if ((p->slots[i].flags & PKG_FLAG_RESOURCE) && !strcmp(id, p->slots[i].path))
+				{
+					res->data = (const char*) p->slots[i].obj;
+					res->size = (char*)p->slots[i].obj_end - (char*)p->slots[i].obj;
+					res->internal = (uintptr_t) p;
+					return true;
+				}
+			}
 			return false;
 		}
 
 		void free_resource(resource_data* res)
 		{
-
+			
 		}
 	}
 

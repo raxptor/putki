@@ -8,7 +8,15 @@
 #include <putki/log/log.h>
 #include <iostream>
 
+#ifdef _WIN32
+#include <Windows.h>
+void usleep(long x)
+{
+	::Sleep(x / 1000);
+}
+#else
 #include <unistd.h>
+#endif
 
 int main()
 {
@@ -39,6 +47,16 @@ int main()
 			std::cout << "Everything changed!\n" << std::endl;
 		}
 
+		if (everything->embed_file)
+		{
+			putki::pkgmgr::resource_data res;
+			if (putki::pkgmgr::load_resource(pkg, everything->embed_file, &res))
+			{
+				std::string data(res.data, res.data + res.size);
+				std::cout << "Resource is [" << data << "]" << std::endl;
+				putki::pkgmgr::free_resource(&res);
+			}
+		}
 		
 		for (unsigned int i = 0; i < everything->root_structs_size; i++)
 		{
@@ -50,20 +68,20 @@ int main()
 			switch (rs->rtti_type_id())
 			{
 			case outki::sub_sub_sub_struct1::TYPE_ID:
-			{
-				outki::sub_sub_sub_struct1* s = (outki::sub_sub_sub_struct1*)(rs);
-				break;
-			}
-			case outki::sub_sub_struct1::TYPE_ID:
-			{
-				outki::sub_sub_struct1* s = (outki::sub_sub_struct1*)(rs);
-				break;
-			}
-			case outki::sub_struct1::TYPE_ID:
-			{
-				outki::sub_struct1* s = (outki::sub_struct1*)(rs);
-				break;
-			}
+				{
+					outki::sub_sub_sub_struct1* s = (outki::sub_sub_sub_struct1*)(rs);
+					break;
+				}
+				case outki::sub_sub_struct1::TYPE_ID:
+				{
+					outki::sub_sub_struct1* s = (outki::sub_sub_struct1*)(rs);
+					break;
+				}
+				case outki::sub_struct1::TYPE_ID:
+				{
+					outki::sub_struct1* s = (outki::sub_struct1*)(rs);
+					break;
+				}
 			}
 		}
 		usleep(100*1000);
