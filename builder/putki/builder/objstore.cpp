@@ -528,13 +528,20 @@ namespace putki
 							tok::get(cache, objs_start + 4 * k + 3), // cache
 						};
 
+						type_handler_i* th = typereg_get_handler(obj[1]);;
+						if (!th)
+						{
+							APP_DEBUG("Ignoring object with type (" << obj[1] << ") because i don't know what it is.");
+							continue;
+						}
+
 						object_entry* oe = new object_entry();
 						oe->path = obj[0];
 						if (obj[2][0] != '?')
 						{
 							oe->signature = obj[2];
 						}
-						oe->th = typereg_get_handler(obj[1]);
+						oe->th = th;
 						oe->file = i->second;
 						oe->node = 0;
 						if (atoi(obj[3]))
@@ -927,8 +934,7 @@ namespace putki
 			{
 				APP_ERROR("HIGH ALERT!!!");
 			}
-
-			APP_DEBUG("Storing object\n" << ts.str().c_str());
+			
 			object_entry* o = new object_entry();
 			o->file = fe;
 			o->path = path;

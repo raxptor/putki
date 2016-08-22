@@ -208,7 +208,7 @@ namespace putki
 				}
 				else
 				{
-					lp->slots[i].path = "<>";
+					lp->slots[i].path = "?";
 				}
 				
 				lp->slots[i].flags = flags;
@@ -410,8 +410,13 @@ namespace putki
 			if (lp->should_free)
 				delete [] lp->data;
 			
-			for (int i=0;i!=lp->slots_size;i++)
-				::free((void*)lp->slots[i].path);
+			for (int i = 0; i != lp->slots_size; i++)
+			{
+				if (lp->slots[i].flags & PKG_FLAG_PATH)
+				{
+					::free((void*)lp->slots[i].path);
+				}
+			}
 
 			delete [] lp->slots;
 			delete lp;
