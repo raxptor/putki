@@ -318,7 +318,17 @@ namespace putki
 
 				fill->ofs_begin = slot->begin;
 				fill->ofs_end = slot->end;
-				fill->th = typereg_get_handler(slot->type.c_str());
+
+				if (!strcmp(slot->type.c_str(), "$res"))
+				{
+					fill->is_file = true;
+					fill->th = 0;
+				}
+				else
+				{
+					fill->is_file = false;
+					fill->th = typereg_get_handler(slot->type.c_str());
+				}
 
 				APP_DEBUG("Found match in " << p->first << " in slot " << m->second << " for [" << path << "]")
 				prev->slots_i_want.push_back(m->second);

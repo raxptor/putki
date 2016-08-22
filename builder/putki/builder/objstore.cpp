@@ -678,6 +678,12 @@ namespace putki
 			examine_object_file(d, o->file);
 
 			ObjMap::iterator j = d->objs.find(path);
+			if (j == d->objs.end())
+			{
+				APP_ERROR("Object disappeared!?");
+				examine_object_file(d, o->file);
+			}
+
 			if (j->second->node)
 			{
 				result->th = th;
@@ -757,13 +763,22 @@ namespace putki
 				}
 				if (count < len)
 				{
-					paths[count] = i->first.c_str();
+					paths[count] = strdup(i->first.c_str());
 				}
 				++count;
 				++i;
 			}
 			return count;
 		}
+
+		void free_query_result(const char** paths, size_t count)
+		{
+			for (size_t i=0;i!=count;i++)
+			{
+				::free((void*)paths[i]);
+			}
+		}
+
 
 		bool fetch_resource(data* d, const char* path, const char* signature, fetch_res_result* result)
 		{
