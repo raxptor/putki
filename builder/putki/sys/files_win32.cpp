@@ -8,6 +8,7 @@
 #include <vector>
 #include <string>
 #include <iostream>
+#include <stdint.h>
 
 namespace putki
 {
@@ -23,7 +24,7 @@ namespace putki
 		{
 		}
 
-		void search_tree_internal(const char *root_directory, file_enum_t callback, int cut_length, void *userptr)
+		void search_tree_internal(const char *root_directory, file_enum_t callback, size_t cut_length, void *userptr)
 		{
 			std::string root(root_directory);
 			if (root.empty()) {
@@ -73,7 +74,7 @@ namespace putki
 			search_tree_internal(root_directory, callback, strlen(root_directory) + 1, userptr);
 		}
 
-		bool write_file(const char *path, const char *str, unsigned long size)
+		bool write_file(const char *path, const char *str, size_t size)
 		{
 			HANDLE hFile;
 			DWORD wmWritten;

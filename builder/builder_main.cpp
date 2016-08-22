@@ -137,23 +137,16 @@ int run_putki_builder(int argc, char **argv)
 		}
 	}
 
-
-
-	// reload build database if incremental build
-	putki::builder::data *builder = putki::builder::create(rt, ".", !incremental, build_config, threads);
-
 	if (single_asset)
 	{
-		APP_WARNING("Single building is experimental and may get the build database out of sync.")
-		putki::build::single_build(builder, single_asset);
+//		APP_WARNING("Single building is experimental and may get the build database out of sync.")
+//		putki::build::single_build(builder, single_asset);
 	}
 	else
 	{
-		putki::build::full_build(builder, patch);
-		putki::builder::write_build_db(builder);
+		putki::build::make_packages(rt, build_config, incremental, patch);
 	}
-
-	putki::builder::free(builder);
+	
 
 	if (liveupdate)
 	{

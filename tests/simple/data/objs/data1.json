@@ -1,7 +1,7 @@
 {
 	"type": "TestStructTypes",
 	"data": {
-		"TestString": "String1",
+		"TestString": "String",
 		"TestInt": 123,
 		"TestS32": -123,
 		"TestU32": 99,

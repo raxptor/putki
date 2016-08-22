@@ -41,6 +41,7 @@ solution "Test"
 
         files { "src/builder-main.cpp" }
         files { "src/builder/**.*" }
+        files { "src/putki/**.*" }
         links { "test-putki-lib" }
         includedirs { "src" }
         

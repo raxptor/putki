@@ -1,930 +1,671 @@
-#include "builder.h"
-
-#include <putki/builder/db.h>
+#include <putki/builder/typereg.h>
+#include <putki/builder/parse.h>
+#include <putki/builder/signature.h>
 #include <putki/builder/build-db.h>
-#include <putki/builder/resource.h>
-#include <putki/builder/source.h>
-#include <putki/builder/inputset.h>
-#include <putki/builder/write.h>
-#include <putki/builder/log.h>
-#include <putki/builder/tool.h>
-#include <putki/sys/files.h>
-#include <putki/sys/thread.h>
+#include <putki/builder/ptr.h>
+#include "builder.h"
 
 #include <map>
 #include <set>
-#include <string>
-#include <vector>
-#include <algorithm>
-#include <iostream>
-#include <sstream>
-#include <fstream>
+#include <queue>
 
 namespace putki
 {
 	namespace builder
 	{
-		struct builder_entry
+		struct loaded
 		{
-			handler_i *handler;
+			type_handler_i* th;
+			instance_t obj;
+			std::string signature;
 		};
 
-		struct type_entry
-		{
-			std::vector<builder_entry> handlers;
-		};
+		typedef std::multimap<int, handler_info> HandlerMapT;
+		typedef std::map<std::string, loaded> LoadedT;
+		typedef std::vector<const char*> AllocStringsT;
 
-		typedef std::map<std::string, type_entry> BuildersMap;
+		struct to_build
+		{
+			std::string path;
+			int domain;
+		};
 
 		struct data
 		{
-			BuildersMap handlers;
-			runtime::descptr runtime;
-			std::string config;
-			unsigned int num_threads;
-			std::string obj_path, res_path, out_path, tmpobj_path, tmp_path, built_obj_path;
-			build_db::data *build_db;
-			inputset::data *input_set;
-			inputset::data *tmp_input_set;
-			deferred_loader *tmp_loader;
-			deferred_loader *output_loader;
-			bool liveupdates;
-			
-			// fix this
-			db::data *grand_input;
+			config conf;
+			HandlerMapT handlers;
+			std::queue<to_build> to_build;
+			std::set<std::string> has_added;
+			LoadedT loaded_input;
+			LoadedT loaded_temp;
+			LoadedT loaded_built;
+			std::vector<const char*> str_allocs;
+		};
+		
+		struct build_info_internal
+		{
+			data* data;
+			std::vector<ptr_raw> outputs;
+			ptr_context* ptr_context;
 		};
 
-		struct prebuild_info
+		data* create(config* conf)
 		{
-			std::vector<std::string> require_outputs;
-		};
-
-		struct work_item
-		{
-			db::data *input;
-			std::string path, parent_path;
-			bool from_cache;
-			prebuild_info prebuild;
-		};
-
-		struct build_context
-		{
-			builder::data *builder;
-			db::data *input;
-			db::data *output;
-			db::data *tmp;
-
-			sys::mutex mtx_items, mtx_output, mtx_tmp;
-			sys::condition cnd_items;
-			unsigned int item_pos, items_finished;
-			std::vector<work_item*> items;
-			std::vector<sys::thread*> threads;
-			std::set<std::string> added;
-		};
-
-		namespace
-		{
-			builder_setup_fn s_init_fn = 0;
-			packaging_fn s_packaging_fn = 0;
-			reporting_fn s_reporting_fn = 0;
-		}
-
-		void set_builder_configurator(builder_setup_fn conf)
-		{
-			s_init_fn = conf;
-		}
-
-		void set_packager(packaging_fn fn)
-		{
-			s_packaging_fn = fn;
-		}
-
-		void set_reporting_fn(reporting_fn fn)
-		{
-			s_reporting_fn = fn;
-		}
-
-		void invoke_packager(db::data *out, build::packaging_config *pconf)
-		{
-			if (s_packaging_fn)
-			{
-				s_packaging_fn(out, pconf);
-			}
-		}
-
-		void invoke_reporting(putki::db::data *out, putki::build::packaging_config *pconf)
-		{
-			if (s_reporting_fn)
-			{
-				s_reporting_fn(out, pconf);
-			}
-		}
-
-		void prebuild_add_output_dep(prebuild_info *info, const char *path)
-		{
-			info->require_outputs.push_back(path);
-		}
-
-		data* create(runtime::descptr rt, const char *path, bool reset_build_db, const char *build_config, int numthreads)
-		{
-			data *d = new data();
-			d->runtime = rt;
-			d->config = build_config;
-			d->num_threads = numthreads ? numthreads : 4;
-			d->liveupdates = false;
-
-			d->obj_path = d->res_path = d->out_path = d->tmp_path = d->tmpobj_path = d->built_obj_path = path;
-
-			std::string desc_path = runtime::desc_str(rt);
-			if (build_config)
-			{
-				desc_path.append("-");
-				desc_path.append(build_config);
-			}
-
-			for (unsigned int i=0;i<desc_path.size();i++)
-				desc_path[i] = ::tolower(desc_path[i]);
-
-			d->obj_path.append("/data/objs");
-			d->res_path.append("/data/res");
-
-			d->out_path.append("/out/");
-			d->out_path.append(desc_path);
-			d->out_path.append("");
-
-			d->tmpobj_path.append("/out/");
-			d->tmpobj_path.append(desc_path);
-			d->tmpobj_path.append("/.obj_tmp");
-
-			d->tmp_path.append("/out/");
-			d->tmp_path.append(desc_path);
-			d->tmp_path.append("/.res_tmp");
-
-			d->built_obj_path.append("/out/");
-			d->built_obj_path.append(desc_path);
-			d->built_obj_path.append("/.built");
-
-			// app specific configurators
-			if (s_init_fn)
-			{
-				s_init_fn(d);
-			}
-
-			std::string build_db_path = path;
-			build_db_path.append("/out/");
-			build_db_path.append(desc_path);
-			build_db_path.append(".build-db");
-
-			std::string input_db_path = path;
-			input_db_path.append("/out/.input-db");
-			
-			std::string tmp_db_path = path;
-			tmp_db_path.append("/out/");
-			tmp_db_path.append(desc_path);
-			tmp_db_path.append("/.input-db");
-
-			d->build_db = build_db::create(build_db_path.c_str(), !reset_build_db);
-			d->input_set = inputset::open(d->obj_path.c_str(), d->res_path.c_str(), input_db_path.c_str());
-			d->tmp_input_set = inputset::open(d->tmpobj_path.c_str(), d->tmp_path.c_str(), tmp_db_path.c_str());
-
-			d->grand_input = 0;
+			data* d = new data();
+			d->conf = *conf;
 			return d;
 		}
 
-		void free(data *builder)
+		void free(data *d)
 		{
-			// keep it all in memory!
-			if (!builder->liveupdates)
+			for (size_t i = 0; i < d->str_allocs.size(); i++)
 			{
-				inputset::write(builder->input_set);
-				inputset::write(builder->tmp_input_set);
+				::free((void*)d->str_allocs[i]);
 			}
-
-			build_db::release(builder->build_db);
-			inputset::release(builder->input_set);
-			inputset::release(builder->tmp_input_set);
-			loader_decref(builder->output_loader);
-			loader_decref(builder->tmp_loader);
-
-			delete builder;
+			delete d;
 		}
 
-		void enable_liveupdate_builds(builder::data *data)
+		void add_handlers(data* d, const handler_info* begin, const handler_info* end)
 		{
-			data->liveupdates = true;
-		}
-
-		build_db::data *get_build_db(builder::data *d)
-		{
-			return d->build_db;
-		}
-
-		const char *config(builder::data *d)
-		{
-			return d->config.c_str();
-		}
-
-		const char *obj_path(data *d)
-		{
-			return d->obj_path.c_str();
-		}
-
-		const char *res_path(data *d)
-		{
-			return d->res_path.c_str();
-		}
-
-		const char *out_path(data *d)
-		{
-			return d->out_path.c_str();
-		}
-
-		const char *tmp_path(data *d)
-		{
-			return d->tmp_path.c_str();
-		}
-
-		const char *built_obj_path(data *d)
-		{
-			return d->built_obj_path.c_str();
-		}
-
-		runtime::descptr runtime(builder::data *data)
-		{
-			return data->runtime;
-		}
-
-		void add_data_builder(builder::data *builder, type_t type, handler_i *handler)
-		{
-			BuildersMap::iterator i = builder->handlers.find(type);
-			if (i == builder->handlers.end())
+			for (const handler_info* i = begin; i != end; i++)
 			{
-				type_entry t;
-				builder->handlers[type] = t;
-				add_data_builder(builder, type, handler);
-				return;
-			}
-
-			builder_entry b;
-			b.handler = handler;
-			i->second.handlers.push_back(b);
-		}
-
-		// remove this when cleaned up
-		struct destroy_deplist
-		{
-			destroy_deplist(build_db::deplist *dl) : _dl(dl) { }
-			~destroy_deplist() { build_db::deplist_free(_dl); }
-			build_db::deplist *_dl;
-		};
-
-		// This adds a newly created input object from the handler. It is an output from the handler's point of view, but really an input.
-		// Maybe we could support adding final objects too.
-		void add_handler_output(build_context *ctx, build_db::record *record, const char *path, type_handler_i *type, instance_t obj, const char *handler_version)
-		{
-			// add input object to tmp
-			db::insert(ctx->tmp, path, type, obj);
-			putki::build_db::add_output(record, path, handler_version);
-		}
-
-		void touched_temp_resource(data *builder, const char *path)
-		{
-			inputset::touched_resource(builder->tmp_input_set, path);
-		}
-
-		// returns either 0 (loaded from cache)
-		// or a reason to rebuild.
-		const char* fetch_cached_build(build_context *context, data *builder, build_db::record * newrecord, const char *handler_name, db::data *input, const char *path, type_handler_i *th)
-		{
-			// Time to hunt for cached object.
-			build_db::record *record = build_db::find(builder::get_build_db(builder), path);
-			if (!record)
-				return "no build record found";
-				
-			const char *old_builder = build_db::get_builder(record);
-			if (strcmp(old_builder, handler_name))
-			{
-				RECORD_DEBUG(newrecord, "Old builder=" << old_builder << " current=" << handler_name)
-				return "builders are diffeent";
-			}
-
-			build_db::deplist *dlist = build_db::inputdeps_get(builder::get_build_db(builder), path);
-			destroy_deplist destroy(dlist);
-
-			if (!dlist)
-			{
-				return "no dlist";
-			}
-
-			bool gotmatch = false;
-
-			for (int i=0;;i++)
-			{
-				const char *entrypath = build_db::deplist_path(dlist, i);
-				if (!entrypath)
+				type_handler_i* th = typereg_get_handler(i->type_id);
+				while (th)
 				{
-					break;
-				}
-			
-				if (!i)
-				{
-					RECORD_DEBUG(newrecord, "Examining cache...")
-				}
-
-				const char *signature = build_db::deplist_signature(dlist, i);
-				if (!build_db::deplist_is_external_resource(dlist, i))
-				{
-					char inputsig[SIG_BUF_SIZE];
-
-					if (builder->liveupdates)
-					{
-						strcpy(inputsig, "<broken signature>");
-						db::signature(input, entrypath, inputsig);
-					}
-					else
-					{
-						if (!inputset::get_object_sig(builder->input_set, entrypath, inputsig))
-						{
-							if (!inputset::get_object_sig(builder->tmp_input_set, entrypath, inputsig))
-							{
-								BUILD_ERROR(builder, "Signature missing weirdness [" << entrypath << "]")
-								strcpy(inputsig, "bonkers");
-							}
-						}
-					}
-
-					RECORD_DEBUG(newrecord, "=> i: " << entrypath << " old:" << signature << " new " << inputsig)
-
-					// only care for builder match when the input is going to be built with this builder
-					if (strcmp(inputsig, signature))
-					{
-						RECORD_DEBUG(newrecord, "!! Detected modification in [" << entrypath << "]")
-						return "input or has been modified";
-					}
-
-					gotmatch = true;
-				}
-				else
-				{
-					RECORD_DEBUG(newrecord, "=> ext: " << entrypath << " old:" << signature)
-
-					char cursig[SIG_BUF_SIZE];
-					if ( (entrypath[0] != '%' && !inputset::get_res_sig(builder->input_set, entrypath, cursig)) ||
-					     (entrypath[0] == '%' && !inputset::get_res_sig(builder->tmp_input_set, entrypath+1, cursig) ))
-					{
-						RECORD_DEBUG(newrecord, "Could not get input sig for " << entrypath)
-						return "failed to read signature on existing resource";
-					}
-					
-					if (strcmp(cursig, signature))
-						return "external source data has been modified";
-
-					gotmatch = true;
+					d->handlers.insert(std::make_pair(th->id(), *i));
+					th = th->parent_type();
 				}
 			}
+		}
 
-			if (!gotmatch)
-				return "there was a record but no matches nor mismatches";
-
-			// Replace the build record from the cache.
-
-			RECORD_DEBUG(newrecord, "Loading from cache...")
-			if (!build_db::copy_existing(builder::get_build_db(builder), newrecord, path))
+		std::string builder_name(data *d, int type_id)
+		{
+			std::string builder_name;
+			std::pair<HandlerMapT::iterator, HandlerMapT::iterator> hs = d->handlers.equal_range(type_id);
+			for (HandlerMapT::iterator i = hs.first; i != hs.second; i++)
 			{
-				BUILD_ERROR(builder, "Failed to copy existing FAILED")
+				if (!builder_name.empty())
+					builder_name.append("&");
+				builder_name.append(i->second.name);
 			}
+			return builder_name.empty() ? "default" : builder_name;
+		}
 
-			// first pass is outputs, second is pointer (which need to be loaded!)
-			for (int j=0;;j++)
+		void create_build_output(struct putki::builder::build_info const *info, struct putki::type_handler_i *th, char const *tag, struct putki::ptr_raw *ptr)
+		{
+			std::string actual(info->path);
+			actual.append("-");
+			actual.append(tag);
+
+			RECORD_INFO(info->record, "Creating output object [" << actual << "] type=" << th->name());
+			instance_t obj = th->alloc();
+			ptr->path = strdup(actual.c_str());
+			ptr->has_resolved = true;
+			ptr->obj = obj;
+			ptr->th = th;
+			ptr->user_data = 1;
+			ptr->ctx = info->internal->ptr_context;
+
+			info->internal->data->str_allocs.push_back(ptr->path);
+			info->internal->outputs.push_back(*ptr);
+		}
+
+		bool store_resource_path(const build_info* info, const char* path, const char* data, size_t size)
+		{
+			if (!objstore::store_resource(info->internal->data->conf.temp, path, data, size))
 			{
-				const char *rpath = build_db::enum_outputs(newrecord, j);
-				if (!rpath)
-				{
-					break;
-				}
-				
-				RECORD_DEBUG(newrecord, "	output[" << j << "] is " << rpath)
-
-				// auxes will not be inserted.
-				if (db::is_aux_path(rpath))
-					continue;
-					
-				if (!strcmp(path, rpath))
-					load_file_deferred(builder->output_loader, context->output, rpath);
-				else
-					load_file_deferred(builder->tmp_loader, context->tmp, rpath);
+				RECORD_ERROR(info->record, "Failed to store temp resource [" << path << "] size=" << size);
+				return false;
 			}
-
-			if (!db::exists(context->output, path, true))
+			objstore::resource_info ri;
+			if (!objstore::query_resource(info->internal->data->conf.temp, path, &ri))
 			{
-				BUILD_ERROR(builder, "ERROR! Wanted to load cached object [" << path << "] but it did not work!")
+				RECORD_ERROR(info->record, "Failed to query stored resource [" << path << "] size=" << size);
+				return false;
 			}
+			return true;
+		}
+		
+		std::string store_resource_tag(const build_info* info, const char* tag, const char* data, size_t size)
+		{
+			std::string actual(info->path);
+			actual.append("-");
+			actual.append(tag);
+			return store_resource_path(info, actual.c_str(), data, size) ? actual : std::string("");
+		}
 
-			// Now we hope for the best since these files came from disk and should be OK unless the user
-			// has touched them.
+		size_t read_resource_segment(const build_info* info, const char* path, char* output, size_t beg, size_t end)
+		{
+			objstore::resource_info ri;
+			if (objstore::query_resource(info->internal->data->conf.temp, path, &ri))
+			{
+				return objstore::read_resource_range(info->internal->data->conf.temp, path, ri.signature.c_str(), output, beg, end);
+			}
+			if (objstore::query_resource(info->internal->data->conf.input, path, &ri))
+			{
+				return objstore::read_resource_range(info->internal->data->conf.input, path, ri.signature.c_str(), output, beg, end);
+			}
 			return 0;
 		}
 
-		// gets aux pointers to the input, adding to output.
-		struct get_aux_deps : public putki::depwalker_i
+		bool fetch_resource(const build_info* info, const char* path, resource* resource)
 		{
-			std::vector<std::string> aux_outs;
-			db::data *input, *tmp, *output;
-			build_db::record *record;
-			const char *name;
-
-			bool pointer_pre(putki::instance_t *on, const char *type_name)
+			objstore::resource_info ri;
+			if (objstore::query_resource(info->internal->data->conf.temp, path, &ri))
 			{
-				if (!*on)
-					return false;
-
-				const char *path = putki::db::pathof_including_unresolved(output, *on);
-				if (!path)
-					return false;
-
-				if (!putki::db::is_aux_path(path))
-					return false;
-
-				putki::type_handler_i *th;
-				putki::instance_t obj = 0;
-				if (putki::db::fetch(output, path, &th, &obj))
+				if (objstore::fetch_resource(info->internal->data->conf.temp, path, ri.signature.c_str(), &resource->internal))
 				{
-					*on = obj;
-					RECORD_DEBUG(record, "Updated pointer to aux [" << path << "]")
+					resource->signature = strdup(ri.signature.c_str());
+					resource->data = resource->internal.data;
+					resource->size = resource->internal.size;
+					build_db::add_external_resource_dependency(info->record, path, resource->signature);
+					return true;
 				}
 				else
 				{
-					if (!putki::db::fetch(input, path, &th, &obj))
-					{
-						RECORD_ERROR(record, "Breakdown of common sense on [" << path << "] CRAZY OBJECT!")
-						return false;
-					}
-
-					RECORD_DEBUG(record, "Cloning [" << path << "] to output.")
-					obj = th->clone(obj);
-					putki::db::insert(output, path, th, obj);
-					*on = obj;
+					build_db::add_external_resource_dependency(info->record, path, "file-not-found");
+					APP_WARNING("Thought i could fetch resource [" << path << "] from tmp but then i couldn't!");
+					return false;
 				}
-
-				aux_outs.push_back(path);
-				return true;
 			}
-
-			void pointer_post(putki::instance_t *on)
+			if (objstore::query_resource(info->internal->data->conf.input, path, &ri))
 			{
-
-			}
-		};
-
-
-		// return true if was built, false if cached.
-		bool build_object(build_context *context, build_db::record * record, db::data *input, const char *path, type_handler_i *th)
-		{
-			bool handled = false;
-			instance_t input_obj = 0;
-			instance_t output_obj = 0;
-			
-			BuildersMap::iterator i = context->builder->handlers.find(th->name());
-			if (i != context->builder->handlers.end())
-			{
-				for (std::vector<builder_entry>::size_type j=0;j!=i->second.handlers.size();j++)
+				if (objstore::fetch_resource(info->internal->data->conf.input, path, ri.signature.c_str(), &resource->internal))
 				{
-					const builder_entry *e = &i->second.handlers[j];
-					const char *reason = fetch_cached_build(context, context->builder, record, e->handler->version(), input, path, th);
-					if (reason)
+					resource->signature = strdup(ri.signature.c_str());
+					resource->data = resource->internal.data;
+					resource->size = resource->internal.size;
+					build_db::add_external_resource_dependency(info->record, path, resource->signature);
+					return true;
+				}
+				else
+				{
+					APP_WARNING("Thought i could fetch resource [" << path << "] from input but then i couldn't!");
+				}
+			}
+			build_db::add_external_resource_dependency(info->record, path, "file-not-found");
+			return false;
+		}
+		
+		void free_resource(resource* resource)
+		{
+			::free((void*)resource->signature);
+			objstore::fetch_resource_free(&resource->internal);
+		}
+
+		void add_build_root(data *d, const char *path, int domain)
+		{
+			if (!d->has_added.count(path))
+			{
+				d->has_added.insert(path);
+
+				to_build tb;
+				tb.path = path;
+				tb.domain = domain;
+				d->to_build.push(tb);
+			}
+		}
+		
+		bool fetch_cached(data* d, const char* path, objstore::object_info* info, const char* bname, build_db::InputDepSigs& sigs)
+		{
+			build_db::record* find = build_db::find_cached(d->conf.build_db, path, info->signature.c_str(), bname, sigs);
+			if (!find)
+			{
+				return false;
+			}
+
+			build_db::deplist* dl = build_db::inputdeps_get(find);
+			int di = 0;
+			while (true)
+			{
+				const char* dep = build_db::deplist_path(dl, di);
+				if (!dep)
+				{
+					break;
+				}
+				if (!deplist_is_external_resource(dl, di))
+				{
+					objstore::object_info dep_info;
+					if (objstore::query_object(d->conf.input, dep, &dep_info))
 					{
-						APP_INFO("Building [" << path << "]")
-						RECORD_INFO(record, "Building with <" << e->handler->version() << "> because " << reason);
-
-						// now need to build, clone it before the builder gets to it.
-						if (!db::fetch(input, path, &th, &input_obj))
-							APP_ERROR("Could not fetch but it existed before? " << path);
-
-						verify_obj(input, 0, th, input_obj, REQUIRE_RESOLVED | REQUIRE_HAS_PATHS, true, true);
-						output_obj = th->clone(input_obj);
-						e->handler->handle(context, context->builder, record, input, path, output_obj);
+						if (strcmp(dep_info.signature.c_str(), build_db::deplist_signature(dl, di)))
+						{
+							APP_DEBUG("fetch_cached: obj-dep check for [" << dep << "] => " << dep_info.signature << " (record had " << build_db::deplist_signature(dl, di) << ")");
+							sigs.insert(std::make_pair(std::string(dep), dep_info.signature));
+							return fetch_cached(d, path, info, bname, sigs);
+						}
+					}
+					else if (objstore::query_object(d->conf.temp, dep, &dep_info))
+					{
+						if (strcmp(dep_info.signature.c_str(), build_db::deplist_signature(dl, di)))
+						{
+							APP_DEBUG("fetch_cached: obj-dep check for [" << dep << "] => " << dep_info.signature << " (record had " << build_db::deplist_signature(dl, di) << ")");
+							sigs.insert(std::make_pair(std::string(dep), dep_info.signature));
+							return fetch_cached(d, path, info, bname, sigs);
+						}
 					}
 					else
 					{
-						// build record has been rewritten from cache, can't go modify it more now.
-						RECORD_DEBUG(record, "Using from cache")
+						APP_DEBUG("fetch_cached => unknown input object [" << dep << "]");
 						return false;
 					}
-
-					// we only support one builder per object
-					handled = true;
-					build_db::set_builder(record, e->handler->version());
-					break;
 				}
+				else
+				{
+					objstore::resource_info res_info;
+					if (objstore::query_resource(d->conf.input, dep, &res_info))
+					{
+						if (strcmp(res_info.signature.c_str(), build_db::deplist_signature(dl, di)))
+						{
+							APP_DEBUG("fetch_cached: res-dep check for [" << dep << "] => " << res_info.signature << " (record had " << build_db::deplist_signature(dl, di) << ")");
+							sigs.insert(std::make_pair(std::string(dep), res_info.signature));
+							return fetch_cached(d, path, info, bname, sigs);
+						}
+					}
+					else if (objstore::query_resource(d->conf.temp, dep, &res_info))
+					{
+						if (strcmp(res_info.signature.c_str(), build_db::deplist_signature(dl, di)))
+						{
+							APP_DEBUG("fetch_cached: res-dep check for [" << dep << "] => " << res_info.signature << " (record had " << build_db::deplist_signature(dl, di) << ")");
+							sigs.insert(std::make_pair(std::string(dep), res_info.signature));
+							return fetch_cached(d, path, info, bname, sigs);
+						}
+					}
+					else if (!strcmp(build_db::deplist_signature(dl, di), "file-not-found"))
+					{
+						APP_DEBUG("fetch_cached: obj still not exists");
+					}
+					else
+					{
+						APP_DEBUG("fetch_cached => [" << dep << "] does not exist any longer.");
+						return false;
+					}
+				}
+				++di;
 			}
 
-			const char *default_name = "default";
-
-			if (!handled)
+			APP_DEBUG("fetch_cached: I have a match")
+			build_db::InputDepSigs::iterator i = sigs.begin();
+			while (i != sigs.end())
 			{
-				// Just moving into output
-				build_db::set_builder(record, default_name);
+				APP_DEBUG("fetch_cached:  filter[" << i->first << "] => [" << i->second << "]");
+				++i;
+			}
 
-				// can only come here if no builder was triggered. need to see if cached (though will be same) is available,
-				// only actually to see if it needs to be rewritten
-				if (!fetch_cached_build(context, context->builder, record, default_name, input, path, th))
+			int o = 0;
+			while (true)
+			{
+				const char* out = build_db::enum_outputs(find, o);
+				if (!out)
 				{
-					RECORD_DEBUG(record, "Using from cache")
+					break;
+				}
+				const char* out_sig = get_output_signature(find, o);
+				if (!objstore::uncache_object(d->conf.temp, d->conf.temp, out, out_sig))
+				{
+					// Is cleanup here actually needed? Probably not.
+					APP_DEBUG("Could not uncache object " << out << " sig=" << out_sig);
 					return false;
 				}
 				else
 				{
-					RECORD_INFO(record, "Building with default handler")
+					APP_DEBUG("Uncached tmp object " << out << " sig=" << build_db::get_signature(find));
 				}
+				++o;
 			}
 
-			db::data *outputdb = context->output;
-
-			// if it has been sucked into input (check without triggering delayed load),
-			// then a clone must be inserted
-			if (output_obj)
+			if (!objstore::uncache_object(d->conf.built, d->conf.built, path, build_db::get_signature(find)))
 			{
-				// if we have the ptr already it was processed/cloned
-				db::insert(outputdb, path, th, output_obj);
+				APP_DEBUG("Could not uncache object " << path << " sig=" << build_db::get_signature(find));
+				return false;
 			}
-			else
+
+			int p = 0;
+			while (true)
 			{
-				if (!input_obj && !db::fetch(input, path, &th, &input_obj, true))
+				const char* ptr = build_db::get_pointer(find, p++);
+				if (!ptr)
 				{
-					APP_ERROR("Could not fetch")
+					break;
 				}
+				if (!d->has_added.count(ptr))
+				{
+					to_build p;
+					p.path = ptr;
+					p.domain = 0;
+					objstore::object_info oi;
+					if (objstore::query_object(d->conf.temp, ptr, &oi))
+					{
+						p.domain = 1;
+					}
 
-				output_obj = th->clone(input_obj);
-				db::insert(outputdb, path, th, output_obj);
+					d->to_build.push(p);
+					d->has_added.insert(ptr);
+				}
 			}
 
-			get_aux_deps ad;
-			ad.input = context->input;
-			ad.tmp = context->tmp;
-			ad.output = context->output;
-			ad.record = record;
-			ad.name = default_name;
-			th->walk_dependencies(output_obj, &ad, true);
-
-			for (unsigned int i=0;i<ad.aux_outs.size();i++)
-			{
-				build_db::add_output(record, ad.aux_outs[i].c_str(), default_name);
-			}
-
-			build_db::add_output(record, path, default_name);
+			build_db::commit_cached_record(d->conf.build_db, find);
 			return true;
 		}
 
-		build_context *create_context(builder::data *builder, db::data *input, db::data *tmp, db::data *output)
+		bool fetch_cached(data* d, const char* path, objstore::object_info* info, const char* bname)
 		{
-			build_context *ctx = new build_context();
-			ctx->builder = builder;
-			ctx->input = input;
-			ctx->tmp = tmp;
-			ctx->output = output;
-
-			builder->output_loader = create_loader(builder->built_obj_path.c_str());
-			loader_add_resolve_src(builder->output_loader, output, builder->built_obj_path.c_str());
-			
-			// TODO: Should these be here? When would we want to resolve pointers to here...
-			//       Not in packaging at least!
-			loader_add_resolve_src(builder->output_loader, tmp, builder->tmpobj_path.c_str());
-			loader_add_resolve_src(builder->output_loader, input, builder->obj_path.c_str());
-
-			builder->tmp_loader = create_loader(builder->tmpobj_path.c_str());
-			loader_add_resolve_src(builder->tmp_loader, tmp, builder->tmpobj_path.c_str());
-			loader_add_resolve_src(builder->tmp_loader, input, builder->obj_path.c_str());
-
-			return ctx;
+			build_db::InputDepSigs sigs;
+			return fetch_cached(d, path, info, bname, sigs);
 		}
 
-		void context_add_to_build(build_context *context, const char *path)
+		void fixup_pointers(data* d, type_handler_i* th, instance_t obj, ptr_context* context, const char* root_path)
 		{
-			sys::scoped_maybe_lock lk0(&context->mtx_items);
-			if (!context->added.count(path))
+			ptr_query_result result;
+			th->query_pointers(obj, &result, false, true);
+			for (size_t i = 0; i < result.pointers.size(); i++)
 			{
-				work_item *wi = new work_item();
-				wi->input = context->input;
-				wi->path = path;
-				context->items.push_back(wi);
-				context->cnd_items.broadcast();
-				context->added.insert(path);
-			}
-		}
-
-		void context_add_build_record_pointers(build_context *context, const char *path)
-		{
-			build_db::record *r = build_db::find(context->builder->build_db, path);
-			if (!r)
-				APP_ERROR("Build db broken")
-
-			std::vector<std::string> ptrs, final;
-
-			for (unsigned long i=0;;i++)
-			{
-				const char *path = build_db::get_pointer(r, i);
-				if (!path) break;
-
-				char buf[SIG_BUF_SIZE];
-				if (inputset::get_object_sig(context->builder->input_set, path, buf))
-					ptrs.push_back(path);
-			}
-			
-			sys::scoped_maybe_lock lk0(&context->mtx_items);
-			for (unsigned int i=0;i!=ptrs.size();i++)
-			{
-				if (!context->added.count(ptrs[i]))
-					final.push_back(ptrs[i]);
-			}
-			lk0.unlock();
-			
-			for (unsigned int i=0;i!=final.size();i++)
-				context_add_to_build(context, final[i].c_str());
-		}
-
-		void context_process_record(build_context *context, work_item *item)
-		{
-			BUILD_DEBUG(context->builder, "Record: " << item->path)
-			if (!db::exists(item->input, item->path.c_str(), true))
-			{
-				BUILD_ERROR(context->builder, "db::exists check failed on " << item->path << " " << item->input);
-				return;
-			}
-
-			// We use db::signature
-			char sig[SIG_BUF_SIZE];
-			type_handler_i *th = 0;
-			const char *type_name = 0;
-			
-			if (db::is_aux_path(item->path.c_str()))
-			{
-				strcpy(sig, "aux-no-sig");
-			}
-			else
-			{
-				type_name = inputset::get_object_type(context->builder->input_set, item->path.c_str());
-				if (!inputset::get_object_sig(context->builder->input_set, item->path.c_str(), sig))
+				ptr_raw *p = result.pointers[i];
+				p->ctx = context;
+				if (p->path == 0 || !p->path[0])
 				{
-					type_name = inputset::get_object_type(context->builder->tmp_input_set, item->path.c_str());
-					if (!inputset::get_object_sig(context->builder->tmp_input_set, item->path.c_str(), sig))
-					{
-						BUILD_WARNING(context->builder, "No signature on " << item->path);
-						strcpy(sig, "tmp-obj-sig");
-					}
+					continue;
 				}
-			}
-			
-			if (!type_name)
-			{
-				// Fall back for inserted object during live update
-				if (context->builder->liveupdates)
+				if (p->path[0] == '#')
 				{
-					// recover by getting th
-					instance_t tmp;
-					db::fetch(item->input, item->path.c_str(), &th, &tmp);
-					type_name = "live-update-insertede-object";
+					std::string actual(root_path);
+					size_t already = actual.find_last_of('#');
+					if (already != std::string::npos)
+					{
+						actual.erase(actual.begin() + already, actual.end());
+					}
+					actual.append(p->path);
+					p->path = strdup(actual.c_str());
+					d->str_allocs.push_back(p->path);
+				}
+				
+				objstore::object_info info;
+				if (objstore::query_object(d->conf.temp, p->path, &info))
+				{
+					p->user_data = 1;
 				}
 				else
 				{
-					BUILD_ERROR(context->builder, "I cannot build because " << item->path << " has unknown type!");
+					p->user_data = 0;
+				}
+			}
+		}
+		
+		struct ptr_ctx_data
+		{
+			data* d;
+			std::set<const char*> visited;
+		};
+
+		void ptr_resolve_internal(ptr_raw* ptr, bool allow_cache, objstore::object_info* info)
+		{
+			if (ptr->path == 0 || !ptr->path[0])
+			{
+				ptr->obj = 0;
+				return;
+			}
+
+			ptr_ctx_data* pcd = (ptr_ctx_data*)ptr->ctx->user_data;
+			data* d = pcd->d;
+			objstore::data* store;
+			LoadedT* cache;
+			switch (ptr->user_data)
+			{
+			case 0:
+				store = d->conf.input;
+				cache = &d->loaded_input;
+				break;
+			case 1:
+				store = d->conf.temp;
+				cache = &d->loaded_temp;
+				break;
+			case 2:
+				store = d->conf.built;
+				cache = &d->loaded_built;
+				break;
+			default:
+				APP_ERROR("Invalid ptr domain. I do not know from which store to get it.");
+				ptr->obj = 0;
+				break;
+			}
+
+			// TODO: Verify that pointers are compatible with what is actually being loaded.
+
+			if (allow_cache)
+			{
+				LoadedT::iterator i = cache->find(ptr->path);
+				if (i != cache->end())
+				{
+					ptr->obj = i->second.obj;
+					ptr->th = i->second.th;
+					info->signature = i->second.signature;
+					info->th = i->second.th;
+					return;
 				}
 			}
 
-			if (!th) th = typereg_get_handler(type_name);
-			if (!th) BUILD_ERROR(context->builder, "No type handler for [" << type_name << "]");
-
-			build_db::record *record = build_db::create_record(item->path.c_str(), sig);
-			build_db::add_input_dependency(record, item->path.c_str());
-			build_db::set_parent(record, item->parent_path.c_str());
-
-			std::vector<work_item *> sub_items;
-
-			bool from_cache = item->from_cache = !build_object(context, record, item->input, item->path.c_str(), th);
+			if (!objstore::query_object(store, ptr->path, info))
 			{
-				// create new build records for the sub outputs
-				unsigned int outpos = 0;
+				APP_ERROR("Unable to resolve " << ptr->path);
+				ptr->obj = 0;
+				return;
+			}
 
-				while (const char *cr_path_ptr = build_db::enum_outputs(record, outpos))
+			objstore::fetch_obj_result result;
+			if (!objstore::fetch_object(store, ptr->path, &result))
+			{
+				APP_ERROR("Unable to fetch " << ptr->path);
+				ptr->obj = 0;
+				return;
+			}
+
+			fixup_pointers(d, info->th, result.obj, ptr->ctx, ptr->path);
+
+			if (allow_cache)
+			{
+				loaded l;
+				l.obj = result.obj;
+				l.th = info->th;
+				l.signature = info->signature;
+				cache->insert(std::make_pair(std::string(ptr->path), l));
+			}
+
+			ptr->th = info->th;
+			ptr->obj = result.obj;
+		}
+
+		void ptr_resolve(ptr_raw* ptr)
+		{
+			objstore::object_info info;
+			ptr_resolve_internal(ptr, true, &info);
+		}
+
+		void ptr_deref(const ptr_raw* ptr)
+		{
+			ptr_ctx_data* pcd = (ptr_ctx_data*) ptr->ctx->user_data;
+			if (ptr->path != 0 && ptr->path[0] != 0)
+			{
+				pcd->visited.insert(ptr->path);
+			}
+		}
+
+		void add_post_build_object(data* d, type_handler_i* th, instance_t obj, const char* path)
+		{
+			signature::buffer buf;
+			const char* sig = signature::object(th, obj, buf);
+			if (!objstore::store_object(d->conf.temp, path, th, obj, sig))
+			{
+				APP_WARNING("Failed to store post build object [" << path << "]");
+			}
+			add_build_root(d, path, 1);
+		}
+
+		void do_build(data *d, bool incremental)
+		{
+			ptr_ctx_data pcd;
+			pcd.d = d;
+
+			ptr_context pctx;
+			pctx.user_data = (uintptr_t)&pcd;
+			pctx.deref = ptr_deref;
+			pctx.resolve = ptr_resolve;
+
+			while (true)
+			{
+				if (d->to_build.empty())
 				{
-					// ignore what we just built.
-					if (!strcmp(cr_path_ptr, item->path.c_str()))
+					break;
+				}
+
+				to_build next = d->to_build.front();
+				d->to_build.pop();
+
+				const char* path = next.path.c_str();
+
+				bool found = false;
+				objstore::object_info info;
+				switch (next.domain)
+				{
+					case 0: found = objstore::query_object(d->conf.input, path, &info); break;
+					case 1: found = objstore::query_object(d->conf.temp, path, &info); break;
+					default: break;
+				}
+
+				if (!found)
+				{
+					APP_ERROR("Could not find object [" << path << "] from domain " << next.domain);
+					continue;
+				}
+
+				std::string bname = builder_name(d, info.th->id());
+				if (incremental && fetch_cached(d, path, &info, bname.c_str()))
+				{
+					APP_DEBUG("Got cached object, no build needed.");
+					continue;
+				}
+
+				ptr_raw source;
+				source.ctx = &pctx;
+				source.has_resolved = false;
+				source.user_data = next.domain;
+				source.path = path;
+
+				APP_DEBUG("Processing object [" << next.path << "] domain=" << next.domain);
+
+				ptr_resolve_internal(&source, false, &info);
+				if (!source.obj)
+				{
+					APP_ERROR("Could not resolve ptr! [" << next.path << "] from domain " << next.domain);
+					continue;
+				}
+
+				build_info_internal bii;
+				bii.data = d;
+				bii.ptr_context = &pctx;
+
+				build_info bi;
+				bi.path = path;
+				bi.build_config = d->conf.build_config;
+				bi.type = info.th;
+				bi.object = source.obj;
+				bi.record = build_db::create_record(path, info.signature.c_str(), builder_name(d, info.th->id()).c_str());;
+				bi.internal = &bii;
+
+				pcd.visited.clear();
+
+				bool has_error = false;
+				std::pair<HandlerMapT::iterator, HandlerMapT::iterator> hs = d->handlers.equal_range(info.th->id());
+				for (HandlerMapT::iterator i = hs.first; i != hs.second; i++)
+				{
+					bi.builder = i->second.name;
+					bi.user_data = i->second.user_data;
+					RECORD_INFO(bi.record, "Invoking builder " << bi.builder << "...");
+					if (!i->second.fn(&bi))
 					{
-						outpos++;
+						RECORD_ERROR(bi.record, "Error occured when building with builder " << bi.builder);
+						has_error = true;
+						break;
+					}
+				}
+				
+				if (hs.first == hs.second)
+				{
+					RECORD_INFO(bi.record, "Copying to output");
+				}
+				
+				std::set<const char*> ignore;
+				for (size_t i = 0; i != bii.outputs.size(); i++)
+				{
+					signature::buffer sigbuf;
+					const char* sig = signature::object(bii.outputs[i].th, bii.outputs[i].obj, sigbuf);
+					objstore::store_object(d->conf.temp, bii.outputs[i].path, bii.outputs[i].th, bii.outputs[i].obj, sig);
+					build_db::add_output(bi.record, bii.outputs[i].path, bname.c_str(), sig);
+
+					loaded le;
+					le.th = bii.outputs[i].th;
+					le.obj = bii.outputs[i].obj;
+					le.signature = sig;
+					d->loaded_temp.insert(std::make_pair(std::string(bii.outputs[i].path), le));
+					ignore.insert(bii.outputs[i].path);
+				}
+
+				std::set<const char*>::iterator deps = pcd.visited.begin();
+				while (deps != pcd.visited.end())
+				{
+					if (ignore.find(*deps) != ignore.end())
+					{
+						++deps;
 						continue;
 					}
-
-					if (db::is_aux_path(cr_path_ptr))
+					LoadedT::iterator i = d->loaded_temp.find(*deps);
+					if (i != d->loaded_temp.end())
 					{
-						outpos++;
-						continue;
+						build_db::add_input_dependency(bi.record, *deps, i->second.signature.c_str());
 					}
-					
-					// if from cache, data is already there. aux objs are not stored separately
-					if (!from_cache && !db::is_aux_path(cr_path_ptr))
+					else
 					{
-						RECORD_INFO(record, "Build created [" << cr_path_ptr << "]")
-
-						// Write out temp object cache
-						type_handler_i *_th;
-						instance_t _obj;
-						if (db::fetch(context->tmp, cr_path_ptr, &_th, &_obj))
+						i = d->loaded_input.find(*deps);
+						if (i != d->loaded_input.end())
 						{
-							char fn[1024], buffer[128];
-							BUILD_DEBUG(context->builder, "Writing output to tmp [" << cr_path_ptr << "] and recording signature " << db::signature(context->tmp, cr_path_ptr, buffer))
-							if (write::write_object_to_fs(context->builder->tmpobj_path.c_str(), cr_path_ptr, context->tmp, _th, _obj, fn))
-							{
-								inputset::force_obj(context->builder->tmp_input_set, cr_path_ptr, db::signature(context->tmp, cr_path_ptr, buffer), _th->name());
-							}
-							else
-							{
-								APP_ERROR("Failed to write " << cr_path_ptr)
-							}
+							build_db::add_input_dependency(bi.record, *deps, i->second.signature.c_str());
 						}
 						else
 						{
-							BUILD_ERROR(context->builder, "Could not read output " << cr_path_ptr)
+							APP_ERROR("Visited set contained entry " << *deps << " not in either input or temp!");
 						}
 					}
-
-					work_item *wi = new work_item();
-					wi->path = cr_path_ptr;
-					wi->parent_path = item->path;
-					wi->input = context->tmp;
-					sub_items.push_back(wi);
-					outpos++;
+					++deps;
 				}
-			}
 
-			APP_DEBUG("Post-processing item")
-
-			build_db::commit_record(context->builder->build_db, record);
-
-			if (!context->builder->liveupdates)
-			{
-				if (!from_cache)
-					build_db::insert_metadata(builder::get_build_db(context->builder), context->output, item->path.c_str());
-
-				context_add_build_record_pointers(context, item->path.c_str());
-			}
-
-			flush_log(record);
-
-			context->mtx_items.lock();
-			for (unsigned int i=0;i<sub_items.size();i++)
-				context->items.push_back(sub_items[i]);
-			context->cnd_items.broadcast();
-			context->mtx_items.unlock();
-		}
-
-		void context_finalize(build_context *context)
-		{
-			APP_INFO("Finalizing build context with " << context->items.size() << " records.")
-			std::random_shuffle(context->items.begin(), context->items.end());
-		}
-		
-		struct buildthread
-		{
-			build_context *context;
-			int id;
-		};
-		
-		void* build_thread(void *userptr)
-		{
-			buildthread *bt = (buildthread *)userptr;
-			build_context *context = bt->context;
-			int id = bt->id;
+				signature::buffer sigbuf;
+				const char* sig = signature::object(source.th, source.obj, sigbuf);
 			
-			bool has_built = false;
-			
-			while (true)
-			{
-				// get an item
-				work_item *item;
-				context->mtx_items.lock();
-				
-				if (has_built)
+				build_db::flush_log(bi.record);
+				build_db::insert_metadata(bi.record, source.th, source.obj, source.path, sig);
+				build_db::commit_record(d->conf.build_db, bi.record);
+
+				ptr_query_result ptrs;
+				source.th->query_pointers(source.obj, &ptrs, true, true);
+
+				// Add runtime dependencies.
+				for (size_t i = 0; i < ptrs.pointers.size();i++)
 				{
-					context->items_finished++;
-					context->cnd_items.broadcast();
-				}
-				
-				while (true)
-				{
-					if (context->item_pos < context->items.size())
+					ptr_raw* p = ptrs.pointers[i];
+					if (p->path != 0 && p->path[0])
 					{
-						item = context->items[context->item_pos++];
-						APP_DEBUG("Thread " << id << " picked item " << item->path)
-						context->mtx_items.unlock();
-						break;
+						if (!d->has_added.count(p->path))
+						{
+							to_build tb;
+							tb.path = p->path;
+							tb.domain = (int)p->user_data;
+							d->to_build.push(tb);
+							d->has_added.insert(p->path);
+						}
 					}
-					if (context->items_finished == context->item_pos)
-					{
-						context->mtx_items.unlock();
-						delete bt;
-						return 0;
-					}
-					context->cnd_items.wait(&context->mtx_items);
 				}
-				
-				context_process_record(context, item);
-				has_built = true;
-			}
-		}
 
-		void context_build(build_context *context)
-		{
-			context->builder->grand_input = context->input;
-			context->item_pos = context->items_finished = 0;
-
-			APP_INFO("Starting build with " << context->builder->num_threads << " threads..")
-			
-			for (unsigned int i=0;i<(context->builder->num_threads-1);i++)
-			{
-				buildthread *bt = new buildthread();
-				bt->id = i;
-				bt->context = context;
-				context->threads.push_back(sys::thread_create(build_thread, bt));
+				objstore::store_object(d->conf.built, path, info.th, source.obj, sig);
 			}
-
-			// join the build self.
-			buildthread *self = new buildthread();
-			self->context = context;
-			self->id = -1;
-			build_thread(self);
-			
-			for (int i=0;i!=context->threads.size();i++)
-			{
-				sys::thread_join(context->threads[i]);
-				APP_DEBUG("Thread " << i << " completed")
-				delete context->threads[i];
-			}
-			
-			APP_INFO("Finished build, total of " << context->items.size() << " build records")
-		}
-
-		void build_source_object(data *builder, db::data *input, db::data *tmp, db::data *output, const char *path)
-		{
-			work_item *wi = new work_item();
-			
-			if (db::exists(input, path))
-			{
-				wi->input = input;
-			}
-			else if (db::exists(tmp, path))
-			{
-				wi->input = tmp;
-			}
-			else
-			{
-				APP_WARNING("Tried to build object not in input or tmp! [" << path << "]")
-				delete wi;
-				return;
-			}
-			
-			wi->path = path;
-			
-			build_context *ctx = create_context(builder, input, tmp, output);
-			ctx->items.push_back(wi);
-			
-			context_finalize(ctx);
-			context_build(ctx);
-			build::post_build_ptr_update(input, output);
-			context_destroy(ctx);
-		}
-
-		const char* context_get_built_object(build_context *context, unsigned int i)
-		{
-			if (i < context->items.size())
-			{
-				return context->items[i]->path.c_str();
-			}
-			return 0;
-		}
-
-		bool context_was_read_from_cache(build_context *context, unsigned int i)
-		{
-			if (i < context->items.size())
-			{
-				return context->items[i]->from_cache;
-			}
-			return false;
-		}
-
-		void context_destroy(build_context *context)
-		{
-			for (unsigned int i=0;i<context->items.size();i++)
-				delete context->items[i];
-			delete context;
-		}
-		void write_build_db(builder::data *d)
-		{
-			build_db::store(d->build_db);
-		}
-
-		void record_log(data *builder, LogType type, const char *text)
-		{
-			putki::print_log("BUILD", type, text);
 		}
 	}
-
 }

@@ -25,51 +25,6 @@ namespace putki
 		}
 	}
 
-	struct depwalker_i::visited_set
-	{
-		std::set<void *> visited;
-	};
-
-	void depwalker_i::reset_visited()
-	{
-		if (_visited)
-			_visited->visited.clear();
-	}
-
-	depwalker_i::depwalker_i()
-	{
-		_visited = 0;
-	}
-
-	depwalker_i::~depwalker_i()
-	{
-		delete _visited;
-	}
-
-	bool depwalker_i::pointer_pre_filter(instance_t *on, const char *ptr_type)
-	{
-		bool ret = pointer_pre(on, ptr_type);
-		if (ret)
-		{
-			if (!_visited)
-			{
-				_visited = new depwalker_i::visited_set();
-				_visited->visited.insert(on);
-				return true;
-			}
-			else if (_visited->visited.count(on))
-			{
-				return false;
-			}
-			else
-			{
-				_visited->visited.insert(on);
-				return true;
-			}
-		}
-		return false;
-	}
-
 	void typereg_init()
 	{
 

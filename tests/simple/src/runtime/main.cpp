@@ -14,6 +14,10 @@ int main()
 	for (unsigned int i = 0; i < everything->root_structs_size; i++)
 	{
 		outki::root_struct* rs = everything->root_structs[i];
+		if (!rs)
+		{
+			continue;
+		}
 		switch (rs->rtti_type_id())
 		{
 			case outki::sub_sub_sub_struct1::TYPE_ID:

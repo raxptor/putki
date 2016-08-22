@@ -6,15 +6,18 @@
 		"T3": "triply-nested",
 		"VPtr": "",
 		"RootStructs": ["subsubstruct",
-		"root1"],
+		"root1", "thisisnull"],
 		"VAuxPtr": "#roz9h",
 		"VTInline": {
 			"A": 3.4,
 			"B": 199,
-			"Text": "This is value type in C#",
+			"Text": "This is cykelpump type in C#",
 			"DummyPtr": "dummy2"
 		},
-		"BuildConfiguration": "buildconfig"
+		"BuildConfiguration": "buildconfig",
+		"Built": "",
+		"WRes": ["data-1",
+		"test/data-2"]
 	},
 	"aux": [
 		{
@@ -23,7 +26,7 @@
 			"data": {
 				"A": 1,
 				"B": 0,
-				"Text": "This is a struct in C#",
+				"Text": "This is a nothing in C#",
 				"DummyPtr": "dummy1"
 			}
 		}

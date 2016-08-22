@@ -28,7 +28,7 @@
 			"type": "RootStruct",
 			"data": {
 				"Name": "Root2",
-				"DebugName": "Debug Root 2"
+				"DebugName": "Debug Root"
 			}
 		}, {
 			"ref": "#ijhq9",

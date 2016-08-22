@@ -1,7 +1,6 @@
 #include <fstream>
 #include <vector>
 
-#include "resource.h"
 #include "log.h"
 
 namespace putki
@@ -35,7 +34,9 @@ namespace putki
 			f.read(d->buf, size);
 			
 			if (f.gcount() != size)
+			{
 				APP_WARNING("did not read the whole file");
+			}
 
 			return d;
 		}
@@ -56,8 +57,9 @@ namespace putki
 				{
 					buf[i] = 0;
 					if (i - start > 0)
+					{
 						d->ptrs.push_back(&buf[start]);
-						
+					}
 					start = i + 1;
 				}
 			}
