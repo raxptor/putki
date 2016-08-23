@@ -11,32 +11,18 @@ namespace Netki
 
 	public static class PacketLane
 	{
-		public struct PendingOut
-		{
-			public Bitstream.Buffer Source;
-			public uint SeqId;
-			public bool IsFinalPiece;
-			public bool Reliable;
-			public uint Begin, End;
-			public DateTime SendTime;
-			public DateTime InitialSendTime;
-			public uint SendCount;
-		}
-
-		public struct PendingIn
-		{
-			public Bitstream.Buffer Packet;
-			public uint Seq;
-			public bool Reliable;
-			public DateTime ArrivalTime;
-		}
-
 		public struct InProgress
 		{
 			public uint SeqId;
 			public Bitstream.Buffer Data;
 			public DateTime ArrivalTime;
 			public bool IsFinalPiece;
+		}
+
+		public struct AckRange
+		{
+			public uint Begin;
+			public uint End;
 		}
 
 		public struct Done
@@ -55,12 +41,12 @@ namespace Netki
 			public Bitstream.Buffer Data;
 		}
 
-		public struct ToSend
+		// Unreliable buffer out
+		public struct OutUBuf
 		{
-			public Lane Lane;
-			public Bitstream.Buffer Data;
-			public bool Reliable;
-			public bool CanKeepData;
+			public byte[] Data;
+			public uint Pos;
+			public uint Length;
 		}
 
 		public struct Statistics
@@ -77,52 +63,67 @@ namespace Netki
 			public uint RecvBytes;
 			public uint RecvUnreliable;
 		}
+		
+		public struct SeqTimes
+		{
+			public uint Seq;
+			public DateTime When;
+		}
 
 		public class Lane
 		{
 			// id is user data.
-			public Lane(ulong id, int slots)
+			public Lane(ulong id, int slots, int bufferSize = 2048)
 			{
-				Out = new PendingOut[slots];
-				Progress = new InProgress[slots];
+				OutU = new OutUBuf[slots];
 				Done = new Done[slots];
-				Acks = new uint[slots];
-				PeerAcks = new uint[slots*2];
+				RecvBuffer = new byte[bufferSize];
+				SendBuffer = new byte[bufferSize];
+				SendFutureAcks = new AckRange[4];
+				RecvFutureAcks = new AckRange[4];
+				SendSeqTimes = new SeqTimes[SendSeqTimesSize];
 				Id = id;
 				LagMsMin = 0;
-				ResendMs = 200;
+				ResendMs = 500;
+				SendPeerRecvMax = 2048; // assume at least 4k buffer
 			}
 
 			public ulong Id;
 
-			public PendingOut[] Out;
-			public ushort OutCount;
+			public byte[] RecvBuffer;
+			public uint RecvHead;
+			public uint RecvSeqCursor;  // Complete data pos.
+			public uint RecvTail;       // Read/decode cursor
+			public AckRange[] RecvFutureAcks;
+			public uint RecvFutureAckCount;
 
-			public InProgress[] Progress;
-			public uint ProgressHead;
-			public uint ProgressTail;
+			// 
+			public byte[] SendBuffer;
+			public uint SendHead;
+			public uint SendPeerRecv;    // How far peer has received.
+			public uint SendPeerRecvMax; // How far peer can accept.
+			public uint SendCursor;
+			public AckRange[] SendFutureAcks;
+			public uint SendFutureAckCount;
+			public DateTime SendResetTime;
+			public bool DoSendAcks;
+			
+			public const uint SendSeqTimesSize = 128;
+			public SeqTimes[] SendSeqTimes = new SeqTimes[SendSeqTimesSize];
+
+			// 
+			public OutUBuf[] OutU;
+			public uint OutUCount;
 
 			public Done[] Done;
 			public uint DoneHead;
 			public uint DoneTail;
 
-			public uint[] Acks;
-			public ushort AckCount;
-			public bool SendAckPacket;
-
-			public uint ReliableSeq;
-
-			public uint[] PeerAcks;
-			public uint PeerAckCount;
-			public uint PeerReliableSeq;
-
 			public uint ResendMs;
-			public uint OutgoingSeqUnreliable;
-			public uint OutgoingSeqReliable;
+			public uint OutgoingSeq;
 			public uint LagMsMin;
 
 			public int Errors;
-
 			public Statistics Stats;
 		}
 
@@ -136,10 +137,10 @@ namespace Netki
 		public struct Incoming
 		{
 			public Lane Lane;
-			public Bitstream.Buffer Packet;
 			public DateTime ArrivalTime;
-			public IncomingInternal Internal;
-			public bool CanKeepData;
+			public byte[] Data;
+			public uint Pos;
+			public uint Length;
 		}
 
 		public struct LaneSetup
@@ -156,393 +157,447 @@ namespace Netki
 			Console.WriteLine("PL: " +s);
 		}
 
+		[Conditional("DEBUG")]
+		private static void Log(Lane l, string s)
+		{
+			Console.WriteLine("PL[" + l.Id + "]:" +s);
+		}
+
+		[Conditional("DEBUG")]
+		private static void Assert(bool cond, string desc)
+		{
+			if (!cond)
+			{
+				Console.WriteLine("Assert failure! " + desc);
+			}
+		}
+
 		// This will start reading from the buffers and modify the incoming array.
 		public static void HandleIncomingPackets(LaneSetup setup, Incoming[] packets, uint packetsCount)
 		{
-			// Zero pass make own buffers.
 			for (uint i=0;i<packetsCount;i++)
 			{
-				if (!packets[i].CanKeepData)
-				{
-					Bitstream.Buffer tmp = packets[i].Packet;
-					Bitstream.Buffer copy = setup.Factory.GetBuffer((uint)tmp.buf.Length);
-					Bitstream.Insert(copy, tmp);
-					copy.Flip();
-					packets[i].Packet = copy;
-				}
-			}
-
-			// First pass extract.
-			for (uint i=0;i<packetsCount;i++)
-			{
-				Bitstream.Buffer tmp = packets[i].Packet;
+				byte[] data = packets[i].Data;
+				uint pos = packets[i].Pos;
+				uint end = packets[i].Pos + packets[i].Length;
 				Lane lane = packets[i].Lane;
-				lane.Stats.RecvCount++;
-				lane.Stats.RecvBytes += tmp.BitsLeft() / 8;
 
-				bool reliable = Bitstream.ReadBits(tmp, 1) == 1;
-				uint seq = Bitstream.ReadCompressedUint(tmp);
-				packets[i].Internal.Seq = seq;
-				packets[i].Internal.IsReliable = reliable;
+				uint seq;
+				pos = ReadU32(data, pos, out seq);
 
-				if (seq == 0)
+				while ((end - pos) > 5)
 				{
-					lane.Stats.RecvAckOnly++;
-				}
-
-				if (reliable)
-				{
-					if (seq != 0)
+					byte type = data[pos++];
+					if (type == 0)
 					{
-						lane.SendAckPacket = true;
-					}
-					packets[i].Internal.IsFinalPiece = Bitstream.ReadBits(tmp, 1) == 1;
-					uint sack = Bitstream.ReadCompressedUint(tmp);
-
-					Log("Lane" + lane.Id + " got rel, seq=" + seq + " sack=" + sack + " prevper=" + lane.PeerReliableSeq + " sz=" + tmp.bytesize);
-					if (lane.PeerReliableSeq < sack)
-					{
-						lane.PeerReliableSeq = sack;
-					}
-
-					if (!packets[i].Internal.IsFinalPiece)
-					{
-						lane.Stats.RecvNonFinal++;
-					}
-
-					while (true)
-					{
-						uint seqAck = Bitstream.ReadCompressedUint(tmp);
-						if (seqAck == 0)
-							break;
-						if (seqAck > lane.PeerReliableSeq && lane.PeerAckCount < lane.PeerAcks.Length)
+						// Ack data.
+						if ((end-pos) < 9)
 						{
-							Log(lane.Id + " received future ack " + seqAck);
-							lane.PeerAcks[lane.PeerAckCount++] = seqAck;
+							Log(lane, "Ack chunk but it is too tiny");
+							break;
+						}
+						uint recvSeqCursor, maxRecv;
+						pos = ReadU32(data, pos, out lastSeenSeq);
+						pos = ReadU32(data, pos, out recvSeqCursor);
+						pos = ReadU32(data, pos, out maxRecv);
+						byte count = data[pos++];
+						
+						uint idx = lastSeenSeq % SeqTimesSize;
+						if (lane.SeqTimes[idx].Seq == lastSeenSeq)
+						{
+							float time = (packets[i].Timestamp - lane.SeqTimes[idx].Timestamp).TotalMilliseconds;
+							Log(lane, "Ronudtrip time=" + time);
+						}
+
+						if ((end-pos) < count * 8)
+						{
+							Log(lane, "Ack chunk but it is too tiny to hold " + count + " future acks!");
+							break;
+						}
+
+						bool wasOld = false;
+						if (maxRecv >= lane.SendPeerRecvMax)
+						{
+							lane.SendPeerRecvMax = maxRecv;
+							Log(lane, "Peer can receive up to " + maxRecv);
+						}
+						else
+						{
+							wasOld = true;
+							Log(lane, "Out of order acks, maxRecv=" + maxRecv + " previous=" + lane.SendPeerRecvMax);
+						}
+
+						if (recvSeqCursor >= lane.SendPeerRecv)
+						{
+							lane.SendPeerRecv = recvSeqCursor;
+							Log(lane, "Peer has received everything up to " + lane.SendPeerRecv);
+						}
+						else
+						{
+							wasOld = true;
+							Log(lane, "Out of order recv");
+						}
+
+						if (!wasOld)
+						{
+							lane.RecvFutureAckCount = 0;
+							for (uint j=0;j<count;j++)
+							{
+								if (j < lane.RecvFutureAcks.Length)
+								{
+									pos = ReadU32(data, pos, out lane.RecvFutureAcks[j].Begin);
+									pos = ReadU32(data, pos, out lane.RecvFutureAcks[j].End);
+									Log(lane, " => AckRange " + j + " = [" + lane.RecvFutureAcks[j].Begin + ", " + lane.RecvFutureAcks[j].End + "]");
+									lane.RecvFutureAckCount = j + 1;
+								}
+								else
+								{
+									pos += 8;
+								}
+							}
+						}
+						else
+						{
+							pos = pos + (uint)(8 * count);
 						}
 					}
-				}
-				else
-				{
-					packets[i].Internal.IsFinalPiece = true;
-				}
-
-				Bitstream.SyncByte(tmp);
-			}
-
-			// Unreliable packets, these are placed in the out queue after reading out the sequence and mode.
-			for (int i=0;i<packetsCount;i++)
-			{
-				if (packets[i].Internal.IsReliable || packets[i].Internal.Seq == 0)
-					continue;
-				Lane lane = packets[i].Lane;
-				if (lane.DoneHead - lane.DoneTail != lane.Done.Length)
-				{
-					uint head = lane.DoneHead % (uint)lane.Done.Length;
-					lane.Done[head].Data = packets[i].Packet;
-					lane.Done[head].Reliable = false;
-					lane.Done[head].SeqId = packets[i].Internal.Seq;
-					lane.Done[head].ArrivalTime = packets[i].ArrivalTime;
-					lane.Done[head].CompletionTime = packets[i].ArrivalTime;
-					lane.Done[head].Lane = lane;
-					packets[i].Packet = null;
-					lane.DoneHead = lane.DoneHead + 1;
-					lane.Stats.RecvUnreliable++;
-				}
-			}
-
-			// Handle reliable. These go straight
-			for (int i=0;i<packetsCount;i++)
-			{
-				if (!packets[i].Internal.IsReliable || packets[i].Internal.Seq == 0)
-					continue;
-
-				Lane lane = packets[i].Lane;
-
-				if (packets[i].Internal.Seq <= lane.ReliableSeq)
-				{
-					Log("Lane " + lane.Id + " reecived " + packets[i].Internal.Seq + " but had it already");
-					// already had it but send ack anyway.
-					if (lane.AckCount < lane.Acks.Length)
-					{						
-						lane.Acks[lane.AckCount++] = packets[i].Internal.Seq;
-					}
-					lane.Stats.RecvDupes++;
-					continue;
-				}
-
-				Log("Lane " + lane.Id + " reecived " + packets[i].Internal.Seq + "!");
-
-
-				// If packet arrives a second time, ignore.
-				uint numProgress = (uint)lane.Progress.Length;
-				bool hadit = false;
-				for (uint p = lane.ProgressTail;p != lane.ProgressHead;p++)
-				{
-					uint idx = p % numProgress;
-					if (lane.Progress[idx].SeqId == packets[i].Internal.Seq)
+					else if (type == 1)
 					{
-						hadit = true;
+						// Data segment
+						if ((end - pos) < 9)
+						{
+							Log(lane, "Too small stream data chunk!");
+							break;
+						}
+
+						uint segBeg, segEnd;
+						pos = ReadU32(data, pos, out segBeg);
+						pos = ReadU32(data, pos, out segEnd);
+
+						uint len = segEnd - segBeg;
+						if (len > (end-pos))
+						{
+							Log(lane, "Discarding junk chunk [" + segBeg + "," + segEnd + "] left=" + (end-pos));
+							break;
+						}
+						if (len > lane.RecvBuffer.Length)
+						{
+							Log(lane, "Discarding junk chunk [" + segBeg + "," + segEnd + "], longer than receive buffer!");
+							break;
+						}
+
+						Log(lane, "Receiving stream data chunk [" + segBeg + "," + segEnd + "]");
+
+						for (uint w=segBeg;w!=segEnd;w++)
+						{
+							lane.RecvBuffer[w % lane.RecvBuffer.Length] = data[pos++];
+						}
+
+						if (segEnd <= lane.RecvSeqCursor)
+						{
+							Log(lane, " => This is a duplicate");
+							lane.DoSendAcks = true;
+						}
+						if (segBeg == lane.RecvSeqCursor)
+						{
+							Log(lane, " => Was continuation of stream");
+							lane.RecvSeqCursor = segEnd;
+						}
+
+						bool morework;
+						do
+						{
+							morework = false;
+							for (int a=0;a<lane.SendFutureAckCount;a++)
+							{
+								for (int b=0;b<lane.SendFutureAckCount;b++)
+								{
+									if (a == b)
+									{
+										continue;
+									}
+									if (lane.SendFutureAcks[b].Begin == lane.SendFutureAcks[a].End &&
+									    lane.SendFutureAcks[b].End > lane.SendFutureAcks[b].Begin &&
+									    lane.SendFutureAcks[a].End > lane.SendFutureAcks[a].Begin)
+									{
+										Log(lane, "Merging range [" + lane.SendFutureAcks[a].Begin + "," + lane.SendFutureAcks[a].End + "," + lane.SendFutureAcks[b].End);
+										lane.SendFutureAcks[a].End = lane.SendFutureAcks[b].End;
+										lane.SendFutureAcks[b].Begin = 0;
+										lane.SendFutureAcks[b].End = 0;
+										morework = true;
+									}
+								}
+							}
+						} 
+						while (morework);
+
+						bool hadqueued;
+						do
+						{
+							hadqueued = false;
+							for (int k=0;k<lane.SendFutureAckCount;k++)
+							{
+								if (lane.SendFutureAcks[k].Begin == lane.RecvSeqCursor)
+								{
+									if (lane.RecvSeqCursor < lane.SendFutureAcks[k].End)
+									{
+										lane.RecvSeqCursor = lane.SendFutureAcks[k].End;
+										hadqueued = true;
+									}
+								}
+							}
+						} 
+						while (hadqueued);
+
+						// Adjust old acks to only include actual future data.
+						uint writeAck = 0;
+						for (int k=0;k<lane.SendFutureAckCount;k++)
+						{
+							if (lane.SendFutureAcks[k].Begin < lane.RecvSeqCursor)
+							{
+								lane.SendFutureAcks[k].Begin = lane.RecvSeqCursor;
+							}
+							uint diff = lane.SendFutureAcks[k].End - lane.SendFutureAcks[k].Begin;
+							if (diff > 0 && diff <= (uint)lane.RecvBuffer.Length)
+							{
+								lane.SendFutureAcks[writeAck++] = lane.SendFutureAcks[k];
+							}
+						}
+						lane.SendFutureAckCount = writeAck;
+
+						// If there is room for more future acks.. otherwise just ignore and wait for continuation.
+						if (lane.SendFutureAckCount < lane.SendFutureAcks.Length)
+						{
+							if (segBeg > lane.RecvSeqCursor)
+							{
+								lane.SendFutureAcks[lane.SendFutureAckCount].Begin = segBeg;
+								lane.SendFutureAcks[lane.SendFutureAckCount].End = segEnd;
+								lane.SendFutureAckCount++;
+							}
+						}
+
+						lane.DoSendAcks = true;
+					}
+					else
+					{
 						break;
 					}
 				}
-
-				if (hadit)
-				{
-					// Already got the packet for this sequence id.
-					lane.Stats.RecvDupes++;
-					Log("Throwing because had it, it was seq=" + packets[i].Internal.Seq);
-					continue;
-				}
-
-				if ((packets[i].Internal.Seq - lane.ReliableSeq) > lane.Progress.Length)
-				{
-					// Drop so we don't end up with a full progress queue.
-					// and no room to accept the packet needed.
-					Log("Dropping inc seq=" + packets[i].Internal.Seq + " because it is too far ahead, waiting for " + (lane.ReliableSeq+1));
-				}
-				else
-				{
-					// Clear out any seqId=0 (these are empty slots).
-					while (lane.ProgressHead != lane.ProgressTail && lane.Progress[lane.ProgressTail % numProgress].SeqId == 0)
-					{
-						lane.ProgressTail++;
-					}
-
-					if (lane.ProgressHead - lane.ProgressTail != lane.Progress.Length)
-					{
-						uint head = lane.ProgressHead % (uint)lane.Progress.Length;
-						lane.Progress[head].Data = packets[i].Packet;
-						lane.Progress[head].IsFinalPiece = packets[i].Internal.IsFinalPiece;
-						lane.Progress[head].ArrivalTime = packets[i].ArrivalTime;
-						lane.Progress[head].SeqId = packets[i].Internal.Seq;
-						lane.ProgressHead = lane.ProgressHead + 1;
-						if (lane.AckCount < lane.Acks.Length)
-						{						
-							lane.Acks[lane.AckCount++] = packets[i].Internal.Seq;
-						}
-						packets[i].Packet = null;
-					}
-				}
 			}
+		}
 
-			// Cleanup buffers
-			for (int i=0;i<packetsCount;i++)
+		static uint WriteU32(byte[] data, uint writePos, uint v)
+		{
+			data[writePos+0] = (byte)((v >> 0) & 0xff);
+			data[writePos+1] = (byte)((v >> 8) & 0xff);
+			data[writePos+2] = (byte)((v >> 16) & 0xff);
+			data[writePos+3] = (byte)((v >> 24) & 0xff);
+			return writePos + 4;
+		}
+
+		static uint ReadU32(byte[] data, uint readPos, out uint v)
+		{
+			byte s0 = data[readPos+0];
+			byte s1 = data[readPos+1];
+			byte s2 = data[readPos+2];
+			byte s3 = data[readPos+3];			
+			v = (uint)s0 + ((uint)s1 << 8) + ((uint)s2 << 16) + ((uint)s3 << 24);
+			return readPos + 4;
+		}
+
+		static uint WriteSegmentFromCircular(Lane l, byte[] data, uint writePos, uint maxWritePos, byte[] source, uint begin, uint maxCount, out uint count)
+		{
+			count = 0;
+			const uint extra = 9;
+			uint bytesLeft = maxWritePos - writePos;
+			if (bytesLeft < extra)
 			{
-				if (packets[i].Packet != null)
-				{
-					setup.Factory.ReturnBuffer(packets[i].Packet);
-				}
+				return writePos;
 			}
+			uint maxFit = bytesLeft - extra;
+			count = maxFit < maxCount ? maxFit : maxCount;
+			data[writePos] = 0x1; // 1 = data segment
+			writePos = WriteU32(data, writePos + 1, begin);
+			writePos = WriteU32(data, writePos, begin + count);
+			Log(l, "Sending stream segment [" + begin + ", " + (begin+count) + "]");
+			for (uint i=0;i<count;i++)
+			{
+				data[writePos + i] = source[(begin+i) % source.Length];
+			}
+			return writePos + count;
 		}
 
 		// Return if there is more to come.
 		public static bool ProcessLanesSend(LaneSetup setup, Lane[] lanes, DateTime now, Send[] output, out uint numOut)
 		{
-			for (int i=0;i<lanes.Length;i++)
-			{
-				Lane lane = lanes[i];
-					
-				// First clean out send, only reliable packets.
-				for (int j=0;j!=lane.OutCount;j++)
-				{	
-					if (lane.Out[j].Source == null || !lane.Out[j].Reliable)
-					{
-						continue;
-					}
-					uint ts = lane.Out[j].SeqId;
-					if (ts > lane.PeerReliableSeq)
-					{
-						// need to find it in the list
-						bool found = false;
-						for (uint w=0;w<lane.PeerAckCount;w++)
-						{
-							if (lane.PeerAcks[w] == ts)
-							{
-								found = true;
-							}
-						}
-						if (!found)
-						{
-							continue;
-						}
-					}
-					Log(lane.Id + " removes out " + j + " which is seq=" + ts);
-					double msLag = (now - lane.Out[j].InitialSendTime).TotalMilliseconds;
-					if (msLag > 0)
-					{
-						uint ms = (uint) msLag;
-						if (ms < lane.LagMsMin || lane.LagMsMin == 0)
-						{
-							if (ms >= setup.MinResendTimeMs)
-							{
-								lane.LagMsMin = ms;
-								lane.ResendMs = 2 * ms;
-							}
-						}
-					}
-					Log("Userdata = " + lane.Out[j].Source.userdata);
-					if (--lane.Out[j].Source.userdata == 0)
-					{
-						setup.Factory.ReturnBuffer(lane.Out[j].Source);
-					}
-					lane.Out[j].Source = null;
-				}
-				lane.PeerAckCount = 0;
-			}
-
-
-
 			numOut = 0;
+
 			for (int i=0;i<lanes.Length;i++)
 			{
 				Lane lane = lanes[i];
-
-				// clean out acks that are behind or equal to reliableseq (which is always transmitted)
-				ushort writeAckPos = 0;
-				for (int k=0;k<lane.AckCount && k < 4;k++)
-				{
-					if (lane.Acks[k] > lane.ReliableSeq)
-						lane.Acks[writeAckPos++] = lane.Acks[k];
-				}
-				lane.AckCount = writeAckPos;
-
-				int holes = 0;
-				for (int j=0;j<lane.OutCount;j++)
-				{
-					if (lane.Out[j].Source == null)
-					{
-						holes++;
-						continue;
-					}
-					if (lane.Out[j].SendTime <= now)
-					{
-						lane.Stats.SendCount++;
-						lane.Out[j].SendCount++;
-						if (lane.Out[j].SendCount > 1)
-						{
-							lane.Stats.SendResends++;
-						}
-
-						uint resendMsAdd = (uint)(Math.Pow(lane.Out[j].SendCount-1, 1.5f) * lane.ResendMs) + lane.ResendMs;
-						if (resendMsAdd > 800)
-						{
-							resendMsAdd = 800;
-						}
-
-						lane.Out[j].SendTime = lane.Out[j].SendTime.AddMilliseconds(resendMsAdd);
-
-						Bitstream.Buffer tmp = setup.Factory.GetBuffer(setup.MaxPacketSize);
-						tmp.bytepos = setup.ReservedHeaderBytes;
-
-						Bitstream.PutBits(tmp, 1, lane.Out[j].Reliable ? 1u : 0u);
-						Bitstream.PutCompressedUint(tmp, lane.Out[j].SeqId);
-
-						if (lane.Out[j].Reliable)
-						{
-							Log("Lane" + lane.Id + " sends seq=" + lane.Out[j].SeqId + " sendadd = " + resendMsAdd);
-							Bitstream.PutBits(tmp, 1, lane.Out[j].IsFinalPiece ? 1u : 0u);
-							Bitstream.PutCompressedUint(tmp, lane.ReliableSeq);
-
-							// flush out a max number of acks or all.
-							int wrote = 0;
-							for (int k=0;k<lane.AckCount && k < 4;k++)
-							{
-								Log(lane.Id + " sending ack " + lane.Acks[k]);
-								Bitstream.PutCompressedUint(tmp, lane.Acks[k]);
-								wrote++;
-							}
-							Bitstream.PutCompressedUint(tmp, 0);
-							for (int k=0;k<(int)lane.AckCount - wrote;k++)
-							{
-								lane.Acks[k] = lane.Acks[k + wrote];
-							}
-							lane.AckCount = (ushort)(lane.AckCount - wrote);
-							lane.SendAckPacket = false;
-						}
-
-						Bitstream.SyncByte(tmp);
-
-						uint begin = lane.Out[j].Begin;
-						uint end = lane.Out[j].End;
-						uint ofs = tmp.bytepos;
-						byte[] src = lane.Out[j].Source.buf;
-						byte[] dst = tmp.buf;
-						for (uint k=begin;k!=end;k++)
-						{
-							dst[ofs++] = src[k];
-						}
-						tmp.bytepos = 0;
-						tmp.bitpos = 0;
-						tmp.bytesize = ofs;
-						tmp.bitsize = 0;
-						output[numOut].Data = tmp;
-						output[numOut].Lane = lane;
-						lane.Stats.SendBytes += ofs;
-
-						if (!lane.Out[j].Reliable)
-						{
-							setup.Factory.ReturnBuffer(lane.Out[j].Source);
-							lane.Out[j].Source = null;
-							lane.Stats.SendUnreliable++;
-						}
-
-						if (++numOut == output.Length)
-						{
-							return true;
-						}
-					}
-				}
-
-				if (holes > 0 && holes >= lane.OutCount / 4)
-				{
-					ushort write = 0;
-					for (uint j=0;j<lane.OutCount;j++)
-					{
-						if (lane.Out[j].Source != null)
-						{
-							if (write != j)
-							{
-								lane.Out[write] = lane.Out[j];
-							}
-							++write;
-						}
-					}
-					lane.OutCount = write;
-				}
-
 			}
+
+			for (int i=0;i<output.Length;i++)
+			{
+				Lane lane = output[i].Lane;
+			}
+
+			bool hasMore = false;
 
 			// Unsent acks
 			for (int i=0;i<lanes.Length;i++)
 			{
 				Lane lane = lanes[i];
-				if (lane.SendAckPacket)
+
+				// Resend mechanism.
+				if (now >= lane.SendResetTime && lane.SendCursor != lane.SendPeerRecv)
 				{
-					lane.SendAckPacket = false;
-					Bitstream.Buffer tmp = setup.Factory.GetBuffer(setup.MaxPacketSize);
-					tmp.bytepos = setup.ReservedHeaderBytes;
-					Bitstream.PutBits(tmp, 1, 1); // reliable
-					Bitstream.PutCompressedUint(tmp, 0); // ack only
-					Bitstream.PutBits(tmp, 1, 1); // final
-					Bitstream.PutCompressedUint(tmp, lane.ReliableSeq);
+					lane.SendCursor = lane.SendPeerRecv;
+					lane.SendResetTime = now.AddMilliseconds(lane.ResendMs);
+					Log(lane, "Resetting send cursor because of timeout");
+				}
 
-					for (int k=0;k<lane.AckCount;k++)
+				Bitstream.Buffer buf = setup.Factory.GetBuffer(setup.MaxPacketSize);
+				byte[] data = buf.buf;
+				uint writePos = setup.ReservedHeaderBytes + 4;
+				uint maxWritePos = setup.MaxPacketSize - writePos;
+
+				bool containsAnything = false;
+
+				if (lane.DoSendAcks)
+				{
+					// 1. Put in reliable sequence update / acks.
+					data[writePos] = 0x0; // 0 = reliable sequence update.
+					writePos = WriteU32(data, writePos + 1, lane.RecvSeqCursor); // How far have received all data.
+					writePos = WriteU32(data, writePos, lane.RecvTail + (uint)lane.RecvBuffer.Length); // How far can receive.
+					Log(lane, "Sending ack (counts=" + lane.SendFutureAckCount + ") RecvSeqCursor=" + lane.RecvSeqCursor + " RecvMax=" + (lane.RecvTail + (uint)lane.RecvBuffer.Length));
+
+					// Future ranges.
+					data[writePos++] = (byte)lane.SendFutureAckCount;
+					for (uint j=0;j<lane.SendFutureAckCount;j++)
 					{
-						Bitstream.PutCompressedUint(tmp, lane.Acks[k]);
+						writePos = WriteU32(data, writePos, lane.SendFutureAcks[j].Begin);
+						writePos = WriteU32(data, writePos, lane.SendFutureAcks[j].End);
 					}
+					lane.DoSendAcks = false;
+					containsAnything = true;
+				}
 
-					Bitstream.PutCompressedUint(tmp, 0);
-					lane.AckCount = 0;
-					Bitstream.SyncByte(tmp);
-					tmp.Flip();
-					output[numOut].Data = tmp;
+				// Send previsouly unsent data up to the recv window, excluding already received acks.
+				uint inQueue = lane.SendHead - lane.SendCursor;
+				uint maxSend = lane.SendPeerRecvMax - lane.SendCursor;
+
+				uint toInsert = inQueue < maxSend ? inQueue : maxSend;
+				Log(lane, "writePos=" + writePos + " sendCursor=" + lane.SendCursor + " sendEnd=" + lane.SendHead + " maxSend=" + maxSend + " toInsert=" + toInsert + " peerRecvMax=" + lane.SendPeerRecvMax);
+
+				if (toInsert > 0)
+				{
+					uint beg = lane.SendCursor;
+					uint fin = lane.SendCursor + toInsert;
+					while (beg < fin)
+					{
+						uint end = fin;
+
+						// Subtract all future acks.
+						for (uint q=0;q<lane.RecvFutureAckCount;q++)
+						{
+							if (beg >= lane.RecvFutureAcks[q].End)
+							{
+								continue;
+							}
+							if (beg == lane.RecvFutureAcks[q].Begin)
+							{
+								beg = lane.RecvFutureAcks[q].End;
+							}
+							if (end > lane.RecvFutureAcks[q].Begin)
+							{
+								if (beg < lane.RecvFutureAcks[q].Begin)
+								{
+									end = lane.RecvFutureAcks[q].Begin;
+								}
+								else
+								{
+									beg = lane.RecvFutureAcks[q].End;
+								}
+							}
+						}
+
+						if (end <= beg)
+						{
+							continue;
+						}
+
+						uint count = end - beg;
+						uint bytes;
+						writePos = WriteSegmentFromCircular(lane, data, writePos, maxWritePos, lane.SendBuffer, beg, count, out bytes);
+
+						if (bytes > 0)
+						{
+							containsAnything = true;
+							beg += bytes;
+							lane.SendResetTime = now.AddMilliseconds(lane.ResendMs);
+						}
+
+						if (count != bytes)
+						{
+							break;
+						}
+					}
+					if (lane.SendCursor > 100000)
+					{
+						Log(";|;|;");
+					}
+					lane.SendCursor = beg;
+				}
+	
+				/* -----
+				// Unreliable 
+				uint roomUnreliable = maxWritePos - writePos;
+				for (uint k=0;k<lane.OutUCount;k++)
+				{
+					if (lane.OutU[k].Length == 0)
+					{
+						continue;
+					}
+					const uint extraU = 6;
+					bool isRoom = lane.OutU[k].Length < (roomUnreliable + extraU);
+					if (!isRoom)
+					{
+						hasMore = true;
+					}
+					else
+					{						
+						data[writePos+0] = 0x2; // 2 unreliable
+						WriteU32(data, writePos + 1, seq);
+						data[writePos+5] = (byte)(lane.OutU[k].Length);
+
+						byte[] u = lane.OutU[k].Data;
+						uint p = lane.OutU[k].Pos;
+						uint l = lane.OutU[k].Length;
+						for (uint j=0;j<l;j++)
+						{
+							data[writePos + extraU + j] = u[p+j];
+						}
+						writePos += extraU + l;
+						lane.OutU[k].Length = 0;
+					}
+				}
+				*/
+
+				if (!containsAnything)
+				{
+					setup.Factory.ReturnBuffer(buf);
+				}
+				else
+				{
+					uint idx = lane.OutgoingSeq % Lane.SendSeqTimesSize;
+					lane.SendSeqTimes[idx].Seq = lane.OutgoingSeq;
+					lane.SendSeqTimes[idx].Timestamp = now;
+					WriteU32(data, setup.ReservedHeaderBytes, lane.OutgoingSeq++);
+
+					buf.bytesize = writePos;
+					output[numOut].Data = buf;
 					output[numOut].Lane = lane;
-
-					lane.Stats.SendCount++;
-					lane.Stats.SendAckOnly++;
-					lane.Stats.SendBytes += tmp.bytesize;
-
 					if (++numOut == output.Length)
 					{
 						return true;
@@ -550,135 +605,118 @@ namespace Netki
 				}
 			}
 
-			return false;
+			return hasMore;
+		}
+
+		public struct ToSend
+		{
+			public Lane Lane;
+			public bool Reliable;
+			public Bitstream.Buffer Data;
 		}
 
 		// Will hold the buffers until they are sent
 		public static void ScheduleSend(LaneSetup setup, DateTime now, ToSend[] tosend, uint count)
 		{
+			ToSendPacket[] pkt = new ToSendPacket[tosend.Length];
 			for (uint i=0;i<count;i++)
 			{
-				Lane lane = tosend[i].Lane;
+				pkt[i].Data = tosend[i].Data.buf;
+				pkt[i].Pos = tosend[i].Data.bytepos;
+				pkt[i].Length = tosend[i].Data.bytesize - tosend[i].Data.bytepos;
+				pkt[i].Reliable = tosend[i].Reliable;
+				pkt[i].Lane = tosend[i].Lane;
+			}
+			ScheduleSend(setup, now, pkt, count);
+		}
 
-				if (!tosend[i].Reliable)
+
+		public struct ToSendPacket
+		{
+			public Lane Lane;
+			public bool Reliable;
+			public byte[] Data;
+			public uint Pos;
+			public uint Length;
+		}
+
+		// Will hold the buffers until they are sent
+		public static void ScheduleSend(LaneSetup setup, DateTime now, ToSendPacket[] tosend, uint count)
+		{
+			for (uint i=0;i<count;i++)
+			{
+				if (tosend[i].Reliable)
 				{
-					uint target = (uint)lane.Out.Length;
-					if (lane.OutCount == lane.Out.Length)
-					{
-						for (uint k=0;k<lane.Out.Length;k++)
-						{
-							if (lane.Out[k].Source == null)
-							{
-								target = k;
-								break;
-							}
-						}
-					}
-					else
-					{
-						target = lane.OutCount++;
-					}
-
-					if (target == lane.Out.Length)
-					{
-						// Dropped
-						Log("DROP 2");
-						continue;
-					}
-
-					if (tosend[i].CanKeepData)
-					{
-						lane.Out[target].Source = tosend[i].Data;
-					}
-					else
-					{
-						lane.Out[target].Source = setup.Factory.GetBuffer(tosend[i].Data.bytesize);
-						Bitstream.Insert(lane.Out[target].Source, tosend[i].Data);
-						Bitstream.SyncByte(lane.Out[target].Source);
-						lane.Out[target].Source.Flip();
-					}
-
-					Log(lane.Id + " scheduling unreliable seqId = " + (lane.OutgoingSeqUnreliable+1)+ " bytes=" + (lane.Out[target].Source.bytesize - lane.Out[target].Source.bytepos));
-					lane.Out[target].Source.userdata = 1; // refcount
-					lane.Out[target].Begin = lane.Out[target].Source.bytepos;
-					lane.Out[target].End = lane.Out[target].Source.bytesize - lane.Out[target].Source.bytepos;
-					lane.Out[target].IsFinalPiece = true;
-					lane.Out[target].SendTime = now;
-					lane.Out[target].InitialSendTime = now;
-					lane.Out[target].SendTime = now;
-					lane.Out[target].SendCount = 0;
-					lane.Out[target].SeqId = ++lane.OutgoingSeqUnreliable;
-					lane.Out[target].Reliable = false;
+					InsertReliable(setup, tosend[i].Lane, tosend[i].Data, tosend[i].Pos, tosend[i].Length);
 				}
 				else
 				{
-					uint segmentSize = setup.MaxPacketSize - 32 - setup.ReservedHeaderBytes;
-					uint numSegments = (uint)(((tosend[i].Data.bytesize - tosend[i].Data.bytepos) + segmentSize - 1) / segmentSize);
-					uint[] outSlots = new uint[256];
-					if (numSegments == 0 || numSegments > outSlots.Length)
-					{
-						continue;
-					}
-
-					uint write = 0;
-					for (uint k=0;k<lane.OutCount;k++)
-					{
-						if (lane.Out[k].Source == null)
-						{
-							outSlots[write++] = k;
-							if (write == numSegments)
-							{
-								break;
-							}
-						}
-					}
-
-					uint left = numSegments - write;
-					if ((lane.Out.Length - lane.OutCount) < left)
-					{
-						// no room.
-						lane.Errors++;
-						continue;
-					}
-
-					for (uint k=0;k<left;k++)
-					{
-						outSlots[write++] = lane.OutCount++;
-					}
-
-					Bitstream.Buffer source = tosend[i].Data;
-					if (!tosend[i].CanKeepData)
-					{
-						source = setup.Factory.GetBuffer(tosend[i].Data.bytesize);
-						Bitstream.Insert(source, tosend[i].Data);
-						source.Flip();
-					}
-
-					source.userdata = 0;
-					uint RangeBegin = source.bytepos;
-					for (uint k=0;k<numSegments;k++)
-					{
-						uint bytesLeft = source.bytesize - RangeBegin;
-						if (bytesLeft == 0)
-						{
-							Log("ERROR: bytesLeft=0!");
-							continue;
-						}
-						uint toWrite = bytesLeft < segmentSize ? bytesLeft : segmentSize;
-						uint slot = outSlots[k];
-						source.userdata++;
-						lane.Out[slot].Source = source;
-						lane.Out[slot].Begin = RangeBegin;
-						lane.Out[slot].End = RangeBegin + toWrite;
-						lane.Out[slot].IsFinalPiece = k == (numSegments-1);
-						lane.Out[slot].SendTime = now;
-						lane.Out[slot].InitialSendTime = now;
-						lane.Out[slot].SendCount = 0;
-						lane.Out[slot].Reliable = true;
-						lane.Out[slot].SeqId = ++lane.OutgoingSeqReliable;
-						RangeBegin = RangeBegin + toWrite;
-					}
+					InsertUnreliable(setup, tosend[i].Lane, tosend[i].Data, tosend[i].Pos, tosend[i].Length);
 				}
+			}
+		}
+
+		static void InsertReliable(LaneSetup setup, Lane lane, byte[] data, uint pos, uint len)
+		{
+			uint bytesLeft = lane.SendPeerRecv + (uint)lane.SendBuffer.Length - lane.SendHead;
+
+			// compute size for header + actual data.
+			Assert(len < 65536, "Reliable packet too big!");
+			bool makeBig = false;
+			uint required = len;
+			if (len >= 255)
+			{
+				required += 3;
+				makeBig = true;
+			}
+			else
+			{
+				required += 1;
+			}
+
+			if (required >= bytesLeft)
+			{
+				Log(lane, "RDrop, send queue is full");
+				return;
+			}
+
+			byte[] output = lane.SendBuffer;
+			if (!makeBig)
+			{
+				output[lane.SendHead % output.Length] = (byte)(len);
+				lane.SendHead++;
+			}
+			else
+			{
+				output[lane.SendHead % output.Length] = (byte)(255);
+				lane.SendHead++;
+				output[lane.SendHead % output.Length] = (byte)(len / 256);
+				lane.SendHead++;
+				output[lane.SendHead % output.Length] = (byte)(len % 256);
+				lane.SendHead++;
+			}
+
+			for (int i=0;i<len;i++)
+			{
+				output[(lane.SendHead + i) % output.Length] = data[pos + i];
+			}
+
+			lane.SendHead += len;
+		}
+
+		static void InsertUnreliable(LaneSetup setup, Lane lane, byte[] data, uint pos, uint len)
+		{
+			uint count = lane.OutUCount;
+			if (count < lane.OutU.Length)
+			{
+				lane.OutU[count].Data = data;
+				lane.OutU[count].Pos = pos;
+				lane.OutU[count].Length = len;
+				lane.OutUCount++;
+			}
+			else
+			{
+				Log(lane, "UDrop, send queue is full");
 			}
 		}
 
@@ -692,140 +730,56 @@ namespace Netki
 			{
 				Lane lane = lanes[i];
 
-				while (lane.DoneTail != lane.DoneHead)
+				// Reliable
+				while (true)
 				{
-					uint t = lane.DoneTail % (uint)lane.Done.Length;
-					output[numOut] = lane.Done[t];
-					lane.DoneTail = lane.DoneTail + 1;
-					if (++numOut == output.Length)
-					{
-						return true;
-					}
-				}
-
-				if (lane.ProgressHead == lane.ProgressTail)
-				{
-					continue;
-				}
-
-				uint numProgress = (uint)lane.Progress.Length;
-
-				// And from the head too...
-				while (lane.ProgressHead != lane.ProgressTail && lane.Progress[(numProgress + lane.ProgressHead-1) % numProgress].SeqId == 0)
-				{
-					lane.ProgressHead--;
-				}
-
-				if (lane.ProgressHead == lane.ProgressTail)
-				{
-					continue;
-				}
-
-				// Sort them by seq. There shouldn't be so many here. Maybe do something more clever if the count grows big.
-				uint count = lane.ProgressHead - lane.ProgressTail;
-				while (count > 1)
-				{
-					bool swapped = false;
-					for (uint j = 0;j < (count-1); j++)
-					{
-						uint idx0 = (lane.ProgressTail + j) % numProgress;
-						uint idx1 = (lane.ProgressTail + j + 1) % numProgress;
-						if (lane.Progress[idx0].SeqId > lane.Progress[idx1].SeqId)
-						{
-							InProgress tmp = lane.Progress[idx0];
-							lane.Progress[idx0] = lane.Progress[idx1];
-							lane.Progress[idx1] = tmp;
-							swapped = true;
-						}
-					}
-					if (!swapped)
+					uint available = lane.RecvSeqCursor - lane.RecvTail;
+					if (available < 2)
 					{
 						break;
 					}
-				}
-
-				// Guaranteed to have them sorted in order now.
-				uint head = lane.ProgressTail;
-				uint next = lanes[i].ReliableSeq + 1;
-
-				uint[] aggregateIdx = new uint[128];
-				uint aggregateCount = 0;
-
-				uint tail = lane.ProgressTail;
-				while (tail != lane.ProgressHead)
-				{
-					uint idx = tail % numProgress;
-					if (lane.Progress[idx].SeqId != next)
+					byte d0 = lane.RecvBuffer[lane.RecvTail % lane.RecvBuffer.Length];
+					uint size;
+					uint start;
+					if (d0 == 255)
 					{
-						break;
-					}
-					if (lane.Progress[idx].IsFinalPiece)
-					{
-						if (aggregateCount == 0)
+						if (available < 200)
 						{
-							output[numOut].ArrivalTime = lane.Progress[idx].ArrivalTime;
-							output[numOut].CompletionTime = lane.Progress[idx].ArrivalTime;
-							output[numOut].Reliable = true;
-							output[numOut].SeqId = lane.Progress[idx].SeqId;
-							output[numOut].Data = lane.Progress[idx].Data;
-							output[numOut].Lane = lane;
-							lane.Progress[idx].SeqId = 0;
-							lane.ReliableSeq = next;
-							tail = tail + 1;
-							next = next + 1;
-							if (++numOut == output.Length)
-							{
-								return true;
-							}
+							break;
 						}
-						else
+						byte d1 = lane.RecvBuffer[(lane.RecvTail + 1) % lane.RecvBuffer.Length];
+						byte d2 = lane.RecvBuffer[(lane.RecvTail + 2) % lane.RecvBuffer.Length];
+						size = (uint)(d2 << 8) + d1;
+						start = lane.RecvTail + 3;
+						if (available < (size + 3))
 						{
-							// There is always one room because check belowe makes sure of that.
-							aggregateIdx[aggregateCount++] = idx;
-							uint bits = 0;
-							for (int k=0;k<aggregateCount;k++)
-							{
-								uint ki = aggregateIdx[k];
-								bits = bits + lane.Progress[ki].Data.BitsLeft();
-							}
-							Bitstream.Buffer total = setup.Factory.GetBuffer(bits / 8 + 16);
-							for (int k=0;k<aggregateCount;k++)
-							{
-								uint ki = aggregateIdx[k];
-								Bitstream.Insert(total, lane.Progress[ki].Data);
-								lane.Progress[ki].SeqId = 0;
-								setup.Factory.ReturnBuffer(lane.Progress[ki].Data);
-							}
-							total.Flip();
-							output[numOut].ArrivalTime = lane.Progress[aggregateIdx[0]].ArrivalTime;
-							output[numOut].CompletionTime = lane.Progress[idx].ArrivalTime;
-							output[numOut].Reliable = true;
-							output[numOut].SeqId = lane.Progress[idx].SeqId;
-							output[numOut].Data = total;
-							output[numOut].Lane = lane;
-							lane.ReliableSeq = next;
-							tail = tail + 1;
-							next = next + 1;
-							aggregateCount = 0;
-							if (++numOut == output.Length)
-							{
-								return true;
-							}
+							break;
 						}
 					}
 					else
 					{
-						aggregateIdx[aggregateCount] = idx;
-						next = next + 1;
-						tail = tail + 1;
-						if (++aggregateCount >= (aggregateIdx.Length-1))
+						size = d0;
+						start = lane.RecvTail + 1;
+						if (available < (size + 2))
 						{
-							// THis should never happen.
-							Log("ERROR: Progress buffer reset because aggregateIdx overflowed.");
-							lane.ProgressHead = 0;
-							lane.ProgressTail = 0;
 							break;
 						}
+					}
+
+					Bitstream.Buffer res = setup.Factory.GetBuffer(size);
+					for (int w=0;w<size;w++)
+					{
+						res.buf[w] = lane.RecvBuffer[(start + w) % lane.RecvBuffer.Length];
+					}
+					res.bytesize = size;
+					lane.RecvTail = start + size;
+					output[numOut].ArrivalTime = DateTime.Now;
+					output[numOut].CompletionTime = DateTime.Now;
+					output[numOut].Data = res;
+					output[numOut].Lane = lane;
+					if (++numOut == output.Length)
+					{
+						return true;
 					}
 				}
 			}
