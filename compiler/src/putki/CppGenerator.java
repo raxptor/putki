@@ -915,7 +915,7 @@ public class CppGenerator
 	                	String bpfx = pfx2;
 	                	boolean has_if = false;
 	                    if ((field.domains & Compiler.DOMAIN_OUTPUT) == 0 ||
-	                    	(field.type == FieldType.POINTER && (field.resolvedRefStruct.domains & Compiler.DOMAIN_OUTPUT) == 0))
+	                    	((field.type == FieldType.POINTER || field.type == FieldType.FILE) && (field.resolvedRefStruct.domains & Compiler.DOMAIN_OUTPUT) == 0))
 	                    {
 
 	                    	sb.append(bpfx).append("if (!skip_input_only) {");
