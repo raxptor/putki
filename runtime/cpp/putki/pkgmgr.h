@@ -45,8 +45,12 @@ namespace putki
 		int num_unresolved_slots(loaded_package *);
 		int next_unresolved_slot(loaded_package *p, int start);
 
-		// load resource
-		bool load_resource(loaded_package* p, resource_id_t id, resource_data* res);
+		// load resource by path
+		bool load_resource(loaded_package* p, const char* path, resource_data* res);
+
+		// load by id.
+		bool load_resource(resource_id id, resource_data* res, loaded_package* extra);
+
 		void free_resource(resource_data* res);
 	}
 }

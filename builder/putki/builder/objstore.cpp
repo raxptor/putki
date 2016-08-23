@@ -780,7 +780,6 @@ namespace putki
 			}
 		}
 
-
 		bool fetch_resource(data* d, const char* path, const char* signature, fetch_res_result* result)
 		{
 			resource_entry* e = find_res(d, path, signature);
