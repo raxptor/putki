@@ -68,17 +68,12 @@ public class CppGenerator
 			}
 		}
 
-		boolean added = false;
 		for (int i=0;i<input.length();i++)
 		{
 			if (i > 0 && upc[i])
 			{
 				if (sb.length() > 0 && sb.charAt(sb.length()-1) != '_')
 					sb.append('_');
-			}
-			else
-			{
-				added = false;
 			}
 
 			char c = input.charAt(i);
@@ -170,13 +165,14 @@ public class CppGenerator
 		}
 	}
 
-	static String ouktiFieldtypePod(Compiler.FieldType f)
+	static String outkiFieldtypePod(Compiler.FieldType f)
 	{
 		switch (f)
 		{
+			case FILE:
+				return "putki::resource_id_t";
 			case STRING:
 			case PATH:
-			case FILE:
 				return "const char*";
 			case INT32:
 				return "int32_t";
@@ -285,7 +281,7 @@ public class CppGenerator
 			{
 				return enumName(pf.resolvedEnum);
 			}
-			return ouktiFieldtypePod(pf.type);
+			return outkiFieldtypePod(pf.type);
 		}
 		else
 		{
@@ -618,6 +614,9 @@ public class CppGenerator
 				case INT32:
 					sb.append(indent).append("putki::pack_int32_field((char*)&" + refOut + ", " + refIn + ");");
 					break;
+				case BOOL:
+					sb.append(indent).append(refOut + " = " + refIn + " ? 1 : 0;");
+					break;
 				case BYTE:
 				case FLOAT:
 					sb.append(indent).append(refOut + " = " + refIn + ";");
@@ -906,7 +905,7 @@ public class CppGenerator
 	                    {
 	                    	continue;
 	                    }
-	                    if (field.type != FieldType.POINTER && field.type != FieldType.STRUCT_INSTANCE)
+	                    if (field.type != FieldType.FILE && field.type != FieldType.POINTER && field.type != FieldType.STRUCT_INSTANCE)
 	                    {
 	                    	continue;
 	                    }
@@ -919,7 +918,7 @@ public class CppGenerator
 	                	String bpfx = pfx2;
 	                	boolean has_if = false;
 	                    if ((field.domains & Compiler.DOMAIN_OUTPUT) == 0 ||
-	                    	(field.type == FieldType.POINTER && (field.resolvedRefStruct.domains & Compiler.DOMAIN_OUTPUT) == 0))
+	                    	((field.type == FieldType.POINTER || field.type == FieldType.FILE) && (field.resolvedRefStruct.domains & Compiler.DOMAIN_OUTPUT) == 0))
 	                    {
 
 	                    	sb.append(bpfx).append("if (!skip_input_only) {");
@@ -941,7 +940,7 @@ public class CppGenerator
 	                    switch (field.type)
 	                    {
 	                    	case FILE:
-	                    		sb.append(indent).append("putki::add_to_file_query(result, &" + ref + "._ptr);");
+	                    		sb.append(indent).append("putki::add_to_file_query(result, " + ref + ");");
 	                    		break;
 	                    	case STRUCT_INSTANCE:
 	                    		sb.append(indent).append(getTypeHandlerFn(field.resolvedRefStruct) + "()->query_files(&" + ref + ", result, skip_input_only, false);");

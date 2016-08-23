@@ -24,7 +24,7 @@ namespace putki
 		typedef std::map<std::string, loaded> LoadedT;
 		typedef std::vector<const char*> AllocStringsT;
 
-		struct to_build
+		struct to_build_entry
 		{
 			std::string path;
 			int domain;
@@ -34,7 +34,7 @@ namespace putki
 		{
 			config conf;
 			HandlerMapT handlers;
-			std::queue<to_build> to_build;
+			std::queue<to_build_entry> to_build;
 			std::set<std::string> has_added;
 			LoadedT loaded_input;
 			LoadedT loaded_temp;
@@ -44,9 +44,9 @@ namespace putki
 		
 		struct build_info_internal
 		{
-			data* data;
+			data* d;
 			std::vector<ptr_raw> outputs;
-			ptr_context* ptr_context;
+			ptr_context* ptr_ctx;
 		};
 
 		data* create(config* conf)
@@ -56,12 +56,38 @@ namespace putki
 			return d;
 		}
 
-		void free(data *d)
+		void free_strings(data* d)
 		{
 			for (size_t i = 0; i < d->str_allocs.size(); i++)
 			{
 				::free((void*)d->str_allocs[i]);
 			}
+			d->str_allocs.clear();
+		}
+
+		void clear_cache(LoadedT* cache)
+		{
+			LoadedT::iterator i = cache->begin();
+			while (i != cache->end())
+			{
+				i->second.th->free(i->second.obj);
+				++i;
+			}
+			cache->clear();
+		}
+
+		void clear(data* d)
+		{
+			clear_cache(&d->loaded_input);
+			clear_cache(&d->loaded_temp);
+			clear_cache(&d->loaded_built);
+			free_strings(d);
+			d->has_added.clear();
+		}
+
+		void free(data *d)
+		{
+			clear(d);
 			delete d;
 		}
 
@@ -104,25 +130,27 @@ namespace putki
 			ptr->obj = obj;
 			ptr->th = th;
 			ptr->user_data = 1;
-			ptr->ctx = info->internal->ptr_context;
+			ptr->ctx = info->internal->ptr_ctx;
 
-			info->internal->data->str_allocs.push_back(ptr->path);
+			info->internal->d->str_allocs.push_back(ptr->path);
 			info->internal->outputs.push_back(*ptr);
 		}
 
 		bool store_resource_path(const build_info* info, const char* path, const char* data, size_t size)
 		{
-			if (!objstore::store_resource(info->internal->data->conf.temp, path, data, size))
+			if (!objstore::store_resource(info->internal->d->conf.temp, path, data, size))
 			{
 				RECORD_ERROR(info->record, "Failed to store temp resource [" << path << "] size=" << size);
 				return false;
 			}
 			objstore::resource_info ri;
-			if (!objstore::query_resource(info->internal->data->conf.temp, path, &ri))
+			if (!objstore::query_resource(info->internal->d->conf.temp, path, &ri))
 			{
 				RECORD_ERROR(info->record, "Failed to query stored resource [" << path << "] size=" << size);
 				return false;
 			}
+
+			build_db::add_output_resource(info->record, path, info->builder, ri.signature.c_str());
 			return true;
 		}
 		
@@ -137,13 +165,13 @@ namespace putki
 		size_t read_resource_segment(const build_info* info, const char* path, char* output, size_t beg, size_t end)
 		{
 			objstore::resource_info ri;
-			if (objstore::query_resource(info->internal->data->conf.temp, path, &ri))
+			if (objstore::query_resource(info->internal->d->conf.temp, path, &ri))
 			{
-				return objstore::read_resource_range(info->internal->data->conf.temp, path, ri.signature.c_str(), output, beg, end);
+				return objstore::read_resource_range(info->internal->d->conf.temp, path, ri.signature.c_str(), output, beg, end);
 			}
-			if (objstore::query_resource(info->internal->data->conf.input, path, &ri))
+			if (objstore::query_resource(info->internal->d->conf.input, path, &ri))
 			{
-				return objstore::read_resource_range(info->internal->data->conf.input, path, ri.signature.c_str(), output, beg, end);
+				return objstore::read_resource_range(info->internal->d->conf.input, path, ri.signature.c_str(), output, beg, end);
 			}
 			return 0;
 		}
@@ -151,9 +179,9 @@ namespace putki
 		bool fetch_resource(const build_info* info, const char* path, resource* resource)
 		{
 			objstore::resource_info ri;
-			if (objstore::query_resource(info->internal->data->conf.temp, path, &ri))
+			if (objstore::query_resource(info->internal->d->conf.temp, path, &ri))
 			{
-				if (objstore::fetch_resource(info->internal->data->conf.temp, path, ri.signature.c_str(), &resource->internal))
+				if (objstore::fetch_resource(info->internal->d->conf.temp, path, ri.signature.c_str(), &resource->internal))
 				{
 					resource->signature = strdup(ri.signature.c_str());
 					resource->data = resource->internal.data;
@@ -168,9 +196,9 @@ namespace putki
 					return false;
 				}
 			}
-			if (objstore::query_resource(info->internal->data->conf.input, path, &ri))
+			if (objstore::query_resource(info->internal->d->conf.input, path, &ri))
 			{
-				if (objstore::fetch_resource(info->internal->data->conf.input, path, ri.signature.c_str(), &resource->internal))
+				if (objstore::fetch_resource(info->internal->d->conf.input, path, ri.signature.c_str(), &resource->internal))
 				{
 					resource->signature = strdup(ri.signature.c_str());
 					resource->data = resource->internal.data;
@@ -199,12 +227,21 @@ namespace putki
 			{
 				d->has_added.insert(path);
 
-				to_build tb;
+				to_build_entry tb;
 				tb.path = path;
 				tb.domain = domain;
 				d->to_build.push(tb);
 			}
 		}
+
+		struct free_deplist_obj
+		{
+			build_db::deplist* dl;
+			~free_deplist_obj()
+			{
+				build_db::deplist_free(dl);
+			}
+		};
 		
 		bool fetch_cached(data* d, const char* path, objstore::object_info* info, const char* bname, build_db::InputDepSigs& sigs)
 		{
@@ -215,6 +252,9 @@ namespace putki
 			}
 
 			build_db::deplist* dl = build_db::inputdeps_get(find);
+			free_deplist_obj freeer;
+			freeer.dl = dl;
+
 			int di = 0;
 			while (true)
 			{
@@ -284,7 +324,7 @@ namespace putki
 				++di;
 			}
 
-			APP_DEBUG("fetch_cached: I have a match")
+			APP_DEBUG("fetch_cached: I have a match on " << path << " for builder " << bname);
 			build_db::InputDepSigs::iterator i = sigs.begin();
 			while (i != sigs.end())
 			{
@@ -295,26 +335,44 @@ namespace putki
 			int o = 0;
 			while (true)
 			{
-				const char* out = build_db::enum_outputs(find, o);
+				bool is_resource;
+				const char* out = build_db::enum_outputs(find, o, &is_resource);
 				if (!out)
 				{
 					break;
 				}
 				const char* out_sig = get_output_signature(find, o);
-				if (!objstore::uncache_object(d->conf.temp, d->conf.temp, out, out_sig))
+
+				if (is_resource)
 				{
-					// Is cleanup here actually needed? Probably not.
-					APP_DEBUG("Could not uncache object " << out << " sig=" << out_sig);
-					return false;
+					if (!objstore::uncache_resource(d->conf.temp, out, out_sig))
+					{
+						// Is cleanup here actually needed? Probably not.
+						APP_DEBUG("Could not uncache resource " << out << " sig=" << out_sig);
+						return false;
+					}
+					else
+					{
+						APP_DEBUG("Uncached tmp resource " << out << " sig=" << build_db::get_signature(find));
+					}
 				}
 				else
 				{
-					APP_DEBUG("Uncached tmp object " << out << " sig=" << build_db::get_signature(find));
+					if (!objstore::uncache_object(d->conf.temp, out, out_sig))
+					{
+						// Is cleanup here actually needed? Probably not.
+						APP_DEBUG("Could not uncache object " << out << " sig=" << out_sig);
+						return false;
+					}
+					else
+					{
+						APP_DEBUG("Uncached tmp object " << out << " sig=" << build_db::get_signature(find));
+					}
 				}
 				++o;
 			}
 
-			if (!objstore::uncache_object(d->conf.built, d->conf.built, path, build_db::get_signature(find)))
+			if (!objstore::uncache_object(d->conf.built, path, build_db::get_signature(find)))
 			{
 				APP_DEBUG("Could not uncache object " << path << " sig=" << build_db::get_signature(find));
 				return false;
@@ -330,7 +388,7 @@ namespace putki
 				}
 				if (!d->has_added.count(ptr))
 				{
-					to_build p;
+					to_build_entry p;
 					p.path = ptr;
 					p.domain = 0;
 					objstore::object_info oi;
@@ -517,7 +575,7 @@ namespace putki
 					break;
 				}
 
-				to_build next = d->to_build.front();
+				to_build_entry next = d->to_build.front();
 				d->to_build.pop();
 
 				const char* path = next.path.c_str();
@@ -528,6 +586,17 @@ namespace putki
 				{
 					case 0: found = objstore::query_object(d->conf.input, path, &info); break;
 					case 1: found = objstore::query_object(d->conf.temp, path, &info); break;
+					case -1:
+					{
+						next.domain = 0;
+						found = objstore::query_object(d->conf.input, path, &info);
+						if (!found)
+						{
+							next.domain = 1;
+							found = objstore::query_object(d->conf.temp, path, &info);
+						}
+						break;
+					}
 					default: break;
 				}
 
@@ -560,8 +629,8 @@ namespace putki
 				}
 
 				build_info_internal bii;
-				bii.data = d;
-				bii.ptr_context = &pctx;
+				bii.d = d;
+				bii.ptr_ctx = &pctx;
 
 				build_info bi;
 				bi.path = path;
@@ -614,7 +683,7 @@ namespace putki
 				{
 					if (ignore.find(*deps) != ignore.end())
 					{
-						++deps;
+						deps++;
 						continue;
 					}
 					LoadedT::iterator i = d->loaded_temp.find(*deps);
@@ -634,7 +703,28 @@ namespace putki
 							APP_ERROR("Visited set contained entry " << *deps << " not in either input or temp!");
 						}
 					}
-					++deps;
+					deps++;
+				}
+
+				ptr_query_result ptrs;
+				source.th->query_pointers(source.obj, &ptrs, true, true);
+
+				// Clear pointers to non-existant runtime dependencies. Note this happens before signature computation step.
+				for (size_t i = 0; i < ptrs.pointers.size();i++)
+				{
+					ptr_raw* p = ptrs.pointers[i];
+
+					if (p->path != 0 && p->path[0])
+					{
+						objstore::object_info res;
+						if (objstore::query_object(d->conf.input, p->path, &res) || objstore::query_object(d->conf.temp, p->path, &res))
+						{
+							continue;
+						}
+						APP_DEBUG("Clearing pointer to [" << p->path << "] because object could not be found. Will be null pointer.")
+						p->path = 0;
+						p->obj = 0;
+					}
 				}
 
 				signature::buffer sigbuf;
@@ -644,9 +734,6 @@ namespace putki
 				build_db::insert_metadata(bi.record, source.th, source.obj, source.path, sig);
 				build_db::commit_record(d->conf.build_db, bi.record);
 
-				ptr_query_result ptrs;
-				source.th->query_pointers(source.obj, &ptrs, true, true);
-
 				// Add runtime dependencies.
 				for (size_t i = 0; i < ptrs.pointers.size();i++)
 				{
@@ -655,7 +742,7 @@ namespace putki
 					{
 						if (!d->has_added.count(p->path))
 						{
-							to_build tb;
+							to_build_entry tb;
 							tb.path = p->path;
 							tb.domain = (int)p->user_data;
 							d->to_build.push(tb);
@@ -665,6 +752,8 @@ namespace putki
 				}
 
 				objstore::store_object(d->conf.built, path, info.th, source.obj, sig);
+
+				source.th->free(source.obj);
 			}
 		}
 	}

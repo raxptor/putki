@@ -105,6 +105,7 @@ Everything
 	ptr BuildConfigTest BuildConfiguration
 	[hidden] ptr BuiltAsset Built	
 	ptr[] WithResource WRes
+	file EmbedFile
 }
 
 

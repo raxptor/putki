@@ -53,7 +53,7 @@ bool with_resource_builder(const putki::builder::build_info* info)
 	
 	std::string newtxt("This is a text. It was produced by ");
 	newtxt.append(info->path);
-	wr->input = putki::builder::store_resource(info, info->path, newtxt.c_str(), newtxt.size());
+	wr->input = putki::builder::store_resource_tag(info, "out", newtxt.c_str(), newtxt.size());
 	wr->output = built;
 	return true;
 }
@@ -70,12 +70,10 @@ void app_configure_builder(putki::builder::data *builder)
 
 void app_build_packages(putki::objstore::data *out, putki::build::packaging_config *pconf)
 {
-	{
-		putki::package::data *pkg = putki::package::create(out);
-		putki::package::add(pkg, "everything", true);
-		putki::package::add(pkg, "triply-nested", true);
-		putki::build::commit_package(pkg, pconf, "default.pkg");
-	}
+	putki::package::data *pkg = putki::build::create_package(pconf);
+	putki::package::add(pkg, "everything", true, true);
+	putki::package::add(pkg, "triply-nested", true, true);
+	putki::build::commit_package(pkg, pconf, "default.pkg");
 }
 
 int run_putki_builder(int argc, char **argv);

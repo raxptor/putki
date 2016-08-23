@@ -165,91 +165,103 @@ public class DataWriter
 		}
 	}
 
-	public StringBuilder writeAsset(DataObject obj)
+	public StringBuilder writeAsset(DataObject obj, boolean includeAuxes)
 	{
-		auxRefs.clear();
-		StringBuilder bld = new StringBuilder();
-		bld.append("{\n\t");
-		encString(bld, "type");
-		bld.append(": ");
-		encString(bld, obj.getType().name);
-		bld.append(",\n\t");
-		encString(bld, "data");
-		bld.append(": {\n");
-		writeData(bld, 2, obj);
-		bld.append("\t},\n\t");
-		encString(bld, "aux");
-		bld.append(": [");
-
-		boolean first = true;
-
-		while (auxRefs.size() > 0)
+		synchronized (obj)
 		{
-			// These will get added to as references are written.
-			Iterator<String> i = auxRefs.iterator();
-			String s = i.next();
-			auxRefs.remove(s);
-
-			System.out.println("writing aux [" + s + "]");
-
-			if (first)
-			{
-				bld.append("\n\t\t{\n\t\t\t");
-				first = false;
-			}
-			else
-			{
-				bld.append(", {\n\t\t\t");
-			}
-
-			encString(bld, "ref");
+			auxRefs.clear();
+			StringBuilder bld = new StringBuilder();
+			bld.append("{\n\t");
+			encString(bld, "type");
 			bld.append(": ");
-			encString(bld, s);
+			encString(bld, obj.getType().name);
+			bld.append(",\n\t");
+			encString(bld, "data");
+			bld.append(": {\n");
+			writeData(bld, 2, obj);
 
-			DataObject aux = obj.getAux(s);
-
-			if (aux == null)
+			if (!includeAuxes)
 			{
-				System.out.println("Missing aux ref! [" + s + "]");
+				bld.append("}\n}\n");
+				return bld;
 			}
-			else
+
+			bld.append("\t},\n\t");
+			encString(bld, "aux");
+			bld.append(": [");
+
+			boolean first = true;
+			while (auxRefs.size() > 0)
 			{
-				bld.append(",\n\t\t\t");
-				encString(bld, "type");
+				// These will get added to as references are written.
+				Iterator<String> i = auxRefs.iterator();
+				String s = i.next();
+				auxRefs.remove(s);
+
+				System.out.println("writing aux [" + s + "]");
+
+				if (first)
+				{
+					bld.append("\n\t\t{\n\t\t\t");
+					first = false;
+				}
+				else
+				{
+					bld.append(", {\n\t\t\t");
+				}
+
+				encString(bld, "ref");
 				bld.append(": ");
-				encString(bld, aux.getType().name);
-				bld.append(",\n\t\t\t");
-				encString(bld, "data");
-				bld.append(": {\n");
-				writeData(bld, 4, aux);
-				bld.append("\t\t\t}");
+				encString(bld, s);
+
+				DataObject aux = obj.getAux(s);
+
+				if (aux == null)
+				{
+					System.out.println("Missing aux ref! [" + s + "]");
+				}
+				else
+				{
+					bld.append(",\n\t\t\t");
+					encString(bld, "type");
+					bld.append(": ");
+					encString(bld, aux.getType().name);
+					bld.append(",\n\t\t\t");
+					encString(bld, "data");
+					bld.append(": {\n");
+					writeData(bld, 4, aux);
+					bld.append("\t\t\t}");
+				}
+				bld.append("\n\t\t}");
 			}
-			bld.append("\n\t\t}");
+			bld.append("\n\t]\n");
+			bld.append("}\n");
+			return bld;
 		}
-		bld.append("\n\t]\n");
-		bld.append("}\n");
-		return bld;
 	}
 
 	public void WriteObject(DataObject obj)
 	{
 		try
 		{
+			StringBuilder sb;
 			Path p = m_root;
-			String path = obj.getPath();
-			int st = 0;
-			for (int k=0;k<path.length();k++)
+			synchronized (obj)
 			{
-				if (path.charAt(k) == '/' && k > (st+1))
+				String path = obj.getPath();
+				int st = 0;
+				for (int k=0;k<path.length();k++)
 				{
-					p = p.resolve(path.substring(st, k));
-					st = k + 1;
+					if (path.charAt(k) == '/' && k > (st+1))
+					{
+						p = p.resolve(path.substring(st, k));
+						st = k + 1;
+					}
 				}
+				p = p.resolve(path.substring(st) + ".json");
+				sb = writeAsset(obj, true);
 			}
-			p = p.resolve(path.substring(st) + ".json");
-			StringBuilder sb = writeAsset(obj);
 			Files.createDirectories(p.getParent());
-
 			Files.write(p, sb.toString().getBytes(Charset.forName("UTF-8")));
 		}
 		catch (IOException e)

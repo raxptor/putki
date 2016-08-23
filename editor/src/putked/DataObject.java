@@ -15,15 +15,17 @@ public class DataObject
 		m_data = new Object[struct.fields.size()];
 		m_type = struct;
 		m_path = path;
+		m_auxRoot = this;
 		m_root = this;
 		initData();
 	}
 
-	public DataObject(Compiler.ParsedStruct struct, DataObject root, String path)
+	public DataObject(Compiler.ParsedStruct struct, DataObject auxRoot, DataObject root, String path)
 	{
 		m_data = new Object[struct.fields.size()];
 		m_type = struct;
 		m_path = path;
+		m_auxRoot = auxRoot;
 		m_root = root;
 		initData();
 	}
@@ -38,14 +40,20 @@ public class DataObject
 			}
 			else if (fld.type == FieldType.STRUCT_INSTANCE)
 			{
-				m_data[fld.index] =  new DataObject(fld.resolvedRefStruct, m_root, m_path);
+				m_data[fld.index] =  new DataObject(fld.resolvedRefStruct, m_root, this, m_path + ":" + fld.name);
 			}
 		}
 	}
 
-	public DataObject getRootAsset()
+	public DataObject getAuxRoot()
 	{
-		return m_root;
+		return m_auxRoot;
+	}
+
+	// A struct instance in an object points to root
+	public DataObject getRoot()
+	{
+		return m_root == null ? this : m_root;
 	}
 
 	public Object makeDefaultValue(Compiler.ParsedField field)
@@ -135,12 +143,12 @@ public class DataObject
 	@SuppressWarnings("unchecked")
 	public void setField(int index, int arrayIndex, Object value)
 	{
-		System.out.println(m_path + ":" + m_type.fields.get(index).name + "[" + arrayIndex +"] = " + value.toString());
 		Compiler.ParsedField fld = m_type.fields.get(index);
 		if (!fld.isArray)
 		{
 			// Maybe check type?
 			m_data[index] = value;
+			BuilderConnection.onObjectChanged(this);
 			return;
 		}
 
@@ -148,10 +156,12 @@ public class DataObject
 		if (arrayIndex == list.size())
 		{
 			list.add(value);
+			BuilderConnection.onObjectChanged(this);
 		}
 		else if (arrayIndex < list.size())
 		{
 			list.set(arrayIndex, value);
+			BuilderConnection.onObjectChanged(this);
 		}
 		else
 		{
@@ -199,9 +209,10 @@ public class DataObject
 			String ref = tmp.toString();
 			if (!m_auxObjects.containsKey(ref))
 			{
-				DataObject aux = new DataObject(type, this, m_path + ref);
+				DataObject aux = new DataObject(type, this, null, m_path + ref);
 				System.out.println("Created aux [" + ref + "] onto [" + m_path + "]");
 				m_auxObjects.put(ref, aux);
+				BuilderConnection.onObjectChanged(aux);
 				return aux;
 			}
 		}
@@ -226,6 +237,7 @@ public class DataObject
 		@SuppressWarnings("unchecked")
 		List<Object> list = (List<Object>) m_data[field];
 		list.remove(index);
+		BuilderConnection.onObjectChanged(this);
 	}
 
 	public void arrayInsert(int field, int index)
@@ -241,12 +253,13 @@ public class DataObject
 		Compiler.ParsedField fld = m_type.fields.get(field);
 		if (fld.type == FieldType.STRUCT_INSTANCE)
 		{
-			list.add(index, new DataObject(fld.resolvedRefStruct, getRootAsset(), ""));
+			list.add(index, new DataObject(fld.resolvedRefStruct, getAuxRoot(), this, ""));
 		}
 		else
 		{
 			list.add(index, null);
 		}
+		BuilderConnection.onObjectChanged(this);
 	}
 
 	public DataObject getAux(String ref)
@@ -270,5 +283,5 @@ public class DataObject
 	Compiler.ParsedStruct m_type;
 	String m_path;
 	HashMap<String, DataObject> m_auxObjects;
-	DataObject m_root;
+	DataObject m_root, m_auxRoot;
 }

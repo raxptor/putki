@@ -20,7 +20,8 @@ namespace putki
 		static const int PKG_FLAG_EXTERNAL   = 2;
 		static const int PKG_FLAG_INTERNAL   = 4;
 		static const int PKG_FLAG_UNRESOLVED = 8;
-	
+		static const int PKG_FLAG_RESOURCE   = 16;
+
 		struct package_slot
 		{
 			const char *path;
@@ -40,21 +41,28 @@ namespace putki
 
 		struct pkg_ptrs
 		{
-			struct entry
+			struct ptr_entry
 			{
 				instance_t *ptr;
 				short index;
 			};
 
-			std::vector<entry> entries;
+			std::vector<ptr_entry> ptr_entries;
+			std::vector<resource_id*> res_entries;
 
-			static void ptrwalker_callback(putki::ptr_info* info, void* user_data)
+			static void ptr_callback(ptr_info* info, void* user_data)
 			{
 				pkg_ptrs* th = (pkg_ptrs*)user_data;
-				entry e;
+				ptr_entry e;
 				e.ptr = info->ptr;
 				e.index = *((unsigned short *)info->ptr);
-				th->entries.push_back(e);
+				th->ptr_entries.push_back(e);
+			}
+
+			static void res_callback(resource_id* info, void* user_data)
+			{
+				pkg_ptrs* th = (pkg_ptrs*)user_data;
+				th->res_entries.push_back(info);
 			}
 		};
 
@@ -82,9 +90,9 @@ namespace putki
 		int resolve_pointers_with(loaded_package *target, resolve_status *s, loaded_package *aux)
 		{
 			int resolved = 0, unresolved = 0;
-			for (unsigned int i=0; i<s->ptrs.entries.size(); i++)
+			for (unsigned int i=0; i<s->ptrs.ptr_entries.size(); i++)
 			{
-				pkg_ptrs::entry &e = s->ptrs.entries[i];
+				pkg_ptrs::ptr_entry &e = s->ptrs.ptr_entries[i];
 				if (!e.index || (*e.ptr))
 					continue;
 
@@ -121,7 +129,7 @@ namespace putki
 		}
 
 		// look at the first bytes and say if valid and how big the header is.
-		bool get_header_info(char *beg, char *end, uint32_t *total_header_size, uint32_t *total_data_size)
+		bool get_header_info(char *beg, char *end, size_t* total_header_size, size_t* total_data_size)
 		{		
 			if (end - beg < 16)
 				return false;
@@ -207,7 +215,7 @@ namespace putki
 				}
 				else
 				{
-					lp->slots[i].path = "<>";
+					lp->slots[i].path = "?";
 				}
 				
 				lp->slots[i].flags = flags;
@@ -216,7 +224,14 @@ namespace putki
 				{
 					lp->slots[i].file_index = parse_int16(&hdr_rp);
 					lp->slots[i].file_slot_index = parse_int16(&hdr_rp);
-					lp->slots[i].type_id = parse_int16(&hdr_rp);
+					if (flags & PKG_FLAG_RESOURCE)
+					{
+						lp->slots[i].type_id = 0;
+					}
+					else
+					{
+						lp->slots[i].type_id = parse_int16(&hdr_rp);
+					}
 					lp->slots[i].obj = fake_base + parse_int32(&hdr_rp);
 					lp->slots[i].obj_end = fake_base + parse_int32(&hdr_rp);
 				}
@@ -225,8 +240,15 @@ namespace putki
 					lp->slots[i].file_index = -1;
 					lp->slots[i].obj = data + (parse_int32(&hdr_rp) - hdr_sz);
 					lp->slots[i].obj_end = data + (parse_int32(&hdr_rp) - hdr_sz);
-					lp->slots[i].type_id = parse_int16(&hdr_rp);
-					
+					if (flags & PKG_FLAG_RESOURCE)
+					{
+						lp->slots[i].type_id = 0;
+					}
+					else
+					{
+						lp->slots[i].type_id = parse_int16(&hdr_rp);
+					}
+
 					// where to insert the external references.
 					if (lp->slots[i].obj_end > tail_ptr)
 						tail_ptr = (char*)lp->slots[i].obj_end;
@@ -255,10 +277,10 @@ namespace putki
 				{
 					// Allocate at tail_ptr and fire off load call.
 					ext_loader(lp->slots[i].file_index, parsed_imports[lp->slots[i].file_index].import_path,
-					           (char*)lp->slots[i].obj - fake_base,
-						     (char*)lp->slots[i].obj_end - fake_base,
-						     tail_ptr);
-						     
+					           (size_t)((char*)lp->slots[i].obj - fake_base),
+					           (size_t)((char*)lp->slots[i].obj_end - fake_base),
+					           tail_ptr);
+
 					lp->slots[i].obj_end = tail_ptr + ((char*)lp->slots[i].obj_end - (char*)lp->slots[i].obj);
 					lp->slots[i].obj = tail_ptr;
 					tail_ptr = (char*)lp->slots[i].obj_end;
@@ -268,15 +290,17 @@ namespace putki
 						
 			// flush loads
 			if (ext_loads)
+			{
 				ext_loader(0, 0, 0, 0, 0);
+			}
 			
 			// resolve objects
 			for (unsigned int i=0;i!=slot_count;i++)
 			{
-				if (lp->slots[i].obj)
+				if (lp->slots[i].obj && !(lp->slots[i].flags & PKG_FLAG_RESOURCE))
 				{
-					const size_t ps0 = ptrs.entries.size();
-
+					const size_t ps0 = ptrs.ptr_entries.size();
+					const size_t rs0 = ptrs.res_entries.size();
 					const type_record* record = get_type_record(lp->slots[i].type_id);
 					if (record && record->post_blob_load)
 					{
@@ -288,7 +312,7 @@ namespace putki
 						}
 						else
 						{
-							record->walk_dependencies(obj_ptr, pkg_ptrs::ptrwalker_callback, &ptrs);
+							record->walk_dependencies(obj_ptr, pkg_ptrs::ptr_callback, pkg_ptrs::res_callback, &ptrs);
 						}
 					}
 					else if (!record)
@@ -305,13 +329,13 @@ namespace putki
 							continue;
 						}
 							
-						size_t ps1 = ptrs.entries.size();
+						size_t ps1 = ptrs.ptr_entries.size();
 						for (size_t i=ps0;i!=ps1;i++)
 						{
 							// remap all the pointers.
 							//
 							// TODO: Maybe make this faster than this.
-							short ptr = ptrs.entries[i].index;
+							short ptr = ptrs.ptr_entries[i].index;
 							if (!ptr)
 								continue;
 							
@@ -324,7 +348,26 @@ namespace putki
 								if (ptr == from)
 								{
 									PTK_WARNING("Remapping slot " << from << " to " << to)
-									ptrs.entries[i].index = to + 1;
+									ptrs.ptr_entries[i].index = to + 1;
+									break;
+								}
+							}
+						}
+
+						size_t rs1 = ptrs.res_entries.size();
+						for (size_t i = rs0; i != rs1; i++)
+						{
+							resource_id* res = ptrs.res_entries[i];
+							uint32_t slot = res->slot - 1;
+							char *remap_table = ip->remap_table;
+							for (int j = 0; j != ip->remaps_count; j++)
+							{
+								int16_t from = parse_int16(&remap_table);
+								int16_t to = parse_int16(&remap_table);
+								if (slot == from)
+								{
+									PTK_WARNING("Remapping resource ptr slot " << from << " to " << to);
+									res->slot = to + 1;
 									break;
 								}
 							}
@@ -334,12 +377,12 @@ namespace putki
 			}
 
 			int resolved = 0, unresolved = 0;
-			for (unsigned int i=0;i<ptrs.entries.size(); i++)
+			for (unsigned int i=0;i<ptrs.ptr_entries.size(); i++)
 			{
-				if (ptrs.entries[i].index > 0 && ptrs.entries[i].index <= (int)lp->slots_size)
+				if (ptrs.ptr_entries[i].index > 0 && ptrs.ptr_entries[i].index <= (int)lp->slots_size)
 				{
-					package_slot *slot = &lp->slots[ptrs.entries[i].index-1];
-					*(ptrs.entries[i].ptr) = slot->obj;
+					package_slot *slot = &lp->slots[ptrs.ptr_entries[i].index - 1];
+					*(ptrs.ptr_entries[i].ptr) = slot->obj;
 					
 					if (slot->flags & PKG_FLAG_UNRESOLVED)
 						unresolved++;
@@ -348,7 +391,25 @@ namespace putki
 				}
 				else
 				{
-					*(ptrs.entries[i].ptr) = 0;
+					*(ptrs.ptr_entries[i].ptr) = 0;
+				}
+			}
+
+			for (unsigned int i = 0; i<ptrs.res_entries.size(); i++)
+			{
+				resource_id* res = ptrs.res_entries[i];
+				if (res->slot != 0 && res->slot <= lp->slots_size)
+				{
+					package_slot *slot = &lp->slots[res->slot - 1];
+					res->slot = (uintptr_t) slot;
+					if (slot->flags & PKG_FLAG_UNRESOLVED)
+						unresolved++;
+					else
+						resolved++;
+				}
+				else
+				{
+					res->slot = 0;
 				}
 			}
 			
@@ -377,13 +438,11 @@ namespace putki
 			}
 			return -1;
 		}
-		
 
 		void register_for_liveupdate(loaded_package *lp)
 		{
 			// maybe check here that there is nothing unresolved left. or we might start pointing into junk when stuff
 			// start pointing into this.
-
 			for (unsigned int i=0; i!=lp->slots_size; i++)
 			{
 				if (lp->slots[i].obj && lp->slots[i].path)
@@ -396,8 +455,13 @@ namespace putki
 			if (lp->should_free)
 				delete [] lp->data;
 			
-			for (int i=0;i!=lp->slots_size;i++)
-				::free((void*)lp->slots[i].path);
+			for (int i = 0; i != lp->slots_size; i++)
+			{
+				if (lp->slots[i].flags & PKG_FLAG_PATH)
+				{
+					::free((void*)lp->slots[i].path);
+				}
+			}
 
 			delete [] lp->slots;
 			delete lp;
@@ -425,6 +489,66 @@ namespace putki
 				return pkg->slots[slot].path;
 			}
 			return 0;
+		}
+		
+		bool load_resource(resource_id id, resource_data* res, loaded_package* extra)
+		{
+			if (!id.slot)
+			{
+				res->data = 0;
+				res->size = 0;
+				res->internal = 0;
+				return false;
+			}
+			else
+			{
+				package_slot* slot = (package_slot*)id.slot;
+				if (!(slot->flags & PKG_FLAG_UNRESOLVED))
+				{
+					res->data = (const char*)slot->obj;
+					res->size = (char*)slot->obj_end - (char*)slot->obj;
+					res->internal = 0;
+					return true;
+				}
+				else
+				{
+					return load_resource(extra, slot->path, res);
+				}
+			}
+		}
+
+		bool load_resource(loaded_package* p, const char* path, resource_data* res)
+		{
+			for (size_t i = 0; i < p->slots_size; i++)
+			{
+				if (!(p->slots[i].flags & PKG_FLAG_RESOURCE))
+				{
+					continue;
+				}
+				if (p->slots[i].flags & PKG_FLAG_UNRESOLVED)
+				{
+					continue;
+				}
+				if (p->slots[i].path == 0 || p->slots[i].path[0] != '$')
+				{
+					PTK_WARNING("Slot name too short!? Resource blob names should start with '$'")
+				}
+				if (!strcmp(path, p->slots[i].path + 1))
+				{
+					res->data = (const char*)p->slots[i].obj;
+					res->size = (char*)p->slots[i].obj_end - (char*)p->slots[i].obj;
+					res->internal = (uintptr_t)p;
+					return true;
+				}
+			}
+
+			PTK_WARNING("Could not find resource " << path << " in package.")
+			return false;
+		}
+
+		void free_resource(resource_data* res)
+		{
+			
 		}
 	}
 

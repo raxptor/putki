@@ -62,7 +62,7 @@ namespace putki
 			bool connected;
 
 			char readbuf[READBUF_SIZE];
-			unsigned long readpos;
+			size_t readpos;
 
 			struct pkg_e
 			{
@@ -136,7 +136,7 @@ namespace putki
 		{
 			std::string cmd(str);
 			cmd.append("\n");
-			send(d->socket, cmd.c_str(), cmd.size(), 0);
+			send(d->socket, cmd.c_str(), (int)cmd.size(), 0);
 		}
 
 		data* connect()
@@ -147,7 +147,7 @@ namespace putki
 			addrLocal.sin_family = AF_INET;
 			addrLocal.sin_port = htons(5556);
 			addrLocal.sin_addr.s_addr = htonl(0x7f000001);
-			d->socket = socket(AF_INET, SOCK_STREAM, 0);
+			d->socket = (int)socket(AF_INET, SOCK_STREAM, 0);
 			if (connect(d->socket, (sockaddr*)&addrLocal, sizeof(addrLocal)) < 0)
 			{
 				PTK_WARNING("Could not connect to live update socket")
@@ -220,6 +220,12 @@ namespace putki
 			// attempt cross-resolve.
 			for(unsigned int i=0; i<d->pending.size(); i++)
 			{
+				if (!pkgmgr::path_in_package_slot(d->pending[i].pkg, 0, true))
+				{
+					LIVEUPDATE_DEBUG("I got an empty package?!");
+					continue;
+				}
+
 				LIVEUPDATE_DEBUG("Processing package with " << pkgmgr::path_in_package_slot(d->pending[i].pkg, 0, true))
 
 				// if there are no unresolved references, send directly.
@@ -301,7 +307,7 @@ namespace putki
 							if (!d->askedfor.count(ref))
 							{
 								char req[1024];
-								sprintf(req, "build %s", ref);
+								sprintf(req, "get %s", ref);
 								command(d, req);
 								d->askedfor.insert(ref);
 							}
@@ -323,13 +329,15 @@ namespace putki
 				return;
 			}
 			
-			uint32_t hdr_size, data_size;
+			size_t hdr_size, data_size;
 			if (!pkgmgr::get_header_info(d->readbuf, d->readbuf + d->readpos, &hdr_size, &data_size))
 				return;
 				
 			if (d->readpos < hdr_size + data_size)
 				return;
-				
+			
+			LIVEUPDATE_DEBUG("Got package with " << d->readpos << " bytes");
+
 			data::pkg_e pe;
 			pe.rs = pkgmgr::alloc_resolve_status();
 
@@ -379,8 +387,8 @@ namespace putki
 			}
 
 			// peel off this package.
-			unsigned long peel = hdr_size + data_size;
-			for (unsigned long bk=0; bk<(d->readpos-peel); bk++)
+			size_t peel = hdr_size + data_size;
+			for (size_t bk = 0; bk < (d->readpos - peel); bk++)
 				d->readbuf[bk] = d->readbuf[bk + peel];
 			d->readpos -= peel;
 
@@ -407,7 +415,7 @@ namespace putki
 			while (d->connected && select(d->socket + 1, &fds, (fd_set *) 0, (fd_set *) 0, &tv))
 			{
 				int read;
-				if ((read = recv(d->socket, &d->readbuf[d->readpos], READBUF_SIZE - d->readpos, 0)) > 0)
+				if ((read = recv(d->socket, &d->readbuf[d->readpos], (int)(READBUF_SIZE - d->readpos), 0)) > 0)
 				{
 					d->readpos += read;
 					on_recv(d);

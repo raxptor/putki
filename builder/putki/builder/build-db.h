@@ -31,17 +31,16 @@ namespace putki
 
 		// 
 		const char *get_pointer(record *r, unsigned int index);
+		const char *get_file_pointer(record *r, unsigned int index);
 		const char *get_type(record *r);
 		const char *get_signature(record *r);
 		const char *get_builder(record *r);
-		const char *get_parent(record *r);
 
 		bool copy_existing(data *d, record *target, const char *path);
-
 		void set_builder(record *r, const char *builder);
-		void set_parent(record *r, const char *parent);
 
 		void add_output(record *r, const char *output_path, const char *builder, const char *signature);
+		void add_output_resource(record *r, const char *output_path, const char *builder, const char *signature);
 		void add_input_dependency(record *r, const char *dependency, const char *signature=0);
 		void add_external_resource_dependency(record *r, const char *filepath, const char *signature);
 		void insert_metadata(record* rec, type_handler_i* th, instance_t obj, const char* path, const char* signature);
@@ -56,7 +55,7 @@ namespace putki
 
 		void append_extra_outputs(record *target, record *source);
 
-		const char *enum_outputs(record *r, unsigned int pos);
+		const char *enum_outputs(record *r, unsigned int pos, bool* is_resource);
 		const char *get_output_signature(record *r, int index);
 
 		deplist* inputdeps_get(data *d, const char *path);

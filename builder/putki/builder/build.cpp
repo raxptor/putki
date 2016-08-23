@@ -49,6 +49,8 @@ namespace putki
 
 		struct packaging_config
 		{
+			builder::config* config;
+			bool find_roots_only;
 			std::string package_path;
 			runtime::descptr rt;
 			build_db::data *bdb;
@@ -88,10 +90,28 @@ namespace putki
 			}
 		}
 
+		package::data* create_package(packaging_config* config)
+		{
+			objstore::data* filesrc[] = {
+				config->config->input,
+				config->config->temp,
+				0
+			};
+			return package::create(config->config->built, filesrc);
+		}
+
 		void commit_package(putki::package::data *package, packaging_config *packaging, const char *out_path)
 		{
+			if (packaging->find_roots_only)
+			{
+				pkg_conf pk;
+				pk.path = std::string("dummy-path/") + out_path;
+				pk.pkg = package;
+				packaging->packages.push_back(pk);
+				return;
+			}
+
 			pkg_conf pk;
-			
 			bool make_patch = packaging->make_patch;
 		
 			// expect old packages to be there.
@@ -181,38 +201,99 @@ namespace putki
 			ptr.close();
 		}
 
-		void make_packages(runtime::descptr rt, const char* build_config, bool incremental, bool make_patch)
-		{	
-			char pfx[1024];
+		
+		void write_prefix(char pfx[1024], runtime::descptr rt, const char* build_config)
+		{
 			sprintf(pfx, "out/%s-%s", runtime::desc_str(rt), build_config);
+		}
+
+		// Must free all the things written into conf
+		void init_builder_configuration(builder::config* conf, runtime::descptr rt, const char* build_config, bool incremental)
+		{
+			char pfx[1024];
+			write_prefix(pfx, rt, build_config);
 
 			size_t len = strlen(pfx);
-			for (int i=0;i<len;i++)
+			for (int i = 0; i<len; i++)
 				pfx[i] = ::tolower(pfx[i]);
-
+			
 			std::string prefix(pfx);
-			objstore::data *input_store = objstore::open("data/");
-			objstore::data *tmp_store = objstore::open((prefix + "/.tmp").c_str());
-			objstore::data *built_store = objstore::open((prefix + "/.built").c_str());
-			build_db::data* bdb = build_db::create((prefix + "/.builddb").c_str(), incremental);
+			conf->input = objstore::open("data/", (prefix + "/.input_cache").c_str(), false);
+			conf->temp = objstore::open((prefix + "/.tmp").c_str(), (prefix + "/.tmp_cache").c_str(), true);
+			conf->built = objstore::open((prefix + "/.built").c_str(), (prefix + "/.built_cache").c_str(), true);
+			conf->build_db = build_db::create((prefix + "/.builddb").c_str(), incremental);
+			conf->build_config = build_config;
+		}
 
-			builder::config conf;
-			conf.input = input_store;
-			conf.temp = tmp_store;
-			conf.built = built_store;
-			conf.build_db = bdb;
-			conf.build_config = build_config;
-			builder::data* builder = builder::create(&conf);
-			s_config_fn(builder);
-	
-			char pkg_path[1024];
-			sprintf(pkg_path, "%s/packages/", prefix.c_str());
+		void destroy_builder_configuration(builder::config* conf)
+		{
+			objstore::free(conf->input);
+			objstore::free(conf->temp);
+			objstore::free(conf->built);
+			build_db::store(conf->build_db);
+			build_db::release(conf->build_db);
+		}
+
+		builder::data* create_and_config_builder(builder::config* conf)
+		{
+			builder::data* builder = builder::create(conf);
+			if (builder)
+			{
+				s_config_fn(builder);
+			}
+			return builder;
+		}
+
+		void add_build_roots(builder::data* builder_data, builder::config* conf, runtime::descptr rt, const char* build_config)
+		{
 			packaging_config pconf;
+			pconf.find_roots_only = true;
+			pconf.rt = rt;
+			pconf.bdb = conf->build_db;
+			pconf.make_patch = false;
+			pconf.config = conf;
+			invoke_packager(conf->built, &pconf);
+
+			// Required assets
+			std::set<std::string> req;
+			for (size_t i = 0; i != pconf.packages.size(); i++)
+			{
+				for (unsigned int j = 0;; j++)
+				{
+					const char *path = package::get_needed_asset(pconf.packages[i].pkg, j);
+					if (path)
+						req.insert(path);
+					else
+						break;
+				}
+			}
+
+			std::set<std::string>::iterator j = req.begin();
+			while (j != req.end())
+			{
+				putki::builder::add_build_root(builder_data, j->c_str(), 0);
+				j++;
+			}
+		}
+
+		void make_packages(runtime::descptr rt, const char* build_config, bool incremental, bool make_patch)
+		{
+			builder::config conf;
+			init_builder_configuration(&conf, rt, build_config, incremental);
+			builder::data* bld = create_and_config_builder(&conf);
+
+			char pkg_path[1024];
+			char pfx[1024];
+			write_prefix(pfx, rt, build_config);
+			sprintf(pkg_path, "%s/packages/", pfx);
+			packaging_config pconf;
+			pconf.find_roots_only = false;
 			pconf.package_path = pkg_path;
 			pconf.rt = rt;
-			pconf.bdb = bdb;
+			pconf.bdb = conf.build_db;
 			pconf.make_patch = make_patch;
-			invoke_packager(built_store, &pconf);
+			pconf.config = &conf;
+			invoke_packager(conf.built, &pconf);
 
 			// Required assets
 			std::set<std::string> req;
@@ -231,26 +312,27 @@ namespace putki
 			std::set<std::string>::iterator j = req.begin();
 			while (j != req.end())
 			{
-				putki::builder::add_build_root(builder, j->c_str(), 0);
+				putki::builder::add_build_root(bld, j->c_str(), 0);
 				j++;
 			}
 
-			putki::builder::do_build(builder, incremental);
+			putki::builder::do_build(bld, incremental);
 
 			APP_INFO("Done building. Performing post-build steps.")
 
 			postbuild_info pbi;
-			pbi.input = input_store;
-			pbi.temp = tmp_store;
-			pbi.output = built_store;
+			pbi.input = conf.input;
+			pbi.temp = conf.temp;
+			pbi.output = conf.built;
 			pbi.pconf = &pconf;
-			pbi.builder = builder;
+			pbi.builder = bld;
 			invoke_post_build(&pbi);
 
 			// Post-build step may create new packages, but it must make sure they get built too.
 			// So it is up to the post_build_step to run add_build_root for the objects it would like
 			// to package.
-			putki::builder::do_build(builder, incremental);
+			putki::builder::do_build(bld, incremental);
+			builder::free(bld);
 
 			APP_INFO("Done post-build. Writing packages")
 
@@ -260,11 +342,7 @@ namespace putki
 				putki::package::free(pconf.packages[i].pkg);
 			}
 
-			objstore::free(input_store);
-			objstore::free(tmp_store);
-			objstore::free(built_store);
-			build_db::store(bdb);
-			build_db::release(bdb);
+			destroy_builder_configuration(&conf);
 		}
 	}
 }
