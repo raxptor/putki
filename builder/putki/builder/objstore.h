@@ -66,6 +66,8 @@ namespace putki
 		bool uncache_resource(data* d, const char *path, const char *signature);
 
 		size_t query_by_type(data* d, type_handler_i* th, const char** paths, size_t len);
+		// pass back count as returned by query_by_type so this function can free up the strings.
+		void free_query_result(const char** paths, size_t count);
 	}
 }
 

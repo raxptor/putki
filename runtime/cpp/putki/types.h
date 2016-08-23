@@ -5,23 +5,24 @@
 namespace putki
 {
 	typedef void* instance_t;
-	typedef const char* resource_id_t;
 
-	struct ptr_info;
-	typedef void(*ptrwalker_callback)(ptr_info* info, void* user_data);
-	typedef void(*ptrwalker_walker)(void* object, ptrwalker_callback callback, void* user_data);
+	struct resource_id
+	{
+		uintptr_t slot;
+	};
+
+	struct ptr_info;	
+
+	typedef void(*objwalker_callback_ptr)(ptr_info* info, void* user_data);
+	typedef void(*objwalker_callback_res)(resource_id* res, void* user_data);
+	typedef void(*objwalker_walker)(void* object, objwalker_callback_ptr callback_ptr, objwalker_callback_res callback_file, void* user_data);
 
 	struct ptr_info
 	{
 		instance_t* ptr;
-		ptrwalker_walker walker;
+		objwalker_walker walker;
 	};
-
-	struct depwalker_i
-	{
-		virtual void pointer(instance_t *ptr) = 0;
-	};
-
+	
 	typedef char* (*post_blob_load_fn)(void* data, char* beg, char* end);
 
 	struct type_record
@@ -29,9 +30,8 @@ namespace putki
 		int id;
 		unsigned int size;
 		post_blob_load_fn post_blob_load;
-		ptrwalker_walker walk_dependencies;
+		objwalker_walker walk_dependencies;
 	};
-
 
 	struct field_record
 	{

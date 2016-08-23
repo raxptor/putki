@@ -27,10 +27,10 @@ namespace putki
 
 	struct file_query_result
 	{
-		std::vector<std::string> files;
+		std::vector<std::string*> files;
 	};
 
-	inline void add_to_file_query(file_query_result* result, const std::string& file)
+	inline void add_to_file_query(file_query_result* result, std::string* file)
 	{
 		// Need to think what to do about this.
 		result->files.push_back(file);

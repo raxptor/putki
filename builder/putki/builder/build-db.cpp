@@ -524,10 +524,10 @@ namespace putki
 			rec->md.files.clear();
 			for (size_t i = 0; i < files.files.size(); i++)
 			{
-				std::string& f = files.files[i];
-				if (!f.empty())
+				std::string* f = files.files[i];
+				if (!f->empty())
 				{
-					rec->md.files.insert(f);
+					rec->md.files.insert(*f);
 				}
 			}
 		}
