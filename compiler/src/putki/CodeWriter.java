@@ -26,25 +26,28 @@ public class CodeWriter
 			try
 			{
 				Files.createDirectories(entry.getKey().getParent());
-				byte[] data = Files.readAllBytes(entry.getKey());
-				byte[] toWrite = entry.getValue();
-				if (data.length == toWrite.length)
+				if (Files.exists(entry.getKey()))
 				{
-					boolean same = true;
-					for (int i=0;i<data.length;i++)
+					byte[] data = Files.readAllBytes(entry.getKey());
+					byte[] toWrite = entry.getValue();
+					if (data.length == toWrite.length)
 					{
-						if (data[i] != toWrite[i])
+
+						boolean same = true;
+						for (int i=0;i<data.length;i++)
 						{
-							same = false;
-							break;
+							if (data[i] != toWrite[i])
+							{
+								same = false;
+								break;
+							}
+						}
+						if (same)
+						{
+							continue;
 						}
 					}
-					if (same)
-					{
-						continue;
-					}
 				}
-
 				Files.write(entry.getKey(),  entry.getValue());
 			}
 			catch (IOException e)
