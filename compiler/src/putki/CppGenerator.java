@@ -938,7 +938,7 @@ public class CppGenerator
 	                    switch (field.type)
 	                    {
 	                    	case FILE:
-	                    		sb.append(indent).append("putki::add_to_file_query(result, " + ref + ");");
+	                    		sb.append(indent).append("putki::add_to_file_query(result, &" + ref + ");");
 	                    		break;
 	                    	case STRUCT_INSTANCE:
 	                    		sb.append(indent).append(getTypeHandlerFn(field.resolvedRefStruct) + "()->query_files(&" + ref + ", result, skip_input_only, false);");
