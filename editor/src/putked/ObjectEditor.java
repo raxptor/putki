@@ -7,6 +7,7 @@ import putki.Compiler.ParsedField;
 import putki.Compiler.ParsedStruct;
 import javafx.event.ActionEvent;
 import javafx.event.EventHandler;
+import javafx.geometry.HPos;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.geometry.VPos;
@@ -56,7 +57,8 @@ class FileEditor implements FieldEditor
         	java.io.File f = new java.io.File(Main.s_instance.translateResPath(newValue));
         	if (!f.exists() || f.isDirectory())
         		tf.getStyleClass().add("error");
-        	m_f.set(newValue);
+        	if (!newValue.equals(m_f.get()))
+        		m_f.set(newValue);
         });
         tf.setText(m_f.get());
         return tf;

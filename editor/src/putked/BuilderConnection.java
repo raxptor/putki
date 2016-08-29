@@ -20,22 +20,17 @@ public class BuilderConnection implements Runnable
 
 	static HashMap<String, Change> m_changedObjects = new HashMap<String, Change>();
 	static final Lock m_changeLock = new ReentrantLock();
-	static boolean m_acceptChanges = false;
+
 	static final Condition m_hasChanges = m_changeLock.newCondition();
 
 	public static void onObjectChanged(DataObject object)
 	{
-		DataObject actual = object.getRoot();
+		m_changeLock.lock();
 
+		DataObject actual = object.getRoot();
 		Change c = new Change();
 		c.object = actual;
 		String path = actual.getPath();
-		m_changeLock.lock();
-		if (!m_acceptChanges)
-		{
-			m_changeLock.unlock();
-			return;
-		}
 
 		try
 		{
@@ -65,7 +60,6 @@ public class BuilderConnection implements Runnable
 	public static void start()
 	{
 		m_changeLock.lock();
-		m_acceptChanges = true;
 		m_changedObjects.clear();
 		m_changeLock.unlock();
 

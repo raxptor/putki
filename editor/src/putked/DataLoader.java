@@ -353,8 +353,10 @@ public class DataLoader
 				case STRUCT_INSTANCE:
 				{
 					Tmp t = new Tmp();
-					t.result = new DataObject(field.resolvedRefStruct, obj.getAuxRoot(), obj, obj.getPath());
+					t.result = new DataObject(field.resolvedRefStruct, obj.getAuxRoot(), obj.getRoot(), obj.getPath());
+					t.result.setTrackChanges(false);
 					parseData(status, t);
+					t.result.setTrackChanges(true);
 					if (!status.error)
 					{
 						obj.setField(field.index, arrayIndex, t.result);
@@ -474,7 +476,9 @@ public class DataLoader
 						}
 						else if (name.equals("data"))
 						{
+							tmp2.result.setTrackChanges(false);
 							parseData(status,  tmp2);
+							tmp2.result.setTrackChanges(true);
 							if (!status.error)
 							{
 								tmp.result.getAuxRoot().addAux(tmp2.ref, tmp2.result);
@@ -552,7 +556,9 @@ public class DataLoader
 					}
 					else if (name.equals("data") && tmp.result != null)
 					{
+						tmp.result.setTrackChanges(false);
 						parseData(status, tmp);
+						tmp.result.setTrackChanges(true);
 					}
 					else if (name.equals("aux") && tmp.result != null)
 					{

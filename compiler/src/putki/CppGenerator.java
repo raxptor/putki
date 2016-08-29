@@ -170,7 +170,7 @@ public class CppGenerator
 		switch (f)
 		{
 			case FILE:
-				return "putki::resource_id_t";
+				return "putki::resource_id";
 			case STRING:
 			case PATH:
 				return "const char*";
@@ -227,9 +227,10 @@ public class CppGenerator
 				return "uint32_t";
 			case BYTE:
 				return "unsigned char";
+			case FILE:
+				return inkiOutkiInt(p.ptrSize);
 			case POINTER:
 			case STRING:
-			case FILE:
 				return inkiOutkiInt(p.ptrSize);
 			case FLOAT:
 				return "float";
@@ -614,6 +615,9 @@ public class CppGenerator
 				case INT32:
 					sb.append(indent).append("putki::pack_int32_field((char*)&" + refOut + ", " + refIn + ");");
 					break;
+				case BOOL:
+					sb.append(indent).append(refOut + " = " + refIn + " ? 1 : 0;");
+					break;
 				case BYTE:
 				case FLOAT:
 					sb.append(indent).append(refOut + " = " + refIn + ";");
@@ -625,6 +629,8 @@ public class CppGenerator
 					sb.append(indent).append(refOut + " = (" + inkiOutkiInt(runtime.ptrSize) + ") " + refIn + ".user_data();");
 					break;
 				case FILE:
+					sb.append(indent).append(refOut + " = atoi(" + refIn + ".c_str());");
+					break;
 				case PATH:
 				case STRING:
 					sb.append(indent).append("out_beg = putki::pack_string_field(" + runtime.ptrSize + ", (char*)&" + refOut + ", " + refIn + ".c_str(), out_beg, out_end);");
@@ -692,7 +698,6 @@ public class CppGenerator
 	            }
 	            sb.append("\n");
 	            sb.append("namespace inki\n");
-
 	            sb.append("{\n");
                 for (Compiler.ParsedEnum e : file.enums)
                 {
@@ -757,7 +762,6 @@ public class CppGenerator
 	            {
 	            	sb.append("\nnamespace " + outkiNsName(p));
 	            	sb.append("\n{");
-
 	                for (Compiler.ParsedStruct struct : file.structs)
 	                {
 	                    if ((struct.domains & Compiler.DOMAIN_OUTPUT) == 0)
@@ -937,7 +941,7 @@ public class CppGenerator
 	                    switch (field.type)
 	                    {
 	                    	case FILE:
-	                    		sb.append(indent).append("putki::add_to_file_query(result, " + ref + ");");
+	                    		sb.append(indent).append("putki::add_to_file_query(result, &" + ref + ");");
 	                    		break;
 	                    	case STRUCT_INSTANCE:
 	                    		sb.append(indent).append(getTypeHandlerFn(field.resolvedRefStruct) + "()->query_files(&" + ref + ", result, skip_input_only, false);");
@@ -1255,7 +1259,7 @@ public class CppGenerator
                         continue;
                     writeOutkiStruct(comp, null, sb, struct, "\n\t");
 					sb.append("\n\t").append("char* " + outkiPostBlobLoader(struct) + "(void* object, char* beg, char* end);");
-					sb.append("\n\t").append("void " + outkiPtrWalker(struct) + "(void* object, putki::ptrwalker_callback callback, void* user_data);");
+					sb.append("\n\t").append("void " + outkiPtrWalker(struct) + "(void* object, putki::objwalker_callback_ptr callback_ptr, putki::objwalker_callback_res callback_res, void* user_data);");
                 }
 	            sb.append("\n}");
 	            writer.addOutput(headerFn, sb.toString().getBytes());
@@ -1354,7 +1358,6 @@ public class CppGenerator
 
     	    			switch (field.type)
     	    			{
-    	    				case FILE:
     	    				case PATH:
     	    				case STRING:
 								master.append(indent).append("beg = putki::post_blob_load_string(&" + ref + ", beg, end);");
@@ -1379,12 +1382,12 @@ public class CppGenerator
 
     	    		master.append(p0).append("\treturn beg;");
     	    		master.append(p0).append("}");
-    	    		master.append(p0).append("void " + outkiPtrWalker(struct) + "(void* object, putki::ptrwalker_callback callback, void* user_data)");
+    	    		master.append(p0).append("void " + outkiPtrWalker(struct) + "(void* object, putki::objwalker_callback_ptr callback_ptr, putki::objwalker_callback_res callback_res, void* user_data)");
     	    		master.append(p0).append("{");
 
 	    			if (struct.resolvedParent != null)
 	    			{
-						master.append(p1).append(outkiPtrWalker(struct.resolvedParent) + "(object, callback, user_data);");
+						master.append(p1).append(outkiPtrWalker(struct.resolvedParent) + "(object, callback_ptr, callback_res, user_data);");
 	    			}
 
 	    			boolean first = true;
@@ -1399,7 +1402,7 @@ public class CppGenerator
     	    			{
     	    				continue;
     	    			}
-    	    			if (field.type != FieldType.STRUCT_INSTANCE && field.type != FieldType.POINTER)
+    	    			if (field.type != FieldType.STRUCT_INSTANCE && field.type != FieldType.POINTER && field.type != FieldType.FILE)
     	    			{
     	    				continue;
     	    			}
@@ -1412,10 +1415,10 @@ public class CppGenerator
     	    			{
 		   	    			if (firstPtr)
 		   	    			{
-	    	    				master.append(p1).append("putki::ptr_info info;");
+	    	    				master.append(p1).append("putki::ptr_info ptr_info;");
 	    	    				firstPtr = false;
 		   	    			}
-	    	    			master.append(p1).append("info.walker = " + outkiPtrWalker(field.resolvedRefStruct) + ";");
+	    	    			master.append(p1).append("ptr_info.walker = " + outkiPtrWalker(field.resolvedRefStruct) + ";");
     	    			}
 
     	    			String ref = "obj->" + fieldName(field);
@@ -1432,11 +1435,14 @@ public class CppGenerator
     	    			switch (field.type)
     	    			{
 							case STRUCT_INSTANCE:
-								master.append(indent).append(outkiPtrWalker(field.resolvedRefStruct) + "(&" + ref + ", callback, user_data);");
+								master.append(indent).append(outkiPtrWalker(field.resolvedRefStruct) + "(&" + ref + ", callback_ptr, callback_res, user_data);");
 								break;
 							case POINTER:
-								master.append(indent).append("info.ptr = ((putki::instance_t*)&" + ref + ");");
-								master.append(indent).append("callback(&info, user_data);");
+								master.append(indent).append("ptr_info.ptr = ((putki::instance_t*)&" + ref + ");");
+								master.append(indent).append("callback_ptr(&ptr_info, user_data);");
+								break;
+							case FILE:
+								master.append(indent).append("callback_res(&" + ref + ", user_data);");
 								break;
     	    				default:
     	    					break;

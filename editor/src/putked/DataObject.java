@@ -17,6 +17,7 @@ public class DataObject
 		m_path = path;
 		m_auxRoot = this;
 		m_root = this;
+		m_trackChanges = true;
 		initData();
 	}
 
@@ -27,6 +28,7 @@ public class DataObject
 		m_path = path;
 		m_auxRoot = auxRoot;
 		m_root = root;
+		m_trackChanges = true;
 		initData();
 	}
 
@@ -43,6 +45,11 @@ public class DataObject
 				m_data[fld.index] =  new DataObject(fld.resolvedRefStruct, m_root, this, m_path + ":" + fld.name);
 			}
 		}
+	}
+
+	public void setTrackChanges(boolean track)
+	{
+		m_trackChanges = track;
 	}
 
 	public DataObject getAuxRoot()
@@ -140,6 +147,14 @@ public class DataObject
 		return m_data[index];
 	}
 
+	void onChanged()
+	{
+		if (m_trackChanges)
+		{
+			BuilderConnection.onObjectChanged(this);
+		}
+	}
+
 	@SuppressWarnings("unchecked")
 	public void setField(int index, int arrayIndex, Object value)
 	{
@@ -148,7 +163,7 @@ public class DataObject
 		{
 			// Maybe check type?
 			m_data[index] = value;
-			BuilderConnection.onObjectChanged(this);
+			onChanged();
 			return;
 		}
 
@@ -156,12 +171,12 @@ public class DataObject
 		if (arrayIndex == list.size())
 		{
 			list.add(value);
-			BuilderConnection.onObjectChanged(this);
+			onChanged();
 		}
 		else if (arrayIndex < list.size())
 		{
 			list.set(arrayIndex, value);
-			BuilderConnection.onObjectChanged(this);
+			onChanged();
 		}
 		else
 		{
@@ -212,7 +227,7 @@ public class DataObject
 				DataObject aux = new DataObject(type, this, null, m_path + ref);
 				System.out.println("Created aux [" + ref + "] onto [" + m_path + "]");
 				m_auxObjects.put(ref, aux);
-				BuilderConnection.onObjectChanged(aux);
+				onChanged();
 				return aux;
 			}
 		}
@@ -237,7 +252,7 @@ public class DataObject
 		@SuppressWarnings("unchecked")
 		List<Object> list = (List<Object>) m_data[field];
 		list.remove(index);
-		BuilderConnection.onObjectChanged(this);
+		onChanged();
 	}
 
 	public void arrayInsert(int field, int index)
@@ -259,7 +274,7 @@ public class DataObject
 		{
 			list.add(index, null);
 		}
-		BuilderConnection.onObjectChanged(this);
+		onChanged();
 	}
 
 	public DataObject getAux(String ref)
@@ -284,4 +299,5 @@ public class DataObject
 	String m_path;
 	HashMap<String, DataObject> m_auxObjects;
 	DataObject m_root, m_auxRoot;
+	boolean m_trackChanges;
 }

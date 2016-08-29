@@ -106,6 +106,7 @@ Everything
 	[hidden] ptr BuiltAsset Built	
 	ptr[] WithResource WRes
 	file EmbedFile
+	string KalleKalas
 }
 
 
