@@ -28,6 +28,7 @@ namespace putki
 		{
 			std::string path;
 			bool save_path, add_deps;
+			bool is_file;
 		};
 
 		struct entry
@@ -318,7 +319,17 @@ namespace putki
 
 				fill->ofs_begin = slot->begin;
 				fill->ofs_end = slot->end;
-				fill->th = typereg_get_handler(slot->type.c_str());
+
+				if (!strcmp(slot->type.c_str(), "$res"))
+				{
+					fill->is_file = true;
+					fill->th = 0;
+				}
+				else
+				{
+					fill->is_file = false;
+					fill->th = typereg_get_handler(slot->type.c_str());
+				}
 
 				APP_DEBUG("Found match in " << p->first << " in slot " << m->second << " for [" << path << "]")
 				prev->slots_i_want.push_back(m->second);
@@ -328,7 +339,32 @@ namespace putki
 			return false;
 		}
 
-		void add_file(package::data* data, const char* path, bool storepath)
+		void add_file(package::data *data, const char *path, bool storepath)
+		{
+			preliminary p;
+			p.add_deps = false;
+			p.path = path;
+			p.save_path = storepath;
+			p.is_file = true;
+			data->list.push_back(p);
+		}
+
+		void add(package::data *data, const char *path)
+		{
+			add(data, path, true, true);
+		}
+
+		void add(data *data, const char *path, bool storepath, bool add_deps)
+		{
+			preliminary p;
+			p.path = path;
+			p.save_path = storepath;
+			p.add_deps = add_deps;
+			p.is_file = false;
+			data->list.push_back(p);
+		}
+
+		void add_file_internal(package::data* data, const char* path, bool storepath)
 		{
 			if (!path)
 			{
@@ -342,7 +378,7 @@ namespace putki
 				if (objstore::query_resource(data->resource_source[i], path, &info))
 				{
 					std::string res_path = info.path;
-					APP_INFO("Adding resource [" << path << "] signature=" << info.signature);
+					APP_DEBUG("Adding resource [" << path << "] signature=" << info.signature);
 					entry e;
 					e.is_file = true;
 					e.save_path = storepath;
@@ -351,11 +387,11 @@ namespace putki
 					e.file_index = -1;
 					e.file_slot_index = -1;
 					e.file_source_index = i;
-					e.path = res_path;
+					e.path = std::string("$") + res_path;
 					e.th = 0;
 					e.obj = 0;
-					pick_from_previous(data, res_path.c_str(), "$res", info.signature.c_str(), &e);
-					data->blobs[path] = e;
+					pick_from_previous(data, e.path.c_str(), "$res", info.signature.c_str(), &e);
+					data->blobs[e.path] = e;
 					return;
 				}
 			}
@@ -368,21 +404,14 @@ namespace putki
 			// implemented
 			const bool store_path_for_dependencies = true;
 
-			if (path)
-			{
-				APP_DEBUG("Adding single [" << path << "] to package")
-			}
-			else if (bulkadd)
-			{
-				if (bulkadd->empty())
-				{
-					return;
-				}
-				APP_DEBUG("Adding " << bulkadd->size() << " elements in bulk")
-			}
-			else
+			if (!path && !bulkadd)
 			{
 				APP_ERROR("Both path and bulkadd are null")
+			}
+
+			if (bulkadd && bulkadd->empty())
+			{
+				return;
 			}
 
 			// filter away those already added.
@@ -500,7 +529,7 @@ namespace putki
 						{
 							break;
 						}
-						add_file(data, path, store_path_for_dependencies);
+						add_file_internal(data, path, store_path_for_dependencies);
 					}
 
 					if (bulkadd)
@@ -545,27 +574,13 @@ namespace putki
 						{
 							break;
 						}
-						add_file(data, path, store_path_for_dependencies);
+						add_file_internal(data, path, store_path_for_dependencies);
 						files++;
 					}
 
 					add(data, 0, &next_add, store_path_for_dependencies, true, bdb);
 				}
 			}
-		}
-
-		void add(package::data *data, const char *path)
-		{
-			add(data, path, true, true);
-		}
-
-		void add(data *data, const char *path, bool storepath, bool add_deps)
-		{
-			preliminary p;
-			p.path = path;
-			p.save_path = storepath;
-			p.add_deps = add_deps;
-			data->list.push_back(p);
 		}
 
 		const char *get_needed_asset(data *d, unsigned int i)
@@ -580,7 +595,16 @@ namespace putki
 		long write(data *data, runtime::descptr rt, char *buffer, long available, build_db::data *build_db, sstream & manifest)
 		{
 			for (unsigned int i = 0;i < data->list.size();i++)
-				add(data, data->list[i].path.c_str(), 0, data->list[i].save_path, data->list[i].add_deps, build_db);
+			{
+				if (data->list[i].is_file)
+				{
+					add_file_internal(data, data->list[i].path.c_str(), data->list[i].save_path);
+				}
+				else
+				{
+					add(data, data->list[i].path.c_str(), 0, data->list[i].save_path, data->list[i].add_deps, build_db);
+				}
+			}
 
 			APP_DEBUG("Writing " << runtime::desc_str(rt) << " package with " << data->blobs.size() << " blobs.")
 
@@ -686,6 +710,47 @@ namespace putki
 					{
 						ptr->user_data = 1 + pk->second;
 					}
+				}
+
+				// Aand files also, they are written as slot numbers.
+				file_query_result file_query;
+				res.th->query_files(res.obj, &file_query, true, true);
+
+				for (size_t p = 0; p < file_query.files.size(); p++)
+				{
+					std::string* file = file_query.files[p];
+
+					char tmp[64];
+					sprintf(tmp, "0");
+
+					if (file->empty())
+					{
+						*file = tmp;
+						continue;
+					}
+
+					std::string slot_name = std::string("$") + (*file);
+
+					std::map<std::string, int>::iterator pk = packorder.find(slot_name);
+					if (pk == packorder.end())
+					{
+						for (unsigned int j = 0; j < unpacked.size(); j++)
+						{
+							if (!strcmp(unpacked[j].c_str(), file->c_str()))
+							{
+								sprintf(tmp, "%d", packlist.size() + j + 1);
+								break;
+							}
+						}
+						sprintf(tmp, "%d", packlist.size() + unpacked.size() + 1);
+						unpacked.push_back(slot_name);
+					}
+					else
+					{
+						sprintf(tmp, "%d", pk->second + 1);
+					}
+
+					*file = tmp;
 				}
 			}
 
@@ -822,13 +887,16 @@ namespace putki
 						packlist[i]->ofs_end = 0;
 
 						putki::objstore::fetch_res_result res;
-						if (!objstore::fetch_resource(data->resource_source[packlist[i]->file_source_index], packlist[i]->path.c_str(), packlist[i]->bytes_signature.c_str(), &res))
+
+						const char* res_path = packlist[i]->path.c_str() + 1; // skip the $
+
+						if (!objstore::fetch_resource(data->resource_source[packlist[i]->file_source_index], res_path, packlist[i]->bytes_signature.c_str(), &res))
 						{
-							APP_WARNING("HELP! Could not load resource [" << packlist[i]->path << "] sig=[" << packlist[i]->bytes_signature << "]");
+							APP_WARNING("HELP! Could not load resource [" << res_path << "] sig=[" << packlist[i]->bytes_signature << "]");
 							APP_ERROR("HELP");
 							continue;
 						}
-						if (res.size <= end - ptr)
+						if (res.size <= (size_t)(end - ptr))
 						{
 							memcpy(ptr, res.data, res.size);
 							ptr = ptr + res.size;
@@ -911,6 +979,32 @@ namespace putki
 						else
 						{
 							manifest << "p:?:" << ptr << "\n";
+						}
+						p++;
+					}
+					else
+					{
+						break;
+					}
+				}
+				p = 0;
+				while (r)
+				{
+					const char *ptr = build_db::get_file_pointer(r, p);
+					if (ptr)
+					{
+						if (ptr[0])
+						{
+							std::string blob_name = std::string("$") + ptr;
+							blobmap_t::iterator b = data->blobs.find(blob_name);
+							if (b != data->blobs.end())
+							{
+								manifest << "p:" << packorder[ptr] << ":" << blob_name << "\n";
+							}
+							else
+							{
+								manifest << "p:?:" << blob_name << "\n";
+							}
 						}
 						p++;
 					}

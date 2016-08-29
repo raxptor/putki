@@ -7,7 +7,7 @@
   <property name="dist"  location="dist"/>
 
   <target name="build-deps">
-	<ant antfile="../putked-lib/build.xml" dir="../putked-lib" target="dist"/>
+	<ant antfile="../compiler/build.xml" dir="../compiler" target="dist"/>
   </target>
                         
   <target name="init">

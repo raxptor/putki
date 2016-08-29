@@ -486,6 +486,15 @@ namespace putki
 						}
 						parsed = scanned + 1;
 					}
+
+					for (int i = parsed; i != readpos; i++)
+					{
+						buf[i - parsed] = buf[i];
+					}
+
+					scanned -= parsed;
+					readpos -= parsed;
+					parsed = 0;
 				}
 
 				if (!builder)

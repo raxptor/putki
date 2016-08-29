@@ -42,6 +42,7 @@ namespace putki
 		if (!g_reg()->by_number[type_id])
 		{
 			APP_ERROR("Type id " << type_id << " has no handler");
+			return 0;
 		}
 		return g_reg()->by_number[type_id];
 	}
@@ -58,9 +59,8 @@ namespace putki
 	{
 		if (!g_reg()->handlers[t])
 		{
-			APP_ERROR("Type " << t << " has no handler")
+			return 0;
 		}
-	
 		return g_reg()->handlers[t];
 	}
 }

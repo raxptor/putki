@@ -528,13 +528,20 @@ namespace putki
 							tok::get(cache, objs_start + 4 * k + 3), // cache
 						};
 
+						type_handler_i* th = typereg_get_handler(obj[1]);;
+						if (!th)
+						{
+							APP_DEBUG("Ignoring object with type (" << obj[1] << ") because i don't know what it is.");
+							continue;
+						}
+
 						object_entry* oe = new object_entry();
 						oe->path = obj[0];
 						if (obj[2][0] != '?')
 						{
 							oe->signature = obj[2];
 						}
-						oe->th = typereg_get_handler(obj[1]);
+						oe->th = th;
 						oe->file = i->second;
 						oe->node = 0;
 						if (atoi(obj[3]))
@@ -596,8 +603,6 @@ namespace putki
 				}
 				if (d->files[i]->content_bytes)
 				{
-					APP_DEBUG("FREE [" << d->files[i]->path << "] outBytes= " << (void*)d->files[i]->content_bytes);
-
 					delete[] d->files[i]->content_bytes;
 				}
 				delete d->files[i];
@@ -657,8 +662,11 @@ namespace putki
 				result->th = th;
 				result->obj = th->alloc();
 				th->fill_from_parsed(o->node, result->obj);
-				signature::buffer buf;
-				o->signature = signature::object(th, result->obj, buf);
+				if (o->signature.empty())
+				{
+					signature::buffer buf;
+					o->signature = signature::object(th, result->obj, buf);
+				}
 				return true;
 			}
 
@@ -671,6 +679,12 @@ namespace putki
 			examine_object_file(d, o->file);
 
 			ObjMap::iterator j = d->objs.find(path);
+			if (j == d->objs.end())
+			{
+				APP_ERROR("Object disappeared!?");
+				examine_object_file(d, o->file);
+			}
+
 			if (j->second->node)
 			{
 				result->th = th;
@@ -750,12 +764,20 @@ namespace putki
 				}
 				if (count < len)
 				{
-					paths[count] = i->first.c_str();
+					paths[count] = strdup(i->first.c_str());
 				}
 				++count;
 				++i;
 			}
 			return count;
+		}
+
+		void free_query_result(const char** paths, size_t count)
+		{
+			for (size_t i=0;i!=count;i++)
+			{
+				::free((void*)paths[i]);
+			}
 		}
 
 		bool fetch_resource(data* d, const char* path, const char* signature, fetch_res_result* result)
@@ -883,18 +905,6 @@ namespace putki
 			out_path.append(".json");
 			putki::sstream ts;
 
-			write::write_object_into_stream(ts, th, obj);
-			sys::mk_dir_for_path(out_path.c_str());
-			if (!sys::write_file(out_path.c_str(), ts.str().c_str(), (unsigned long)ts.str().size()))
-			{
-				return false;
-			}
-
-			std::string fn(path);
-			fn.append(".");
-			fn.append(signature);
-			fn.append(".json");
-
 			file_entry* fe;
 			// TODO: Think this through!
 			FileMap::iterator q = d->file_map.find(out_path.c_str());
@@ -908,6 +918,11 @@ namespace putki
 			}
 			else
 			{
+				std::string fn(path);
+				fn.append(".");
+				fn.append(signature);
+				fn.append(".json");
+
 				fe = new file_entry();
 				fe->path = fn;
 				fe->full_path = out_path.c_str();
@@ -915,6 +930,13 @@ namespace putki
 				fe->parsed = 0;
 				d->files.push_back(fe);
 				d->file_map.insert(std::make_pair(fe->full_path, fe));
+			}
+
+			write::write_object_into_stream(ts, th, obj);
+			sys::mk_dir_for_path(out_path.c_str());
+			if (!sys::write_file(out_path.c_str(), ts.str().c_str(), (unsigned long)ts.str().size()))
+			{
+				return false;
 			}
 
 			sys::stat(fe->full_path.c_str(), &fe->info);
@@ -927,8 +949,7 @@ namespace putki
 			{
 				APP_ERROR("HIGH ALERT!!!");
 			}
-
-			APP_DEBUG("Storing object\n" << ts.str().c_str());
+			
 			object_entry* o = new object_entry();
 			o->file = fe;
 			o->path = path;
