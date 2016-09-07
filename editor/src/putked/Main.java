@@ -390,10 +390,21 @@ public class Main extends Application
     	return m_objsPath;
     }
 
+    public Path getResPath()
+    {
+    	return m_resPath;
+    }
+
     public String translateResPath(String path)
     {
-    	return "implement me!";
+    	return m_resPath.resolve(path).toString();
     }
+
+    public String translateResPathURI(String path)
+    {
+    	return m_resPath.resolve(path).toUri().toString();
+    }
+
 
     public Tab addTab(DataObject mi, Node n, String title)
     {
@@ -410,6 +421,7 @@ public class Main extends Application
 
     private static Path m_projectPath;
     private static Path m_objsPath;
+    private static Path m_resPath;
 
     private static ConfigParser m_confParser = null;
 
@@ -450,6 +462,7 @@ public class Main extends Application
 
     	m_projectPath = configFile.toPath().getParent();
     	m_objsPath = m_projectPath.resolve("data").resolve("objs");
+    	m_resPath = m_projectPath.resolve("data").resolve("res");
     	m_confParser = new ConfigParser(configFile);
 
     	s_dataLoader = new DataLoader(m_objsPath);

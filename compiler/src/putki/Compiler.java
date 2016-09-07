@@ -611,7 +611,7 @@ public class Compiler
 			pt.genCodeRoot = start.resolve("_gen");
 			pt.deps = new HashMap<>();
 
-			if (lines.size() > 0 && !lines.get(0).trim().equals("version:1.0"))
+			if (lines.size() > 0 && !lines.get(0).trim().equals("config-version:1.0"))
 			{
 				if (lines.size() > 1)
 				{
