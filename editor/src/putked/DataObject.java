@@ -152,6 +152,7 @@ public class DataObject
 		if (m_trackChanges)
 		{
 			BuilderConnection.onObjectChanged(this);
+			m_version++;
 		}
 	}
 
@@ -294,10 +295,16 @@ public class DataObject
 		m_auxObjects.put(ref, aux);
 	}
 
+	public int getVersion()
+	{
+		return m_version;
+	}
+
 	Object[] m_data;
 	Compiler.ParsedStruct m_type;
 	String m_path;
 	HashMap<String, DataObject> m_auxObjects;
 	DataObject m_root, m_auxRoot;
+	int m_version;
 	boolean m_trackChanges;
 }
