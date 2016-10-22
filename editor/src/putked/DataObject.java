@@ -201,9 +201,9 @@ public class DataObject
 
 	public DataObject createAuxInstance(Compiler.ParsedStruct type)
 	{
-		if (this != m_root)
+		if (this != m_auxRoot)
 		{
-			return m_root.createAuxInstance(type);
+			return m_auxRoot.createAuxInstance(type);
 		}
 
 		if (m_auxObjects == null)
