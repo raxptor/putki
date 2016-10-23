@@ -476,12 +476,15 @@ public class DataLoader
 						}
 						else if (name.equals("data"))
 						{
-							tmp2.result.setTrackChanges(false);
-							parseData(status,  tmp2);
-							tmp2.result.setTrackChanges(true);
-							if (!status.error)
+							if (tmp2.result != null)
 							{
-								tmp.result.getAuxRoot().addAux(tmp2.ref, tmp2.result);
+								tmp2.result.setTrackChanges(false);
+								parseData(status,  tmp2);
+								tmp2.result.setTrackChanges(true);
+								if (!status.error)
+								{
+									tmp.result.getAuxRoot().addAux(tmp2.ref, tmp2.result);
+								}
 							}
 						}
 					}
