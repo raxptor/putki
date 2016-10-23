@@ -7,7 +7,6 @@ import putki.Compiler.ParsedField;
 import putki.Compiler.ParsedStruct;
 import javafx.event.ActionEvent;
 import javafx.event.EventHandler;
-import javafx.geometry.HPos;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.geometry.VPos;

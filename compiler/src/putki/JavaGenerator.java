@@ -6,6 +6,14 @@ import putki.Compiler.FieldType;
 
 public class JavaGenerator
 {
+	private static String fmtName(String in)
+	{
+		if (in.length() < 3)
+			return in.toUpperCase();
+		else
+			return in;
+	}
+
 	public static void generateEditorProxys(Compiler comp, CodeWriter writer)
 	{
 		for (Compiler.ParsedTree tree : comp.allTrees())
@@ -67,7 +75,8 @@ public class JavaGenerator
 					sb.append(spfx).append("public static final int TYPE = " + struct.uniqueId + ";");
 					sb.append(spfx).append("public static final String NAME = \"" + struct.name + "\";");
 					sb.append(spfx).append("public putki.Compiler.ParsedStruct _getType() { return m_type; }");
-					sb.append(spfx).append("private putked.DataObject m_dataObj;");
+					sb.append(spfx).append("public DataObject _getDataObj() { return m_dataObj; }");
+
 					sb.append(spfx).append("private putki.Compiler.ParsedStruct m_type;");
 
 					sb.append(spfx).append("public " + struct.name + "(putki.Compiler.ParsedStruct type)");
@@ -77,16 +86,6 @@ public class JavaGenerator
 						sb.append(spfx).append("\tsuper(type.resolvedParent);");
 					}
 					sb.append(spfx).append("\tm_type = type;");
-					sb.append(spfx).append("}");
-
-					sb.append(spfx).append("@Override");
-					sb.append(spfx).append("public void connect(putked.DataObject obj)");
-					sb.append(spfx).append("{");
-					if (struct.resolvedParent != null)
-					{
-						sb.append(spfx).append("\tsuper.connect(obj);");
-					}
-					sb.append(spfx).append("\tm_dataObj = obj;");
 					sb.append(spfx).append("}");
 
 					for (Compiler.ParsedField field : struct.fields)
@@ -132,47 +131,79 @@ public class JavaGenerator
 								break;
 						}
 
+						String fieldNameFmt = fmtName(field.name);
+
 						if (stdType != null)
 						{
-							sb.append(spfx).append("public " + stdType + " get" + field.name + "(" + getFn + ")");
+							sb.append(spfx).append("public " + stdType + " get" + fieldNameFmt + "(" + getFn + ")");
 							sb.append(spfx).append("{");
 							sb.append(spfx).append("\treturn (" + stdType + ")(" + firstType + ")m_dataObj.getField(" + field.index + index + ");");
 							sb.append(spfx).append("}");
-							sb.append(spfx).append("public void set" + field.name + "(" + setFn + stdType + " value)");
+							sb.append(spfx).append("public void set" + fieldNameFmt + "(" + setFn + stdType + " value)");
 							sb.append(spfx).append("{");
 							sb.append(spfx).append("\tm_dataObj.setField(" + field.index + index + ",(" + firstType + ")" + "value);");
 							sb.append(spfx).append("}");
 						}
 						else if (field.type == FieldType.STRUCT_INSTANCE)
 						{
-							String rt = field.resolvedRefStruct.name;
-							sb.append(spfx).append("public " + rt + " get" + field.name + "(" + getFn + ")");
+							String rt = field.resolvedRefStruct.moduleName + "." + field.resolvedRefStruct.name;
+							sb.append(spfx).append("public " + rt + " get" + fieldNameFmt + "(" + getFn + ")");
 							sb.append(spfx).append("{");
 							sb.append(spfx).append("\treturn (" + rt + ")DataHelper.createPutkEdObj((DataObject)m_dataObj.getField(" + field.index + index +"));");
 							sb.append(spfx).append("}");
-							sb.append(spfx).append("public void set" + field.name + "(" + setFn + rt + " value)");
+							sb.append(spfx).append("public void set" + fieldNameFmt + "(" + setFn + rt + " value)");
 							sb.append(spfx).append("{");
 							sb.append(spfx).append("\tm_dataObj.setField(" + field.index + index + ", value.m_dataObj);");
+							sb.append(spfx).append("}");
+						}
+						else if (field.type == FieldType.POINTER)
+						{
+							String rt = field.resolvedRefStruct.moduleName + "." + field.resolvedRefStruct.name;
+							sb.append(spfx).append("public " + rt + " get" + fieldNameFmt + "(" + getFn + ")");
+							sb.append(spfx).append("{");
+							sb.append(spfx).append("\tDataObject tmp = putked.Main.s_dataLoader.load((String)m_dataObj.getField(" + field.index + index +"));");
+							sb.append(spfx).append("\tif (tmp == null) return null;");
+							sb.append(spfx).append("\treturn (" + rt + ")DataHelper.createPutkEdObj(tmp);");
+							sb.append(spfx).append("}");
+							sb.append(spfx).append("public void set" + fieldNameFmt + "(" + setFn + rt + " value)");
+							sb.append(spfx).append("{");
+							sb.append(spfx).append("\tif (value == null) m_dataObj.setField(" + field.index + index + ", \"\"); else");
+							sb.append(spfx).append("\tm_dataObj.setField(" + field.index + index + ", value._getDataObj().getPath());");
 							sb.append(spfx).append("}");
 						}
 
 						if (field.isArray)
 						{
-							sb.append(spfx).append("public int get" + field.name + "Size()");
+							sb.append(spfx).append("public int get" + fieldNameFmt + "Size()");
 							sb.append(spfx).append("{");
 							sb.append(spfx).append("\treturn m_dataObj.getArraySize(" + field.index + ");");
 							sb.append(spfx).append("}");
-							sb.append(spfx).append("public void erase" + field.name + "(int index)");
+							sb.append(spfx).append("public void erase" + fieldNameFmt + "(int index)");
 							sb.append(spfx).append("{");
 							sb.append(spfx).append("\tm_dataObj.arrayErase(" + field.index + ", index);");
 							sb.append(spfx).append("}");
-							sb.append(spfx).append("public void insert" + field.name + "(int index)");
+							sb.append(spfx).append("public void insert" + fieldNameFmt + "(int index)");
 							sb.append(spfx).append("{");
 							sb.append(spfx).append("\tm_dataObj.arrayInsert(" + field.index + ", index);");
 							sb.append(spfx).append("}");
 						}
 					}
+
+					sb.append(spfx).append("@Override");
+					sb.append(spfx).append("public void connect(putked.DataObject obj)");
+					sb.append(spfx).append("{");
+
+					if (struct.resolvedParent != null)
+					{
+						sb.append(spfx).append("\tsuper.connect(obj);");
+					}
+
+					sb.append(spfx).append("\tm_dataObj = obj;");
+					sb.append(spfx).append("}");
+					sb.append(spfx).append("private putked.DataObject m_dataObj;");
+
 					sb.append(pfx).append("}");
+
 				}
 			}
 
@@ -182,6 +213,9 @@ public class JavaGenerator
 			{
 				for (Compiler.ParsedStruct struct : file.structs)
 				{
+					if ((struct.domains & Compiler.DOMAIN_INPUT) == 0)
+						continue;
+
 					sb.append("\n\t\tif (type.name.equals(\"" + struct.name + "\"))");
 					sb.append("\n\t\t\treturn new " + struct.name + "(type);");
 				}
