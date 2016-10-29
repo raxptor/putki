@@ -37,6 +37,27 @@ class StringEditor implements FieldEditor
     }
 }
 
+class TextEditor implements FieldEditor
+{
+    FieldAccess<String> m_f;
+
+    public TextEditor(DataObject mi, Compiler.ParsedField f, int index)
+    {
+        m_f = new FieldAccess<String>(mi, f, index);
+    }
+
+    @Override
+    public Node createUI()
+    {
+        TextArea tf = new TextArea(m_f.get());
+        tf.setPrefRowCount(6);
+        tf.textProperty().addListener( (obs, oldValue, newValue) -> {
+            m_f.set(newValue);
+        });
+        return tf;
+    }
+}
+
 class FileEditor implements FieldEditor
 {
     FieldAccess<String> m_f;
@@ -688,6 +709,8 @@ public class ObjectEditor
             case ENUM:
                 return new EnumEditor(mi, field, index);
             default:
+            	if (field.stringIsText)
+                    return new TextEditor(mi, field, index);
                 return new StringEditor(mi, field, index);
         }
     }

@@ -47,6 +47,7 @@ public class Compiler
 		public ParsedStruct resolvedRefStruct;
 		public ParsedEnum resolvedEnum;
 		public ParsedField buildConfigTargetField;
+		public boolean stringIsText;
 	}
 
 	public class ParsedStruct
@@ -266,6 +267,12 @@ public class Compiler
 					}
 				}
 
+				if (typeName.equals("text"))
+				{
+					next.type = FieldType.STRING;
+					next.stringIsText = true;
+					gotType = true;
+				}
 				if (typeName.equals("ptr"))
 				{
 					next.type = FieldType.POINTER;
