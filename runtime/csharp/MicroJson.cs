@@ -34,9 +34,43 @@ namespace Putki
 			ARRAY
 		};
 
+		public static int unhex(byte x)
+		{
+			if (x >= '0' && x <= '9')
+				return x - '0';
+			if (x >= 'a' && x <= 'f')
+				return 10 + x - 'a';
+			return 0;
+		}
+
 		public static String DecodeString(byte[] buf, int begin, int end)
 		{
-			return System.Text.Encoding.ASCII.GetString(buf, begin, end-begin);
+			byte[] tmp = new byte[end-begin];
+			int len = 0;
+			for (int i=begin;i<end;i++)
+			{
+				if (buf[i] != '\\')
+				{
+					tmp[len++] = buf[i];
+				}
+				else if ((i+1) < end)
+				{
+					if (buf[i+1] == 'u')
+					{
+						if ((i+5) < end)
+						{
+							int code = 
+								16*16*16*unhex(buf[i+2]) + 
+								16*16*unhex(buf[i+3]) +
+								16*unhex(buf[i+4]) +
+								unhex(buf[i+5]);
+							tmp[len++] = (byte) code;
+							i += 5;
+						}
+					}
+				}
+			}
+			return System.Text.Encoding.UTF8.GetString(tmp, 0, len);
 		}
 
 		public static bool IsWhitespace(char c)
