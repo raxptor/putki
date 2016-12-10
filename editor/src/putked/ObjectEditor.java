@@ -227,7 +227,7 @@ class PointerEditor implements FieldEditor
         VBox tot = new VBox();
 
         HBox ptrbar = new HBox();
-
+        
         ptrbar.setMaxWidth(Double.MAX_VALUE);
 
         TextField tf = new TextField(m_f.get());

@@ -42,7 +42,7 @@ public class DataObject
 			}
 			else if (fld.type == FieldType.STRUCT_INSTANCE)
 			{
-				m_data[fld.index] =  new DataObject(fld.resolvedRefStruct, m_root, this, m_path + ":" + fld.name);
+				m_data[fld.index] =  new DataObject(fld.resolvedRefStruct, getAuxRoot(), this, m_path + ":" + fld.name);
 			}
 		}
 	}
