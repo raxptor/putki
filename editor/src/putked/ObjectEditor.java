@@ -51,6 +51,7 @@ class TextEditor implements FieldEditor
     {
         TextArea tf = new TextArea(m_f.get());
         tf.setPrefRowCount(6);
+        tf.setWrapText(true);
         tf.textProperty().addListener( (obs, oldValue, newValue) -> {
             m_f.set(newValue);
         });
@@ -227,7 +228,7 @@ class PointerEditor implements FieldEditor
         VBox tot = new VBox();
 
         HBox ptrbar = new HBox();
-        
+
         ptrbar.setMaxWidth(Double.MAX_VALUE);
 
         TextField tf = new TextField(m_f.get());
@@ -715,3 +716,4 @@ public class ObjectEditor
         }
     }
 }
+
