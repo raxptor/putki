@@ -113,6 +113,11 @@ public class DataObject
 				{
 					return false;
 				}
+			case STRING:
+			{
+				// strip away "", should parse escapes too etc.
+				return field.defValue.substring(1, field.defValue.length()-1);
+			}
 			default:
 				if (field.defValue == null)
 					return "";
