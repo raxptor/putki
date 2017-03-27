@@ -543,7 +543,7 @@ public class Compiler
 					{
 						curStruct.permitAsAsset = false;
 					}
-					else if (pieces[j].equals("non-instantiable"))
+					else if (pieces[j].equals("non-instantiable") || pieces[j].equals("no-instance"))
 					{
 						curStruct.permitAsAux = false;
 						curStruct.permitAsAsset = false;

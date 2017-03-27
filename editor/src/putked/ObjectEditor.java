@@ -16,6 +16,7 @@ import javafx.scene.input.DragEvent;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.input.TransferMode;
 import javafx.scene.layout.*;
+import putked.ObjectLibrary.ObjEntry;
 
 class StringEditor implements FieldEditor
 {
@@ -51,6 +52,7 @@ class TextEditor implements FieldEditor
     {
         TextArea tf = new TextArea(m_f.get());
         tf.setPrefRowCount(6);
+        tf.setWrapText(true);
         tf.textProperty().addListener( (obs, oldValue, newValue) -> {
             m_f.set(newValue);
         });
@@ -471,6 +473,39 @@ class ArrayEditor implements FieldEditor
         return rm;
     }
 
+    public MenuItem makeMoveItem(int from, int to)
+    {
+		MenuItem mi = new MenuItem("Move to " + to);
+		mi.setOnAction( (actionEvt) -> {
+			if (to > from)
+			{
+				m_mi.arrayInsert(m_f.index, to + 1);
+				m_mi.setField(m_f.index, to + 1, m_mi.getField(m_f.index, from));
+				m_mi.arrayErase(m_f.index, from);
+			}
+			else if (to < from)
+			{
+				m_mi.arrayInsert(m_f.index, to);
+				m_mi.setField(m_f.index, to, m_mi.getField(m_f.index, from + 1));
+				m_mi.arrayErase(m_f.index, from + 1);
+			}
+
+			rebuild();
+		});
+		return mi;
+    }
+
+	public ContextMenu makeMoveContextMenu(int from)
+	{
+    	ContextMenu mn = new ContextMenu();
+    	for (int i=0;i<m_mi.getArraySize(m_f.index);i++)
+    	{
+			mn.getItems().add(makeMoveItem(from, i));
+    	}
+    	return mn;
+	}
+
+
     private GridPane buildGridPane()
     {
         m_editors = new ArrayList<>();
@@ -500,6 +535,8 @@ class ArrayEditor implements FieldEditor
             lbl.getStyleClass().add("array-index");
             if ((i&1) == 1)
                 lbl.getStyleClass().add("odd");
+
+            lbl.setContextMenu(makeMoveContextMenu(i));
 
             gridpane.add(lbl,  0,  i);
             GridPane.setValignment(lbl, VPos.TOP);
