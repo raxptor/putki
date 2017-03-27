@@ -42,7 +42,7 @@ public class DataObject
 			}
 			else if (fld.type == FieldType.STRUCT_INSTANCE)
 			{
-				m_data[fld.index] =  new DataObject(fld.resolvedRefStruct, m_root, this, m_path + ":" + fld.name);
+				m_data[fld.index] =  new DataObject(fld.resolvedRefStruct, getAuxRoot(), this, m_path + ":" + fld.name);
 			}
 		}
 	}
@@ -113,6 +113,14 @@ public class DataObject
 				{
 					return false;
 				}
+			case STRING:
+			{
+				// strip away "", should parse escapes too etc.
+				if (field.defValue == null || field.defValue.length() < 2)
+					return "";
+				else
+					return field.defValue.substring(1, field.defValue.length()-1);
+			}
 			default:
 				if (field.defValue == null)
 					return "";

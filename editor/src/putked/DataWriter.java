@@ -91,6 +91,7 @@ public class DataWriter
 		else if (value.getClass() == Float.class)
 		{
 			java.text.NumberFormat nf = java.text.NumberFormat.getInstance(Locale.ENGLISH);
+			nf.setGroupingUsed(false);
 			bld.append(nf.format(value));
 		}
 		else if (value.getClass() == DataObject.class)
