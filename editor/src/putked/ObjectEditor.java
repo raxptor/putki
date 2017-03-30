@@ -16,7 +16,6 @@ import javafx.scene.input.DragEvent;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.input.TransferMode;
 import javafx.scene.layout.*;
-import putked.ObjectLibrary.ObjEntry;
 
 class StringEditor implements FieldEditor
 {
