@@ -104,6 +104,11 @@ namespace Putki
 					}
 					case Parsing.QUOTED_VALUE:
 					{
+						if (c == '\\')
+						{
+							i++;
+							break;
+						}
 						if (c == '"')
 						{
 							String v = DecodeString(status.data, status.pos, i);
