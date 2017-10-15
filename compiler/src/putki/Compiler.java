@@ -8,6 +8,7 @@ import java.nio.file.Path;
 import java.util.List;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 
 public class Compiler
@@ -688,8 +689,17 @@ public class Compiler
 	public boolean resolve()
 	{
 		int unique_id = 1;
+
 		for (ParsedTree tree : allTrees)
 		{
+			tree.parsedFiles.sort(new Comparator<ParsedFile>() {
+				@Override
+				public int compare(ParsedFile o1, ParsedFile o2) {
+					String c1 = o1.sourcePath + "/" + o1.fileName;
+					String c2 = o2.sourcePath + "/" + o2.fileName;
+					return c1.compareTo(c2);
+				}
+			});
 			for (ParsedFile file : tree.parsedFiles)
 			{
 				file.moduleName = tree.moduleName;
@@ -783,6 +793,7 @@ public class Compiler
 
 		for (ParsedStruct struct : allTypes)
 		{
+
 			for (ParsedField field : struct.fields)
 			{
 				if (field.type == FieldType.ENUM)
