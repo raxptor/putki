@@ -100,7 +100,7 @@ public class CSharpGenerator
                 sb.append("float.Parse(" + src + ".ToString(), System.Globalization.CultureInfo.InvariantCulture)");
                 break;
             case STRUCT_INSTANCE:
-                sb.append("(Outki." + field.resolvedRefStruct.name + ")" + field.resolvedRefStruct.loaderName + "." + field.resolvedRefStruct.name + "Fn(loader, path, " + src + ")");
+                sb.append("(Outki." + field.resolvedRefStruct.name + ")" + field.resolvedRefStruct.loaderName + "." + field.resolvedRefStruct.name + "Fn(loader, path, (Dictionary<string, object>)" + src + ")");
                 break;
             case ENUM:
                 sb.append("(Outki." + field.resolvedEnum.name + ")" + field.resolvedEnum.loaderName + "." + field.resolvedEnum.name + "EnumFn(loader, path, " + src + ")");
@@ -124,11 +124,11 @@ public class CSharpGenerator
                 String npfx = "\n\t\t\t";
                 String outki = "Outki." + struct.name;
                 sb.append("\n");
-                sb.append("\t\tstatic object " + struct.name + "Fn(SourceLoader loader, string path, object obj) {");
+                sb.append("\t\tstatic object " + struct.name + "Fn(SourceLoader loader, string path, Dictionary<string, object> obj) {");
                 sb.append(npfx).append(outki + " target = new " + outki + "();");
-                sb.append(npfx).append("return " + struct.name + "ParseInto(loader, path, obj as MicroJson.Object, target);");
+                sb.append(npfx).append("return " + struct.name + "ParseInto(loader, path, obj, target);");
                 sb.append("\n\t\t}\n");
-                sb.append("\n\t\tstatic Outki." + struct.name + " " + struct.name + "ParseInto(SourceLoader loader, string path, object src, Outki." + struct.name + " target) {");
+                sb.append("\n\t\tstatic Outki." + struct.name + " " + struct.name + "ParseInto(SourceLoader loader, string path, Dictionary<string, object> source, Outki." + struct.name + " target) {");
 
                 boolean first = true;
                 for (ParsedField fld : struct.fields)
@@ -146,25 +146,23 @@ public class CSharpGenerator
 
                     if (first)
                     {
-                        sb.append(npfx).append("MicroJson.Object source = src as MicroJson.Object;");
+                        sb.append(npfx).append("object tmp;");
                         first = false;
                     }
                     if (fld.isParentField)
                     {
-                        sb.append(npfx).append("object parentObj;");
-                        sb.append(npfx).append("if (source.Data.TryGetValue(\"" + fld.name + "\", out parentObj))");
+                        sb.append(npfx).append("if (source.TryGetValue(\"" + fld.name + "\", out tmp))");
                         sb.append(npfx).append("{");
-                        sb.append(npfx).append("\t" + struct.resolvedParent.loaderName + "." + struct.resolvedParent.name + "ParseInto(loader, path, parentObj, target);");
+                        sb.append(npfx).append("\t" + struct.resolvedParent.loaderName + "." + struct.resolvedParent.name + "ParseInto(loader, path, (Dictionary<string, object>)tmp, target);");
                         sb.append(npfx).append("}");
                         continue;
                     }
                     if (!fld.isArray)
-                    {
-                        sb.append(npfx).append("object " + tmp + "Obj;");
-                        sb.append(npfx).append("if (source.Data.TryGetValue(\"" + fld.name + "\", out " + tmp + "Obj))");
+                    {                        
+                        sb.append(npfx).append("if (source.TryGetValue(\"" + fld.name + "\", out tmp))");
                         sb.append(npfx).append("{");
                         sb.append(npfx).append("\t" + ref + " = ");
-                        writeExpr(sb, tmp + "Obj", fld);
+                        writeExpr(sb, "tmp", fld);
                         sb.append(";");
                         sb.append(npfx).append("}");
                         if (fld.defValue != null)
@@ -184,15 +182,14 @@ public class CSharpGenerator
                     else
                     {
                         String arrTmp = "__Arr" + tmp;
-                        sb.append(npfx).append("object " + tmp + "Obj;");
                         sb.append(npfx).append("List<" + csharpType(fld, "Outki", false) + "> " + arrTmp + " = new List<" + csharpType(fld, "Outki", false) + ">();");
-                        sb.append(npfx).append("if (source.Data.TryGetValue(\"" + fld.name + "\", out " + tmp + "Obj))");
+                        sb.append(npfx).append("if (source.TryGetValue(\"" + fld.name + "\", out tmp))");
                         sb.append(npfx).append("{");
-                        sb.append(npfx).append("\tMicroJson.Array array = " + tmp + "Obj as MicroJson.Array;");
-                        sb.append(npfx).append("\tfor (int i=0;i<array.Data.Count;i++)");
+                        sb.append(npfx).append("\tList<object> array = tmp as List<object>;");
+                        sb.append(npfx).append("\tfor (int i=0;i<array.Count;i++)");
                         sb.append(npfx).append("\t{");
                         sb.append(npfx).append("\t\t" + arrTmp + ".Add(");
-                        writeExpr(sb, "array.Data[i]", fld);
+                        writeExpr(sb, "array[i]", fld);
                         sb.append(");");
                         sb.append(npfx).append("\t}");
                         sb.append(npfx).append("}");

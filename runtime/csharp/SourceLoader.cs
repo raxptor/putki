@@ -7,7 +7,7 @@ namespace Mixki
 {
 	public class SourceLoader
 	{
-		public delegate object ParseFn(SourceLoader loader, string path, object obj);
+		public delegate object ParseFn(SourceLoader loader, string path, Dictionary<string, object> obj);
 		public delegate void LogFn(string txt);
 
 		public struct Parser
@@ -82,18 +82,25 @@ namespace Mixki
 					}
 				}
 
-				MicroJson.Object ro = raw as MicroJson.Object;
+				Dictionary<string, object> ro = raw as Dictionary<string, object>;
 				object typeObj;
-				if (!ro.Data.TryGetValue("type", out typeObj))
+				if (!ro.TryGetValue("type", out typeObj))
 				{
 					Logger("Failed to read type field of [" + path + "]");
 					return default(Type);
 				}
 
 				object dataObj;
-				if (!ro.Data.TryGetValue("data", out dataObj))
+				if (!ro.TryGetValue("data", out dataObj))
 				{
 					Logger("Failed to read data field of [" + path + "]");
+					return default(Type);
+				}
+
+				Dictionary<string, object> datas = dataObj as Dictionary<string, object>;
+				if (datas == null)
+				{
+					Logger("Not a dictionary for object at [" + path + "]");
 					return default(Type);
 				}
 
@@ -101,7 +108,7 @@ namespace Mixki
 				ParseFn p;
 				if (m_parsers.TryGetValue(type, out p))
 				{
-					object parsed = p(this, assetPath, dataObj);
+					object parsed = p(this, assetPath, datas);
 					Logger("Parsed [" + path + "] as [" + type + "]");
 					m_parsed.Add(path, parsed);
 					Putki.PackageManager.RegisterLoaded(path, parsed);
@@ -132,7 +139,7 @@ namespace Mixki
 
 		public void InsertRawData(string path, byte[] bytes)
 		{
-			MicroJson.Object file = MicroJson.Parse(bytes);
+			Dictionary<string, object> file = MicroJson.Parse(bytes);
 			if (file == null)
 			{
 				Logger("Failed to load [" + path + "]");
@@ -143,19 +150,19 @@ namespace Mixki
 			Logger("Raw: adding main " + path);
 
 			object auxesObj;
-			file.Data.TryGetValue("aux", out auxesObj);
-			MicroJson.Array auxesArr = auxesObj as MicroJson.Array;
+			file.TryGetValue("aux", out auxesObj);
+			var auxesArr = auxesObj as List<object>;
 			if (auxesArr != null)
 			{
-				for (int i=0;i<auxesArr.Data.Count;i++)
+				for (int i=0;i<auxesArr.Count;i++)
 				{
-					MicroJson.Object ao = auxesArr.Data[i] as MicroJson.Object;
+					var ao = auxesArr[i] as Dictionary<string, object>;
 					if (ao == null)
 					{
 						continue;
 					}
 					object refObj;
-					if (!ao.Data.TryGetValue("ref", out refObj))
+					if (!ao.TryGetValue("ref", out refObj))
 					{
 						continue;
 					}

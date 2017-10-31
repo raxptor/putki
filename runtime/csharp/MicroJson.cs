@@ -5,16 +5,6 @@ namespace Putki
 {
 	public static class MicroJson
 	{
-		public class Object
-		{
-			public Dictionary<String, object> Data;
-		}
-
-		public class Array
-		{
-			public List<object> Data;
-		}
-
 		public struct ParseStatus
 		{
 			public byte[] data;
@@ -81,8 +71,8 @@ namespace Putki
 		public static object Parse(ref ParseStatus status)
 		{
 			Parsing state = Parsing.NOTHING;
-			Object o = null;
-			Array a = null;
+			Dictionary<string, object> o = null;
+			List<object> a = null;
 			String name = null;
 			for (int i=status.pos;i<status.data.Length;i++)
 			{
@@ -94,8 +84,8 @@ namespace Putki
 					{
 						switch (c)
 						{
-							case '{': state = Parsing.OBJECT; o = new Object(); o.Data = new Dictionary<string, object>(); break;
-							case '[': state = Parsing.ARRAY; a = new Array(); a.Data = new List<object>(); break;
+							case '{': state = Parsing.OBJECT; o = new Dictionary<string, object>(); break;
+							case '[': state = Parsing.ARRAY; a = new List<object>(); break;
 							case ' ': case '\n': case '\t': break;
 							case '"': state = Parsing.QUOTED_VALUE; status.pos = i+1; break;
 							default: state = Parsing.VALUE; status.pos = i; break;
@@ -162,7 +152,7 @@ namespace Putki
 									status.error = true;
 									return null;
 								}
-								o.Data.Add(name, val);
+								o.Add(name, val);
 								i = status.pos - 1;
 								name = null;
 							}
@@ -186,7 +176,7 @@ namespace Putki
 								status.error = true;
 								return null;
 							}
-							a.Data.Add(val);
+							a.Add(val);
 							i = status.pos - 1;
 							break;
 						}
@@ -198,7 +188,7 @@ namespace Putki
 			return null;
 		}
 
-		public static Object Parse(byte[] buffer)
+		public static Dictionary<string, object> Parse(byte[] buffer)
 		{
 			ParseStatus status = new ParseStatus();
 			status.data = buffer;
@@ -210,7 +200,7 @@ namespace Putki
 			}
 			else
 			{
-				return root as MicroJson.Object;
+				return root as Dictionary<string, object>;
 			}
 		}
 	}
