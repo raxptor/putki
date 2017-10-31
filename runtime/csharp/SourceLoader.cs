@@ -38,7 +38,7 @@ namespace Mixki
 			{
 				m_parsers.Add(p.Type, p.Fn);
 			}
-			Logger = delegate {				
+			Logger = delegate {
 			};
 		}
 
@@ -75,7 +75,7 @@ namespace Mixki
 				object raw;
 				if (!m_raw.TryGetValue(path, out raw))
 				{
-					Load(assetPath);
+					LoadJson(assetPath);
 					if (!m_raw.TryGetValue(path, out raw))
 					{
 						return default(Type);
@@ -131,13 +131,13 @@ namespace Mixki
 			}
 			else
 			{
-				Load(path);
+				LoadJson(path);
 				m_raw.TryGetValue(path, out val);
 				return val;
 			}
 		}
 
-		public void InsertRawData(string path, byte[] bytes)
+		public void InsertRawJsonData(string path, byte[] bytes)
 		{
 			Dictionary<string, object> file = MicroJson.Parse(bytes);
 			if (file == null)
@@ -174,7 +174,7 @@ namespace Mixki
 			}
 		}
 
-		void Load(string path)
+		void LoadJson(string path)
 		{
 			string fn = m_root;
 			string tmp = path;
@@ -197,7 +197,7 @@ namespace Mixki
 			byte[] bytes = System.IO.File.ReadAllBytes(fn);
 			if (bytes != null)
 			{
-				InsertRawData(path, bytes);
+				InsertRawJsonData(path, bytes);
 			}
 		}
 	}
