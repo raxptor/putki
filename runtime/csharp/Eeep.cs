@@ -12,7 +12,6 @@ namespace Putki
 			public int pos;
 			public bool error;
 			public Dictionary<string, Object> result;
-			public int anonCount;
 		}
 
 		public delegate void OnField(string name);
@@ -82,6 +81,8 @@ namespace Putki
 		{
 			return s.ToLowerInvariant().Replace("-", "").Replace("_", "");
 		}
+
+		static int m_anonCount;
 
 		public static object Parse(ref ParseStatus status, bool rootlevel = false)
 		{
@@ -167,7 +168,7 @@ namespace Putki
 								else
 								{
 									// anonymous object, add with path and return.
-									string path = "%" + (status.anonCount++);
+									string path = "%" + (m_anonCount++);
 									status.result.Add(path, no);
 									status.pos = i + 1;
 									if (!rootlevel)
