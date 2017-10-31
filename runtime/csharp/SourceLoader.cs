@@ -78,6 +78,7 @@ namespace Mixki
 					LoadJson(assetPath);
 					if (!m_raw.TryGetValue(path, out raw))
 					{
+						Logger("Resolve error on path [" + path + "]");
 						return default(Type);
 					}
 				}
@@ -109,7 +110,6 @@ namespace Mixki
 				if (m_parsers.TryGetValue(type, out p))
 				{
 					object parsed = p(this, assetPath, datas);
-					Logger("Parsed [" + path + "] as [" + type + "]");
 					m_parsed.Add(path, parsed);
 					Putki.PackageManager.RegisterLoaded(path, parsed);
 					return (Type) parsed;
@@ -135,6 +135,11 @@ namespace Mixki
 				m_raw.TryGetValue(path, out val);
 				return val;
 			}
+		}
+
+		public void InsertRawObj(string path, Dictionary<string, object> obj)
+		{
+			m_raw.Add(path, obj);
 		}
 
 		public void InsertRawJsonData(string path, byte[] bytes)
@@ -176,6 +181,10 @@ namespace Mixki
 
 		void LoadJson(string path)
 		{
+			if (m_root == null)
+			{
+				return;
+			}
 			string fn = m_root;
 			string tmp = path;
 			while (tmp.Length > 0)
