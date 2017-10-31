@@ -12,6 +12,18 @@ import putki.Compiler.ParsedTree;;
 
 public class CSharpGenerator
 {
+	public static String normalizedName(String input)
+	{
+		StringBuilder sb = new StringBuilder();
+		for (int i=0;i<input.length();i++)
+		{
+			if (input.charAt(i) == '_')
+				continue;
+			sb.append(Character.toLowerCase(input.charAt(i)));
+		}		
+		return sb.toString();
+	}
+	
     public static void writeParserList(StringBuilder sb, ParsedTree tree, HashSet<ParsedTree> included)
     {
         if (included != null)
@@ -32,11 +44,11 @@ public class CSharpGenerator
                 if ((struct.domains & Compiler.DOMAIN_INPUT) == 0 ||
                     (struct.domains & Compiler.DOMAIN_OUTPUT) == 0)
                         continue;
-                sb.append("\t\t\tnew SourceLoader.Parser(\"" + struct.name + "\", " + struct.name + "Fn),\n");
+                sb.append("\t\t\tnew SourceLoader.Parser(\"" + normalizedName(struct.name) + "\", " + struct.name + "Fn),\n");
             }
             for (ParsedEnum e : file.enums)
             {
-                sb.append("\t\t\tnew SourceLoader.Parser(\"" + e.name + "\", " + e.name + "EnumFn),\n");
+                sb.append("\t\t\tnew SourceLoader.Parser(\"" + normalizedName(e.name) + "\", " + e.name + "EnumFn),\n");
             }
         }
     }
@@ -151,7 +163,7 @@ public class CSharpGenerator
                     }
                     if (fld.isParentField)
                     {
-                        sb.append(npfx).append("if (source.TryGetValue(\"" + fld.name + "\", out tmp))");
+                        sb.append(npfx).append("if (source.TryGetValue(\"" + normalizedName(fld.name) + "\", out tmp))");
                         sb.append(npfx).append("{");
                         sb.append(npfx).append("\t" + struct.resolvedParent.loaderName + "." + struct.resolvedParent.name + "ParseInto(loader, path, (Dictionary<string, object>)tmp, target);");
                         sb.append(npfx).append("}");
@@ -159,7 +171,7 @@ public class CSharpGenerator
                     }
                     if (!fld.isArray)
                     {                        
-                        sb.append(npfx).append("if (source.TryGetValue(\"" + fld.name + "\", out tmp))");
+                        sb.append(npfx).append("if (source.TryGetValue(\"" + normalizedName(fld.name) + "\", out tmp))");
                         sb.append(npfx).append("{");
                         sb.append(npfx).append("\t" + ref + " = ");
                         writeExpr(sb, "tmp", fld);
@@ -183,7 +195,7 @@ public class CSharpGenerator
                     {
                         String arrTmp = "__Arr" + tmp;
                         sb.append(npfx).append("List<" + csharpType(fld, "Outki", false) + "> " + arrTmp + " = new List<" + csharpType(fld, "Outki", false) + ">();");
-                        sb.append(npfx).append("if (source.TryGetValue(\"" + fld.name + "\", out tmp))");
+                        sb.append(npfx).append("if (source.TryGetValue(\"" + normalizedName(fld.name) + "\", out tmp))");
                         sb.append(npfx).append("{");
                         sb.append(npfx).append("\tList<object> array = tmp as List<object>;");
                         sb.append(npfx).append("\tfor (int i=0;i<array.Count;i++)");
@@ -208,7 +220,7 @@ public class CSharpGenerator
                 sb.append(npfx).append("string tmp = obj.ToString();");
                 for (Compiler.EnumValue v : e.values)
                 {
-                    sb.append(npfx).append("if (tmp == \"" + v.name + "\")");
+                    sb.append(npfx).append("if (tmp == \"" + normalizedName(v.name) + "\")");
                     sb.append(npfx).append("{");
                     sb.append(npfx).append("\treturn Outki." + e.name + "." + v.name + ";");
                     sb.append(npfx).append("}");
@@ -367,6 +379,8 @@ public class CSharpGenerator
                     {
                         if ((field.domains & Compiler.DOMAIN_OUTPUT) == 0)
                             continue;
+                        if (field.isParentField)
+                        	continue;
                         sb.append(spfx).append("public " + csharpType(field, "Outki", true) + " " + field.name + ";");
                         if (field.type == FieldType.POINTER)
                         {
@@ -457,6 +471,12 @@ public class CSharpGenerator
                     sb.append(pfx).append("{");
 
                     String spfx = pfx + "\t";
+                    
+                    if (struct.resolvedParent != null)
+                    {
+                    	sb.append(spfx).append("var parent = (" + struct.resolvedParent.name + ")target;");
+                    	sb.append(spfx).append("ParseFromPackage_" + struct.resolvedParent.name + "(ref parent, reader, aux);");
+                    }
 
                     if (struct.isTypeRoot)
                     {
@@ -467,6 +487,8 @@ public class CSharpGenerator
                     {
                         if ((field.domains & Compiler.DOMAIN_OUTPUT) == 0)
                             continue;
+                        if (field.isParentField)
+                        	continue;
 
                         String upfx = spfx;
                         String ref = "target." + field.name;
@@ -476,6 +498,7 @@ public class CSharpGenerator
                         {
                             ref = "target.__slot_" + field.name;
                         }
+                        
 
                         if (field.isArray)
                         {

@@ -11,13 +11,14 @@ namespace Putki
 			public byte[] data;
 			public int pos;
 			public bool error;
+			public Dictionary<string, Object> result;
 		}
 
 		public struct Object
 		{
 			public string Path;
 			public string Type;
-			public Dictionary<string, Object>;
+			public object Data;
 		}
 
 		public delegate void OnField(string name);
@@ -77,12 +78,16 @@ namespace Putki
 			return c == ' ' || c == '\t' || c == 0xD || c == 0xA;
 		}
 
+		static string MakeAnonymousPath()
+		{
+			return "anonymous";
+		}
+
 		public static object Parse(ref ParseStatus status)
 		{
 			Parsing state = Parsing.NOTHING;
 			Dictionary<string, object> o = null;
 			List<object> a = null;
-			String header = null;
 			String name = null;
 			for (int i=status.pos;i<status.data.Length;i++)
 			{
@@ -94,7 +99,7 @@ namespace Putki
 					{
 						switch (c)
 						{
-							case '@': state = Parsing.HEADER; header = ""; break;
+							case '@': state = Parsing.HEADER; break;
 							case '{': state = Parsing.OBJECT; o = new Dictionary<string, object>(); break;
 							case '[': state = Parsing.ARRAY; a = new List<object>(); break;
 							case ' ': case '\n': case '\t': break;
@@ -118,20 +123,39 @@ namespace Putki
 						}
 						break;
 					}
-					case Parsing.TYPE:
+					case Parsing.HEADER:
 						{
 							if (c == '{' || c== '[')
 							{
-								header = DecodeString(status.data, status.pos, i);
+								string header = DecodeString(status.data, status.pos, i);
+								string[] pcs = header.Trim().Split(new char[] {' ', (char)0xd, (char)0xA, '\t' });
+								if (pcs.Length < 1)
+								{
+									status.error = true;
+									return null;
+								}
+
+								Object no = new Object();
+								no.Type = pcs[0].Replace("@", "");
+								if (pcs.Length > 1)
+								{
+									no.Path = pcs[1].Trim();
+								}
+								else
+								{
+									no.Path = MakeAnonymousPath();
+								}
 								status.pos = i;
-								i--;
+								no.Data = Parse(ref status);
+								i = status.pos - 1;
+								status.result.Add(no.Path, no);
 								state = Parsing.NOTHING;
 							}
 							break;
 						}
 					case Parsing.VALUE:
 						{
-							if (IsWhitespace(c) || c == ',' || c == ']' || c == '}' || c == ':')
+							if (IsWhitespace(c) || c == ',' || c == ']' || c == '}' || c == ':' || c == '=')
 							{
 								String v = DecodeString(status.data, status.pos, i);
 								status.pos = i;
@@ -163,7 +187,7 @@ namespace Putki
 							}
 							else 
 							{
-								if (c == ':')
+								if (c == ':' || c == '=')
 								{
 									continue;
 								}
@@ -206,23 +230,23 @@ namespace Putki
 						break;
 				}
 			}
-			status.error = true;
 			return null;
 		}
 
-		public static Dictionary<string, object> Parse(byte[] buffer)
-		{
+		public static Dictionary<string, Object> Parse(byte[] buffer)
+		{			
 			ParseStatus status = new ParseStatus();
 			status.data = buffer;
 			status.pos = 0;
-			object root = Parse(ref status);
+			status.result = new Dictionary<string, Object>();
+			Parse(ref status);
 			if (status.error)
 			{
 				return null;
 			}
 			else
 			{
-				return root as Dictionary<string, object>;
+				return status.result;
 			}
 		}
 	}
