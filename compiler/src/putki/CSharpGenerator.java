@@ -90,6 +90,7 @@ public class CSharpGenerator
     {
         switch (field.type)
         {
+        	case FILE:
             case STRING:
                 sb.append(src + ".ToString()");
                 break;

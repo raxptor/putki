@@ -19,7 +19,7 @@ namespace TestSimple
 	{
 		public static void Main(string[] args)
 		{
-			Mixki.SourceLoader sl = new Mixki.SourceLoader("/Users/dannilsson/git/putki-cleanup/tests/simple/data/objs", Mixki.TestProj.Parsers);
+			Mixki.SourceLoader sl = new Mixki.SourceLoader("C:/git/eeep/ext/putki/tests/simple/data/objs", Mixki.TestProj.Parsers);
 			Outki.Everything sourceEverything = sl.Resolve<Outki.Everything>("everything");
 			{
 				Console.WriteLine("I loaded from source " + sourceEverything);
@@ -27,7 +27,7 @@ namespace TestSimple
 
 			// load built
 			Putki.PackageManager.LoadFromBytes(
-				System.IO.File.ReadAllBytes("/Users/dannilsson/git/putki-cleanup/tests/simple/out/csharp-default/packages/default.pkg"),
+				System.IO.File.ReadAllBytes("C:/git/eeep/ext/putki/tests/simple/out/csharp-default/packages/default.pkg"),
 				new TypeLoader()
 			);
 

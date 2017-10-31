@@ -206,11 +206,17 @@ namespace Mixki
 
 			fn = fn + ".json";
 
-			Logger("Opening file [" + fn + "]");
-			byte[] bytes = System.IO.File.ReadAllBytes(fn);
-			if (bytes != null)
+			try
 			{
-				InsertRawJsonData(path, bytes);
+				byte[] bytes = System.IO.File.ReadAllBytes(fn);
+				if (bytes != null)
+				{
+					InsertRawJsonData(path, bytes);
+				}
+			}
+			catch (IOException)
+			{
+				Logger("Could not read file [" + fn + "]");
 			}
 		}
 	}
