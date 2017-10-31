@@ -116,13 +116,13 @@ namespace putki
 				builder_name.append(i->second.name);
 
 				// Compute this once maybe. In code generator?
-				type_handler_i* th = typereg_get_handler(i->type_id);
+				type_handler_i* th = typereg_get_handler(i->second.type_id);
 				if (th)
 				{
 					instance_t empty = th->alloc();
 					signature::buffer buf;
 					const char* sig = signature::object(th, empty, buf);
-					builder_name.append("=" + std::string(sig, sig + 6))
+					builder_name.append("=" + std::string(sig, sig + 6));
 				}
 			}
 			return builder_name.empty() ? "default" : builder_name;

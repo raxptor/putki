@@ -47,15 +47,12 @@ int main()
 			std::cout << "Everything changed!\n" << std::endl;
 		}
 
-		if (everything->embed_file)
+		putki::pkgmgr::resource_data res;
+		if (putki::pkgmgr::load_resource(everything->embed_file, &res, 0))
 		{
-			putki::pkgmgr::resource_data res;
-			if (putki::pkgmgr::load_resource(pkg, everything->embed_file, &res))
-			{
-				std::string data(res.data, res.data + res.size);
-				std::cout << "Resource is [" << data << "]" << std::endl;
-				putki::pkgmgr::free_resource(&res);
-			}
+			std::string data(res.data, res.data + res.size);
+			std::cout << "Resource is [" << data << "]" << std::endl;
+			putki::pkgmgr::free_resource(&res);
 		}
 		
 		for (unsigned int i = 0; i < everything->root_structs_size; i++)
