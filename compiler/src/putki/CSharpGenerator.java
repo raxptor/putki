@@ -163,9 +163,16 @@ public class CSharpGenerator
                     }
                     if (fld.isParentField)
                     {
+                    	// TODO: Load through 'parent' field if one is available in the data, otherwise load on 'self', this is to support
+                    	//       parsing that that is structured either way. This makes life easier but might introduce some bugs so maybe
+                    	//       get rid of the 'parent' field in the json format.
                         sb.append(npfx).append("if (source.TryGetValue(\"" + normalizedName(fld.name) + "\", out tmp))");
                         sb.append(npfx).append("{");
                         sb.append(npfx).append("\t" + struct.resolvedParent.loaderName + "." + struct.resolvedParent.name + "ParseInto(loader, path, (Dictionary<string, object>)tmp, target);");
+                        sb.append(npfx).append("}");
+                        sb.append(npfx).append("else");
+                        sb.append(npfx).append("{");
+                        sb.append(npfx).append("\t" + struct.resolvedParent.loaderName + "." + struct.resolvedParent.name + "ParseInto(loader, path, source, target);");
                         sb.append(npfx).append("}");
                         continue;
                     }

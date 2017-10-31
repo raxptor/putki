@@ -68,6 +68,11 @@ namespace Putki
 			return c == ' ' || c == '\t' || c == 0xD || c == 0xA;
 		}
 
+		static string Normalize(string s)
+		{
+			return s.ToLowerInvariant().Replace("-", "").Replace("_", "");
+		}
+
 		public static object Parse(ref ParseStatus status)
 		{
 			Parsing state = Parsing.NOTHING;
@@ -152,7 +157,7 @@ namespace Putki
 									status.error = true;
 									return null;
 								}
-								o.Add(name, val);
+								o.Add(Normalize(name), val);
 								i = status.pos - 1;
 								name = null;
 							}

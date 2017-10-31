@@ -12,13 +12,7 @@ namespace Putki
 			public int pos;
 			public bool error;
 			public Dictionary<string, Object> result;
-		}
-
-		public struct Object
-		{
-			public string Path;
-			public string Type;
-			public object Data;
+			public int anonCount;
 		}
 
 		public delegate void OnField(string name);
@@ -27,6 +21,7 @@ namespace Putki
 		enum Parsing
 		{
 			NOTHING,
+			COMMENT,
 			HEADER,
 			VALUE,
 			QUOTED_VALUE,
@@ -83,7 +78,12 @@ namespace Putki
 			return "anonymous";
 		}
 
-		public static object Parse(ref ParseStatus status)
+		static string Normalize(string s)
+		{
+			return s.ToLowerInvariant().Replace("-", "").Replace("_", "");
+		}
+
+		public static object Parse(ref ParseStatus status, bool rootlevel = false)
 		{
 			Parsing state = Parsing.NOTHING;
 			Dictionary<string, object> o = null;
@@ -96,18 +96,31 @@ namespace Putki
 				switch (state)
 				{
 					case Parsing.NOTHING:
-					{
-						switch (c)
 						{
-							case '@': state = Parsing.HEADER; break;
-							case '{': state = Parsing.OBJECT; o = new Dictionary<string, object>(); break;
-							case '[': state = Parsing.ARRAY; a = new List<object>(); break;
-							case ' ': case '\n': case '\t': break;
-							case '"': state = Parsing.QUOTED_VALUE; status.pos = i+1; break;
-							default: state = Parsing.VALUE; status.pos = i; break;
+							if (!IsWhitespace(c))
+							{
+								switch (c)
+								{
+									case '#': case '/': state = Parsing.COMMENT; break;
+									case '@': state = Parsing.HEADER; break;
+									case '{': state = Parsing.OBJECT; o = new Dictionary<string, object>(); break;
+									case '[': state = Parsing.ARRAY; a = new List<object>(); break;
+									case ' ': case '\n': case '\t': break;
+									case '"': state = Parsing.QUOTED_VALUE; status.pos = i + 1; break;
+									default: state = Parsing.VALUE; status.pos = i; break;
+								}
+							}
+							break;
 						}
-						break;
-					}
+					case Parsing.COMMENT:
+						{
+							if (c == 0xd || c == 0xa)
+							{
+								status.pos = i;
+								state = Parsing.NOTHING;
+							}
+							break;
+						}
 					case Parsing.QUOTED_VALUE:
 					{
 						if (c == '\\')
@@ -135,20 +148,33 @@ namespace Putki
 									return null;
 								}
 
-								Object no = new Object();
-								no.Type = pcs[0].Replace("@", "");
+
+								status.pos = i;
+								Dictionary<string, object> data = Parse(ref status) as Dictionary<string, object>;
+								if (status.error || data == null)
+									return null;
+								i = status.pos - 1;
+
+								Dictionary<string, object> no = new Dictionary<string, object>();
+								no.Add("type", Normalize(pcs[0]).Replace("@", ""));
+								no.Add("data", data);
+
 								if (pcs.Length > 1)
 								{
-									no.Path = pcs[1].Trim();
+									// it has path
+									status.result.Add(pcs[1].Trim(), no);
 								}
 								else
 								{
-									no.Path = MakeAnonymousPath();
+									// anonymous object, add with path and return.
+									string path = "%" + (status.anonCount++);
+									status.result.Add(path, no);
+									status.pos = i + 1;
+									if (!rootlevel)
+									{
+										return path;
+									}
 								}
-								status.pos = i;
-								no.Data = Parse(ref status);
-								i = status.pos - 1;
-								status.result.Add(no.Path, no);
 								state = Parsing.NOTHING;
 							}
 							break;
@@ -198,7 +224,7 @@ namespace Putki
 									status.error = true;
 									return null;
 								}
-								o.Add(name, val);
+								o.Add(Normalize(name), val);
 								i = status.pos - 1;
 								name = null;
 							}
@@ -239,7 +265,7 @@ namespace Putki
 			status.data = buffer;
 			status.pos = 0;
 			status.result = new Dictionary<string, Object>();
-			Parse(ref status);
+			Parse(ref status, true);
 			if (status.error)
 			{
 				return null;

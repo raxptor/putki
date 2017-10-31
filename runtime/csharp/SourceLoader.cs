@@ -52,6 +52,10 @@ namespace Mixki
 			else
 				return Resolve<Type>(path);
 		}
+		static string Normalize(string s)
+		{
+			return s.ToLowerInvariant().Replace("-", "").Replace("_", "");
+		}
 
 		public Type Resolve<Type>(string path)
 		{
@@ -107,7 +111,7 @@ namespace Mixki
 
 				string type = typeObj.ToString();
 				ParseFn p;
-				if (m_parsers.TryGetValue(type, out p))
+				if (m_parsers.TryGetValue(Normalize(type), out p))
 				{
 					object parsed = p(this, assetPath, datas);
 					m_parsed.Add(path, parsed);
