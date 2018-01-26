@@ -20,7 +20,6 @@ namespace Putki
 		enum Parsing
 		{
 			NOTHING,
-			COMMENT,
 			HEADER,
 			VALUE,
 			QUOTED_VALUE,
@@ -102,7 +101,6 @@ namespace Putki
 							{
 								switch (c)
 								{
-									case '#': case '/': state = Parsing.COMMENT; break;
 									case '@': state = Parsing.HEADER; break;
 									case '{': state = Parsing.OBJECT; o = new Dictionary<string, object>(); break;
 									case '[': state = Parsing.ARRAY; a = new List<object>(); break;
@@ -110,15 +108,6 @@ namespace Putki
 									case '"': state = Parsing.QUOTED_VALUE; status.pos = i + 1; break;
 									default: state = Parsing.VALUE; status.pos = i; break;
 								}
-							}
-							break;
-						}
-					case Parsing.COMMENT:
-						{
-							if (c == 0xd || c == 0xa)
-							{
-								status.pos = i;
-								state = Parsing.NOTHING;
 							}
 							break;
 						}
@@ -261,9 +250,56 @@ namespace Putki
 		}
 
 		public static Dictionary<string, Object> Parse(byte[] buffer)
-		{			
+		{
+			// Strip comments
+			byte[] stripped = new byte[buffer.Length];
+			int outp = 0;
+			bool comment = false;
+			bool quote = false;
+			bool escape = false;
+			int cstart = 0;
+			for (int i=0;i<buffer.Length;i++)
+			{
+				char c = (char)buffer[i];
+				char n = '\x0';
+				if (i < (buffer.Length-1))
+					n = (char)buffer[i+1];
+				
+				if (!quote && c == '\"')
+				{
+					quote = true;
+				}
+				else if (quote && !escape && c == '\"')
+				{
+					quote = false;
+				}
+				if (quote && !escape && c == '\\')
+				{
+					escape = true;
+				}
+				if (c != '\\')
+				{
+					escape = false;
+				}
+				if (!quote && !comment && (c == '#' || (c == '/' && n == '/')))
+				{
+					comment = true;
+					cstart = i;
+				}
+				if (comment && (c == 0xd || c == 0xa))
+				{
+					comment = false;
+				}	
+				if (!comment)
+				{
+					stripped[outp++] = buffer[i];
+				}
+			}
+
+			Array.Resize(ref stripped, outp);
+
 			ParseStatus status = new ParseStatus();
-			status.data = buffer;
+			status.data = stripped;
 			status.pos = 0;
 			status.result = new Dictionary<string, Object>();
 			Parse(ref status, true);
