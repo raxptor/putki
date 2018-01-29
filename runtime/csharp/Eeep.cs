@@ -61,6 +61,11 @@ namespace Putki
 							i += 5;
 						}
 					}
+					else if (buf[i+1] =='n')
+					{
+						tmp[len++] = (byte)'\n';
+						i++;
+					}
 				}
 			}
 			return System.Text.Encoding.UTF8.GetString(tmp, 0, len);
