@@ -20,10 +20,10 @@ public class CSharpGenerator
 			if (input.charAt(i) == '_')
 				continue;
 			sb.append(Character.toLowerCase(input.charAt(i)));
-		}		
+		}
 		return sb.toString();
 	}
-	
+
     public static void writeParserList(StringBuilder sb, ParsedTree tree, HashSet<ParsedTree> included)
     {
         if (included != null)
@@ -107,7 +107,7 @@ public class CSharpGenerator
                 sb.append("byte.Parse(" + src + ".ToString())");
                 break;
             case BOOL:
-                sb.append("int.Parse(" + src + ".ToString()) != 0");
+                sb.append("(" + src + ".ToString() == \"True\" || " + src + ".ToString() == \"true\" || " + src + ".ToString() == \"1\")");
                 break;
             case FLOAT:
                 sb.append("float.Parse(" + src + ".ToString(), System.Globalization.CultureInfo.InvariantCulture)");
@@ -178,7 +178,7 @@ public class CSharpGenerator
                         continue;
                     }
                     if (!fld.isArray)
-                    {                        
+                    {
                         sb.append(npfx).append("if (source.TryGetValue(\"" + normalizedName(fld.name) + "\", out tmp))");
                         sb.append(npfx).append("{");
                         sb.append(npfx).append("\t" + ref + " = ");
@@ -479,7 +479,7 @@ public class CSharpGenerator
                     sb.append(pfx).append("{");
 
                     String spfx = pfx + "\t";
-                    
+
                     if (struct.resolvedParent != null)
                     {
                     	sb.append(spfx).append("var parent = (" + struct.resolvedParent.name + ")target;");
@@ -506,7 +506,7 @@ public class CSharpGenerator
                         {
                             ref = "target.__slot_" + field.name;
                         }
-                        
+
 
                         if (field.isArray)
                         {
