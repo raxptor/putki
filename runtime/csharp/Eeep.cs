@@ -136,6 +136,11 @@ namespace Putki
 							if (c == '{' || c== '[')
 							{
 								string header = DecodeString(status.data, status.pos, i);
+								if (header == "gurka")
+								{
+									Console.WriteLine("hej");
+									header = "";
+								}
 								string[] pcs = header.Trim().Split(new char[] {' ', (char)0xd, (char)0xA, '\t' });
 								if (pcs.Length < 1)
 								{
@@ -167,7 +172,7 @@ namespace Putki
 									status.pos = i + 1;
 									if (!rootlevel)
 									{
-										return path;
+										return path; 
 									}
 								}
 								state = Parsing.NOTHING;

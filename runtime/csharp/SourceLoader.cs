@@ -42,8 +42,15 @@ namespace Mixki
 			};
 		}
 
-		public Type Resolve<Type>(string assetPath, string path)
+		public Type Resolve<Type>(string assetPath, object value, ParseFn inlineFn = null)
 		{
+			// inline object such as auxptr with { }
+			if (value is Dictionary<string, object>)
+			{
+				return Resolve<Type>(value, inlineFn);
+			}
+
+			string path = value.ToString();
 			if (path == null || path == "")
 				return default(Type);
 			
@@ -57,8 +64,26 @@ namespace Mixki
 			return s.ToLowerInvariant().Replace("-", "").Replace("_", "");
 		}
 
-		public Type Resolve<Type>(string path)
+		static int m_inlineCounter = 0;
+
+		public Type Resolve<Type>(object value, ParseFn inlineFn = null)
 		{
+			if (value is Dictionary<string, object>)
+			{
+				string ipath = "##inline" + ((m_inlineCounter++).ToString());
+				object parsed = inlineFn(this, ipath, value as Dictionary<string, object>);
+				m_parsed.Add(ipath, parsed);
+				Putki.PackageManager.RegisterLoaded(ipath, parsed);
+				return (Type) parsed;
+			}
+				
+			string path = value.ToString();
+			if (value is String)
+			{
+				path = value.ToString();
+			}
+			else 
+
 			if (path == null || path == "")
 				return default(Type);
 			
