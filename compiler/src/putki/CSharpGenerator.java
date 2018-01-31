@@ -95,7 +95,7 @@ public class CSharpGenerator
                 sb.append(src + ".ToString()");
                 break;
             case POINTER:
-                sb.append("loader.Resolve<Outki." + field.refType + ">(path, " + src + ".ToString())");
+                sb.append("loader.Resolve<Outki." + field.refType + ">(path, " + src + ", " + field.resolvedRefStruct.name + "Fn)");
                 break;
             case INT32:
                 sb.append("int.Parse(" + src + ".ToString())");
