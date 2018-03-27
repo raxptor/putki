@@ -228,7 +228,7 @@ public class CSharpGenerator
                 sb.append(npfx).append("string tmp = obj.ToString();");
                 for (Compiler.EnumValue v : e.values)
                 {
-                    sb.append(npfx).append("if (tmp == \"" + normalizedName(v.name) + "\")");
+                    sb.append(npfx).append("if (tmp == \"" + v.name + "\")");
                     sb.append(npfx).append("{");
                     sb.append(npfx).append("\treturn Outki." + e.name + "." + v.name + ";");
                     sb.append(npfx).append("}");
