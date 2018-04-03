@@ -198,6 +198,16 @@ public class CSharpGenerator
                         	sb.append(npfx).append("\t" + ref + " = " + cast + valuePrefix + fld.defValue + ";");
                         	sb.append(npfx).append("}");
                         }
+                        else if (fld.resolvedRefStruct != null && fld.resolvedRefStruct.isValueType)
+                        {
+                        	// Need to parse a dummy into here to get default values. 
+                        	sb.append(npfx).append("else");
+                        	sb.append(npfx).append("{");
+                        	sb.append(npfx).append("\t" + ref + " = ");
+                        	writeExpr(sb, "new Dictionary<string, object>()", fld);
+                        	sb.append(";");
+                        	sb.append(npfx).append("}");
+                        }
                     }
                     else
                     {
