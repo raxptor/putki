@@ -154,7 +154,7 @@ public class CSharpGenerator
                     {
                         continue;
                     }
-                    String tmp = "__" + fld.name;
+                    
                     String ref = "target." + fld.name;
 
                     if (first)
@@ -211,19 +211,21 @@ public class CSharpGenerator
                     }
                     else
                     {
-                        String arrTmp = "__Arr" + tmp;
-                        sb.append(npfx).append("List<" + csharpType(fld, "Outki", false) + "> " + arrTmp + " = new List<" + csharpType(fld, "Outki", false) + ">();");
                         sb.append(npfx).append("if (source.TryGetValue(\"" + normalizedName(fld.name) + "\", out tmp))");
                         sb.append(npfx).append("{");
                         sb.append(npfx).append("\tList<object> array = tmp as List<object>;");
+                        sb.append(npfx).append("\t" + ref + " = new " + csharpType(fld, "Outki", false) + "[array.Count];");
                         sb.append(npfx).append("\tfor (int i=0;i<array.Count;i++)");
                         sb.append(npfx).append("\t{");
-                        sb.append(npfx).append("\t\t" + arrTmp + ".Add(");
+                        sb.append(npfx).append("\t\t" + ref+  "[i] = ");
                         writeExpr(sb, "array[i]", fld);
-                        sb.append(");");
+                        sb.append(";");
                         sb.append(npfx).append("\t}");
                         sb.append(npfx).append("}");
-                        sb.append(npfx).append(ref + " = " + arrTmp + ".ToArray();");
+                        sb.append(npfx).append("else");
+                        sb.append(npfx).append("{");
+                        sb.append(npfx).append("\t" + ref + " = new " + csharpType(fld, "Outki", false) + "[0];");
+                        sb.append(npfx).append("}");
                     }
                 }
                 sb.append(npfx).append("return target;\n");
@@ -402,7 +404,8 @@ public class CSharpGenerator
                         sb.append(spfx).append("public " + csharpType(field, "Outki", true) + " " + field.name + ";");
                         if (field.type == FieldType.POINTER)
                         {
-                            sb.append(spfx).append("public int" + (field.isArray ? "[]" : "") + " __slot_" + field.name + ";");
+                        	if (!comp.mixkiOnly)
+                        		sb.append(spfx).append("public int" + (field.isArray ? "[]" : "") + " __slot_" + field.name + ";");
                         }
                     }
                     sb.append(pfx).append("}");
