@@ -347,7 +347,17 @@ public class CSharpGenerator
                 String pfx = "\n\t";
                 for (Compiler.ParsedEnum en : file.enums)
                 {
+                	int min = 0;
+                	int max = 0;
+                    for (Compiler.EnumValue value : en.values)                    	
+                    {
+                    	if (value.value < min) min = value.value;
+                    	if (value.value > max) max = value.value;
+                    }
+                	
                     sb.append(pfx).append("public enum " + en.name);
+                    if (max < 256 && min >= 0)
+                    	sb.append(": byte");
                     sb.append(pfx).append("{");
                     String sep = "";
                     for (Compiler.EnumValue value : en.values)
