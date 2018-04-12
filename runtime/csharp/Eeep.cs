@@ -136,18 +136,12 @@ namespace Putki
 							if (c == '{' || c== '[')
 							{
 								string header = DecodeString(status.data, status.pos, i);
-								if (header == "gurka")
-								{
-									Console.WriteLine("hej");
-									header = "";
-								}
-								string[] pcs = header.Trim().Split(new char[] {' ', (char)0xd, (char)0xA, '\t' });
+                                string[] pcs = header.Trim().Split(new char[] {' ', (char)0xd, (char)0xA, '\t' });                                
 								if (pcs.Length < 1)
 								{
 									status.error = true;
 									return null;
 								}
-
 
 								status.pos = i;
 								Dictionary<string, object> data = Parse(ref status) as Dictionary<string, object>;
@@ -163,7 +157,11 @@ namespace Putki
 								{
 									// it has path
 									status.result.Add(pcs[1].Trim(), no);
-								}
+                                    if (!rootlevel)
+                                    {
+                                        return pcs[1].Trim();
+                                    }
+                                }
 								else
 								{
 									// anonymous object, add with path and return.
