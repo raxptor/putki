@@ -429,8 +429,8 @@ public class CSharpGenerator
                         {
                         	sb.append(spfx).append("public " + csharpType(field, "Outki", true) + " " + field.name + "(Putki.Translation iti) { return iti.Translate(" +
                         	                        actualFieldName(field) + ", \"" + field.localizationCategory + "\"); } ");
-                        	sb.append(spfx).append("public " + csharpType(field, "Outki", true) + " " + field.name + "(Putki.Translation iti, params object[] args) { return iti.Translate(" +
-        	                        actualFieldName(field) + ", \"" + field.localizationCategory + "\", args); } ");
+                        	sb.append(spfx).append("public " + csharpType(field, "Outki", true) + " " + field.name + "(Putki.Translation iti, int plural_n) { return iti.Translate(" +
+        	                        actualFieldName(field) + ", \"" + field.localizationCategory + "\", plural_n); } ");
                         }
                     }
                     sb.append(pfx).append("}");
