@@ -427,7 +427,8 @@ public class CSharpGenerator
                         	else
                         		sb.append(spfx).append("public " + csharpType(field, "Outki", true) + " " + field.name + "(Putki.Translation iti) { return iti.Translate(" +
                         	            actualFieldName(field) + ", \"" + field.localizationCategory + "\"); } ");
-                        	
+
+                    		sb.append(spfx).append("public " + csharpType(field, "Outki", true) + " " + field.name + "() { return \"<" + field.localizationCategory + "." + field.name + "=\" + " + actualFieldName(field) + "+\">\"; } ");
                         	sb.append(spfx).append("[Putki.TranslatedField(Category=\"" + field.localizationCategory + "\", Plural=" + field.localizationPlural + ")]");
                         }
 
