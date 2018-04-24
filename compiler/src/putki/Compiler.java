@@ -49,6 +49,7 @@ public class Compiler
 		public ParsedEnum resolvedEnum;
 		public ParsedField buildConfigTargetField;
 		public boolean stringIsText;
+		public String localizationCategory;
 	}
 
 	public class ParsedStruct
@@ -258,6 +259,12 @@ public class Compiler
 				{
 					next.isArray = true;
 					typeName = pieces[k].substring(0,  pieces[k].length() - 2);
+				}
+
+				if (pieces[k].length() > 2 && pieces[k].charAt(0) == '{' && pieces[k].charAt(pieces[k].length()-1) == '}')
+				{
+					next.localizationCategory = pieces[k].substring(1,  pieces[k].length() - 1);
+					continue;
 				}
 
 				for (int i=0;i<stdTypes.length;i++)

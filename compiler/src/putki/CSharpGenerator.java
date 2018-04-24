@@ -23,6 +23,14 @@ public class CSharpGenerator
 		}
 		return sb.toString();
 	}
+	
+	public static String actualFieldName(ParsedField fld)
+	{
+		if (fld.localizationCategory != null)
+			return "_LocSrc" + fld.name;
+		else
+			return fld.name;
+	}	
 
     public static void writeParserList(StringBuilder sb, ParsedTree tree, HashSet<ParsedTree> included)
     {
@@ -155,7 +163,7 @@ public class CSharpGenerator
                         continue;
                     }
                     
-                    String ref = "target." + fld.name;
+                    String ref = "target." + actualFieldName(fld);
 
                     if (first)
                     {
@@ -167,7 +175,7 @@ public class CSharpGenerator
                     	// TODO: Load through 'parent' field if one is available in the data, otherwise load on 'self', this is to support
                     	//       parsing that that is structured either way. This makes life easier but might introduce some bugs so maybe
                     	//       get rid of the 'parent' field in the json format.
-                        sb.append(npfx).append("if (source.TryGetValue(\"" + normalizedName(fld.name) + "\", out tmp))");
+                        sb.append(npfx).append("if (source.TryGetValue(\"" + actualFieldName(fld) + "\", out tmp))");
                         sb.append(npfx).append("{");
                         sb.append(npfx).append("\t" + struct.resolvedParent.loaderName + "." + struct.resolvedParent.name + "ParseInto(loader, path, (Dictionary<string, object>)tmp, target);");
                         sb.append(npfx).append("}");
@@ -179,7 +187,7 @@ public class CSharpGenerator
                     }
                     if (!fld.isArray)
                     {
-                        sb.append(npfx).append("if (source.TryGetValue(\"" + normalizedName(fld.name) + "\", out tmp))");
+                        sb.append(npfx).append("if (source.TryGetValue(\"" + actualFieldName(fld) + "\", out tmp))");
                         sb.append(npfx).append("{");
                         sb.append(npfx).append("\t" + ref + " = ");
                         writeExpr(sb, "tmp", fld);
@@ -211,7 +219,7 @@ public class CSharpGenerator
                     }
                     else
                     {
-                        sb.append(npfx).append("if (source.TryGetValue(\"" + normalizedName(fld.name) + "\", out tmp))");
+                        sb.append(npfx).append("if (source.TryGetValue(\"" + actualFieldName(fld) + "\", out tmp))");
                         sb.append(npfx).append("{");
                         sb.append(npfx).append("\tList<object> array = tmp as List<object>;");
                         sb.append(npfx).append("\t" + ref + " = new " + csharpType(fld, "Outki", false) + "[array.Count];");
@@ -411,11 +419,18 @@ public class CSharpGenerator
                             continue;
                         if (field.isParentField)
                         	continue;
-                        sb.append(spfx).append("public " + csharpType(field, "Outki", true) + " " + field.name + ";");
+                        sb.append(spfx).append("public " + csharpType(field, "Outki", true) + " " + actualFieldName(field) + ";");
                         if (field.type == FieldType.POINTER)
                         {
                         	if (!comp.mixkiOnly)
-                        		sb.append(spfx).append("public int" + (field.isArray ? "[]" : "") + " __slot_" + field.name + ";");
+                        		sb.append(spfx).append("public int" + (field.isArray ? "[]" : "") + " __slot_" + actualFieldName(field) + ";");
+                        }
+                        if (field.localizationCategory != null)
+                        {
+                        	sb.append(spfx).append("public " + csharpType(field, "Outki", true) + " " + field.name + "(Putki.Translation iti) { return iti.Translate(" +
+                        	                        actualFieldName(field) + ", \"" + field.localizationCategory + "\"); } ");
+                        	sb.append(spfx).append("public " + csharpType(field, "Outki", true) + " " + field.name + "(Putki.Translation iti, params object[] args) { return iti.Translate(" +
+        	                        actualFieldName(field) + ", \"" + field.localizationCategory + "\", args); } ");
                         }
                     }
                     sb.append(pfx).append("}");
