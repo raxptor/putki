@@ -26,6 +26,11 @@ namespace Mixki
 		Dictionary<String, object> m_parsed;
 		Dictionary<String, ParseFn> m_parsers;
 
+        public Dictionary<String, object> AllParsed()
+        {
+            return m_parsed;
+        }
+
 		public LogFn Logger;
 
 		public SourceLoader(string root, Parser[] parsers)
