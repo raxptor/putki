@@ -12,14 +12,14 @@ import putki.Compiler.ParsedTree;;
 
 public class CSharpGenerator
 {
-	public static String normalizedName(String input)
+	public static String sourceName(String name)
 	{
 		StringBuilder sb = new StringBuilder();
-		for (int i=0;i<input.length();i++)
+		for (int i=0;i<name.length();i++)
 		{
-			if (input.charAt(i) == '_')
+			if (name.charAt(i) == '_')
 				continue;
-			sb.append(Character.toLowerCase(input.charAt(i)));
+			sb.append(Character.toLowerCase(name.charAt(i)));
 		}
 		return sb.toString();
 	}
@@ -52,11 +52,11 @@ public class CSharpGenerator
                 if ((struct.domains & Compiler.DOMAIN_INPUT) == 0 ||
                     (struct.domains & Compiler.DOMAIN_OUTPUT) == 0)
                         continue;
-                sb.append("\t\t\tnew SourceLoader.Parser(\"" + normalizedName(struct.name) + "\", " + struct.name + "Fn),\n");
+                sb.append("\t\t\tnew SourceLoader.Parser(\"" + sourceName(struct.name) + "\", " + struct.name + "Fn),\n");
             }
             for (ParsedEnum e : file.enums)
             {
-                sb.append("\t\t\tnew SourceLoader.Parser(\"" + normalizedName(e.name) + "\", " + e.name + "EnumFn),\n");
+                sb.append("\t\t\tnew SourceLoader.Parser(\"" + sourceName(e.name) + "\", " + e.name + "EnumFn),\n");
             }
         }
     }
@@ -175,7 +175,7 @@ public class CSharpGenerator
                     	// TODO: Load through 'parent' field if one is available in the data, otherwise load on 'self', this is to support
                     	//       parsing that that is structured either way. This makes life easier but might introduce some bugs so maybe
                     	//       get rid of the 'parent' field in the json format.
-                        sb.append(npfx).append("if (source.TryGetValue(\"" + actualFieldName(fld) + "\", out tmp))");
+                        sb.append(npfx).append("if (source.TryGetValue(\"" + sourceName(fld.name) + "\", out tmp))");
                         sb.append(npfx).append("{");
                         sb.append(npfx).append("\t" + struct.resolvedParent.loaderName + "." + struct.resolvedParent.name + "ParseInto(loader, path, (Dictionary<string, object>)tmp, target);");
                         sb.append(npfx).append("}");
@@ -187,7 +187,7 @@ public class CSharpGenerator
                     }
                     if (!fld.isArray)
                     {
-                        sb.append(npfx).append("if (source.TryGetValue(\"" + actualFieldName(fld) + "\", out tmp))");
+                        sb.append(npfx).append("if (source.TryGetValue(\"" + sourceName(fld.name) + "\", out tmp))");
                         sb.append(npfx).append("{");
                         sb.append(npfx).append("\t" + ref + " = ");
                         writeExpr(sb, "tmp", fld);
@@ -219,7 +219,7 @@ public class CSharpGenerator
                     }
                     else
                     {
-                        sb.append(npfx).append("if (source.TryGetValue(\"" + actualFieldName(fld) + "\", out tmp))");
+                        sb.append(npfx).append("if (source.TryGetValue(\"" + sourceName(fld.name) + "\", out tmp))");
                         sb.append(npfx).append("{");
                         sb.append(npfx).append("\tList<object> array = tmp as List<object>;");
                         sb.append(npfx).append("\t" + ref + " = new " + csharpType(fld, "Outki", false) + "[array.Count];");
@@ -418,19 +418,24 @@ public class CSharpGenerator
                         if ((field.domains & Compiler.DOMAIN_OUTPUT) == 0)
                             continue;
                         if (field.isParentField)
-                        	continue;
+                        	continue;                      
+                        if (field.localizationCategory != null)
+                        {
+                        	if (field.localizationPlural)
+                            	sb.append(spfx).append("public " + csharpType(field, "Outki", true) + " " + field.name + "(Putki.Translation iti, int plural_n) { return iti.Translate(" +
+            	                        actualFieldName(field) + ", \"" + field.localizationCategory + "\", plural_n); } ");
+                        	else
+                        		sb.append(spfx).append("public " + csharpType(field, "Outki", true) + " " + field.name + "(Putki.Translation iti) { return iti.Translate(" +
+                        	            actualFieldName(field) + ", \"" + field.localizationCategory + "\"); } ");
+                        	
+                        	sb.append(spfx).append("[Putki.TranslatedField(Category=\"" + field.localizationCategory + "\", Plural=" + field.localizationPlural + ")]");
+                        }
+
                         sb.append(spfx).append("public " + csharpType(field, "Outki", true) + " " + actualFieldName(field) + ";");
                         if (field.type == FieldType.POINTER)
                         {
                         	if (!comp.mixkiOnly)
                         		sb.append(spfx).append("public int" + (field.isArray ? "[]" : "") + " __slot_" + actualFieldName(field) + ";");
-                        }
-                        if (field.localizationCategory != null)
-                        {
-                        	sb.append(spfx).append("public " + csharpType(field, "Outki", true) + " " + field.name + "(Putki.Translation iti) { return iti.Translate(" +
-                        	                        actualFieldName(field) + ", \"" + field.localizationCategory + "\"); } ");
-                        	sb.append(spfx).append("public " + csharpType(field, "Outki", true) + " " + field.name + "(Putki.Translation iti, int plural_n) { return iti.Translate(" +
-        	                        actualFieldName(field) + ", \"" + field.localizationCategory + "\", plural_n); } ");
                         }
                     }
                     sb.append(pfx).append("}");

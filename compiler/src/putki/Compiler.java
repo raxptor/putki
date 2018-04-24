@@ -50,6 +50,7 @@ public class Compiler
 		public ParsedField buildConfigTargetField;
 		public boolean stringIsText;
 		public String localizationCategory;
+		public boolean localizationPlural;
 	}
 
 	public class ParsedStruct
@@ -266,6 +267,12 @@ public class Compiler
 					next.localizationCategory = pieces[k].substring(1,  pieces[k].length() - 1);
 					continue;
 				}
+				else if (pieces[k].length() > 3 && pieces[k].charAt(0) == '{' && pieces[k].charAt(pieces[k].length()-2) == '}' && pieces[k].charAt(pieces[k].length()-1) == '+')
+				{
+					next.localizationCategory = pieces[k].substring(1,  pieces[k].length() - 2);
+					next.localizationPlural = true;
+					continue;
+				}
 
 				for (int i=0;i<stdTypes.length;i++)
 				{
@@ -326,8 +333,11 @@ public class Compiler
 			}
 			else if (readDefValue)
 			{
-				next.defValue = pieces[k];
-				readDefValue = false;
+				// HACK
+				if (next.defValue == null || next.defValue.length() == 0)
+					next.defValue = pieces[k];
+				else
+					next.defValue = next.defValue + " " + pieces[k];
 			}
 			else if (next.name == null)
 			{
@@ -340,7 +350,7 @@ public class Compiler
 			}
 		}
 
-		if (gotType && !readRefType && !readDefValue)
+		if (gotType && !readRefType)
 		{
 			cur.fields.add(next);
 			return true;
