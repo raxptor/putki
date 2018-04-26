@@ -165,13 +165,14 @@ public class CSharpGenerator
                     
                     String ref = "target." + actualFieldName(fld);
 
-                    if (first)
-                    {
-                        sb.append(npfx).append("object tmp;");
-                        first = false;
-                    }
+
                     if (fld.isParentField)
                     {
+                        if (first)
+                        {
+                            sb.append(npfx).append("object tmp;");
+                            first = false;
+                        }                    	
                     	// TODO: Load through 'parent' field if one is available in the data, otherwise load on 'self', this is to support
                     	//       parsing that that is structured either way. This makes life easier but might introduce some bugs so maybe
                     	//       get rid of the 'parent' field in the json format.
@@ -187,47 +188,107 @@ public class CSharpGenerator
                     }
                     if (!fld.isArray)
                     {
-                        sb.append(npfx).append("if (source.TryGetValue(\"" + sourceName(fld.name) + "\", out tmp))");
-                        sb.append(npfx).append("{");
-                        sb.append(npfx).append("\t" + ref + " = ");
-                        writeExpr(sb, "tmp", fld);
-                        sb.append(";");
-                        sb.append(npfx).append("}");
-                        if (fld.defValue != null)
-                        {
-                        	sb.append(npfx).append("else");
-                        	sb.append(npfx).append("{");
-                        	String cast = "";
-                        	String valuePrefix = "";
-                        	if (fld.type == FieldType.FLOAT)
-                        		cast = "(float)";
-                        	if (fld.type == FieldType.ENUM)
-                        		valuePrefix = "Outki." + fld.resolvedEnum.name + ".";
-                        	sb.append(npfx).append("\t" + ref + " = " + cast + valuePrefix + fld.defValue + ";");
-                        	sb.append(npfx).append("}");
-                        }
-                        else if (fld.resolvedRefStruct != null && fld.resolvedRefStruct.isValueType)
-                        {
-                        	// Need to parse a dummy into here to get default values. 
-                        	sb.append(npfx).append("else");
-                        	sb.append(npfx).append("{");
-                        	sb.append(npfx).append("\t" + ref + " = ");
-                        	writeExpr(sb, "new Dictionary<string, object>()", fld);
-                        	sb.append(";");
-                        	sb.append(npfx).append("}");
-                        }
+                    	if (fld.type == FieldType.STRING) 
+                    	{
+                    		sb.append(npfx).append(ref + " = Mixki.Parse.String(source, \"" + sourceName(fld.name) + "\", ");
+                    		if (fld.defValue != null) sb.append(fld.defValue); else sb.append("null");
+                    		sb.append(");");
+                    	}
+                    	else if (fld.type == FieldType.FLOAT) 
+                    	{
+                    		sb.append(npfx).append(ref + " = Mixki.Parse.Float(source, \"" + sourceName(fld.name) + "\", ");
+                    		if (fld.defValue != null) sb.append("(float)" + fld.defValue); else sb.append("0");
+                    		sb.append(");");
+                    	}
+                    	else if (fld.type == FieldType.INT32) 
+                    	{
+                    		sb.append(npfx).append(ref + " = Mixki.Parse.Int(source, \"" + sourceName(fld.name) + "\", ");
+                    		if (fld.defValue != null) sb.append(fld.defValue); else sb.append("0");
+                    		sb.append(");");
+                    	}                    	
+                    	else if (fld.type == FieldType.BOOL) 
+                    	{
+                    		sb.append(npfx).append(ref + " = Mixki.Parse.Bool(source, \"" + sourceName(fld.name) + "\", ");
+                    		if (fld.defValue != null) sb.append(fld.defValue); else sb.append("false");
+                    		sb.append(");");
+                    	}                    	
+                    	else                    		
+                    	{
+                            if (first)
+                            {
+                                sb.append(npfx).append("object tmp;");
+                                first = false;
+                            }                    		
+	                        sb.append(npfx).append("if (source.TryGetValue(\"" + sourceName(fld.name) + "\", out tmp))");
+	                        sb.append(npfx).append("{");
+	                        sb.append(npfx).append("\t" + ref + " = ");
+	                        writeExpr(sb, "tmp", fld);
+	                        sb.append(";");
+	                        sb.append(npfx).append("}");
+	                        if (fld.defValue != null)
+	                        {
+	                        	sb.append(npfx).append("else");
+	                        	sb.append(npfx).append("{");
+	                        	String cast = "";
+	                        	String valuePrefix = "";
+	                        	if (fld.type == FieldType.FLOAT)
+	                        		cast = "(float)";
+	                        	if (fld.type == FieldType.ENUM)
+	                        		valuePrefix = "Outki." + fld.resolvedEnum.name + ".";
+	                        	sb.append(npfx).append("\t" + ref + " = " + cast + valuePrefix + fld.defValue + ";");
+	                        	sb.append(npfx).append("}");
+	                        }
+	                        else if (fld.resolvedRefStruct != null && fld.resolvedRefStruct.isValueType)
+	                        {
+	                        	// Need to parse a dummy into here to get default values. 
+	                        	sb.append(npfx).append("else");
+	                        	sb.append(npfx).append("{");
+	                        	sb.append(npfx).append("\t" + ref + " = ");
+	                        	writeExpr(sb, "new Dictionary<string, object>()", fld);
+	                        	sb.append(";");
+	                        	sb.append(npfx).append("}");
+	                        }
+                    	}
                     }
                     else
                     {
+                        if (first)
+                        {
+                            sb.append(npfx).append("object tmp;");
+                            first = false;
+                        }                     	
                         sb.append(npfx).append("if (source.TryGetValue(\"" + sourceName(fld.name) + "\", out tmp))");
                         sb.append(npfx).append("{");
                         sb.append(npfx).append("\tList<object> array = tmp as List<object>;");
                         sb.append(npfx).append("\t" + ref + " = new " + csharpType(fld, "Outki", false) + "[array.Count];");
                         sb.append(npfx).append("\tfor (int i=0;i<array.Count;i++)");
                         sb.append(npfx).append("\t{");
-                        sb.append(npfx).append("\t\t" + ref+  "[i] = ");
-                        writeExpr(sb, "array[i]", fld);
-                        sb.append(";");
+
+                        
+                    	if (fld.type == FieldType.FLOAT) 
+                    	{
+                    		sb.append(npfx).append("\t\t" + ref + "[i] = Mixki.Parse.Float(array[i], ");
+                    		if (fld.defValue != null) sb.append("(float)" + fld.defValue); else sb.append("0");
+                    		sb.append(");");
+                    	}
+                    	else if (fld.type == FieldType.INT32) 
+                    	{
+                    		sb.append(npfx).append("\t\t" + ref + "[i] = Mixki.Parse.Int(array[i], ");
+                    		if (fld.defValue != null) sb.append("(float)" + fld.defValue); else sb.append("0");
+                    		sb.append(");");
+                    	}
+                    	else if (fld.type == FieldType.BOOL) 
+                    	{
+                    		sb.append(npfx).append("\t\t" + ref + "[i] = Mixki.Parse.Bool(array[i], ");
+                    		if (fld.defValue != null) sb.append("(float)" + fld.defValue); else sb.append("false");
+                    		sb.append(");");
+                    	}                    	
+                    	else
+                    	{
+                    		sb.append(npfx).append("\t\t" + ref+  "[i] = ");
+                    		writeExpr(sb, "array[i]", fld);
+                    		sb.append(";");
+                    	}
                         sb.append(npfx).append("\t}");
                         sb.append(npfx).append("}");
                         sb.append(npfx).append("else");
