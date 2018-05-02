@@ -1,0 +1,8 @@
+[package]
+name = "putkitest"
+version = "0.1.0"
+authors = ["Dan Nilsson <raxptor@gmail.com>"]
+include = ["src/*rs", "../_gen/rust/outki/*.rs"]
+
+[dependencies]
+putki = { path = "../_gen/rust" }

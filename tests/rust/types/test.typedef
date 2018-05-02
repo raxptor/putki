@@ -1,4 +1,42 @@
-struct Test
+Main
 {
+	int Value
+	bool Yes
+}
 
+InlineContainer
+{
+	int Dummy
+	Main inline	
+}
+
+ArrayContainer
+{
+	int Dummy
+	Main[] inline	
+}
+
+PointerContainer
+{
+	ptr Main Pointer
+}
+
+PointerArrayContainer
+{
+	ptr[] Main Pointer
+}
+
+IObject rtti no-asset
+{
+	int Always
+}
+
+FirstType : IObject
+{
+	bool Value
+}
+
+SecondType : IObject
+{
+	int Value
 }
