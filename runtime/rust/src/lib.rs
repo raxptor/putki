@@ -1,12 +1,18 @@
 pub mod mixki_parser
 {
 	use std::collections::HashMap;
+	use std::collections::hash_map::Entry;
 	use std::vec::Vec;
-	pub enum ParsedData<'a>
+	use std::rc::Rc;
+	use std::str::FromStr;
+	use std::default::Default;
+	use std::marker;
+
+	pub enum LexedData<'a>
 	{
 		Empty,
 		Object { 
-			kv : HashMap<&'a str, ParsedData<'a>>, 
+			kv : HashMap<&'a str, LexedData<'a>>, 
 			id: &'a str,
 			type_name: &'a str 
 		},
@@ -15,10 +21,82 @@ pub mod mixki_parser
 		StringLiteral(&'a str)
 	}
 
+	pub type LexedDB<'a> = HashMap<&'a str, LexedData<'a>>;
+	pub type ResolvedDB<'a, ResolvedType> = HashMap<&'a str, Rc<ResolvedType>>;
+
 	struct ParsedResult<'a>
 	{
 		cont: &'a str,
-		data: ParsedData<'a>
+		data: LexedData<'a>
+	}
+
+	pub struct ResolveContext
+	{
+	}
+
+	pub trait Parse {
+		fn parse(ctx:&mut ResolveContext, unparsed: &LexedDB, resolved:&mut ResolvedDB<Self>, obj: &LexedData) -> Option<Rc<Self>> where Self: marker::Sized;
+	}
+
+	pub fn resolve<'a, 'b, 'c, ResolvedType>(ctx:&mut ResolveContext, unparsed: &'a LexedDB, resolved:&'b mut ResolvedDB<'c, ResolvedType>, path: &'c str) -> Option<Rc<ResolvedType>> 
+		where ResolvedType : Parse
+	{		
+		
+		println!("trying to resolve [{}]", path);
+		match resolved.entry(path) {
+			Entry::Vacant(entry) => {				
+				println!("Did not find [{}] parsed.", path);
+			}
+			Entry::Occupied(entry) => {
+				println!("  => found already resolved.");
+				return Some(entry.get().clone());
+			}
+		}
+		
+		match (unparsed.get(path))
+		{
+			Some(ref x) => {						
+				println!(" => found unparsed [{}]!", path);						
+				match ResolvedType::parse(ctx, &unparsed, resolved, x)
+				{
+					Some(x) => { 
+						println!("   => managed to resolve");
+						resolved.insert(path, x.clone()); return Some(x);
+					}
+					None => { return Option::None; }
+				}						
+			}
+			_ => {
+				println!("Did not find [{}] unparsed.", path);					
+				return Option::None;
+			}
+		}
+	}
+
+	fn parse_val<T : FromStr + Default>(val: &LexedData) -> T
+	{
+		match val {
+			&LexedData::Value(ref x) => {
+				match T::from_str(x) {
+					Ok(val) => { return val; }
+					_ => { }
+				}
+			}		
+			_ => { }
+		}
+		println!("expected int");
+		return Default::default();
+	}
+
+	pub fn get_int(kv: &HashMap<&str, LexedData>, name: &str, default: i32) -> i32
+	{
+		match &kv.get(name) {
+			&Some(ref val) => {
+				return parse_val(val);
+			}
+			_ => { }
+		}	
+		return default;
 	}
 
 	fn parse_list<F>(data: &str, parser:F, term:char) -> &str
@@ -48,7 +126,7 @@ pub mod mixki_parser
 		println!("Parse error. {}", err);
 		return ParsedResult {
 			cont: "",
-			data: ParsedData::Empty
+			data: LexedData::Empty
 		}
 	}
 
@@ -73,7 +151,7 @@ pub mod mixki_parser
 				None => { 
 					return ParsedResult {
 						cont: &data[1 ..],
-						data: ParsedData::Empty
+						data: LexedData::Empty
 					}
 				},
 				Some(ref x) => {
@@ -96,12 +174,12 @@ pub mod mixki_parser
 						if !inside_string {
 							return ParsedResult {
 								cont: &data[value.0 ..],
-								data: ParsedData::Value(&data[0 .. value.0])
+								data: LexedData::Value(&data[0 .. value.0])
 							};
 						} else {
 							return ParsedResult {
 								cont: &data[(value.0 + 1) ..],
-								data: ParsedData::StringLiteral(&data[(string_start + 1) .. value.0])
+								data: LexedData::StringLiteral(&data[(string_start + 1) .. value.0])
 							};
 						}
 					}
@@ -124,7 +202,7 @@ pub mod mixki_parser
 					} else if value.1 == '{' {
 						return parse_object_data(&data[(value.0 + 1) ..]);
 					} else if value.1 == '@' {
-						return parse_object_with_header(&data[value.0 ..]);
+						return parse_object_with_header(&data[(value.0+1) ..]);
 					} else if value.1 == '[' {
 						// parse array
 						// return parse_object_data(&cur[value.0 ..]);
@@ -148,7 +226,7 @@ pub mod mixki_parser
 			match it.next() {
 				None => return ParsedResult {
 					cont: "",
-					data: ParsedData::Empty
+					data: LexedData::Empty
 				},
 				Some(ref x) => {                 
 					let value = &x.1;
@@ -157,7 +235,7 @@ pub mod mixki_parser
 					} else if value.1 == '}' {
 						return ParsedResult {
 							cont: &cur[(value.0 + 1) ..],
-							data: ParsedData::Object {
+							data: LexedData::Object {
 								id: "",
 								type_name: "",
 								kv: kv
@@ -167,12 +245,12 @@ pub mod mixki_parser
 						let res = parse_keyword_or_string(&cur[value.0 ..]);
 						cur = res.cont;
 						match (res.data) {
-							ParsedData::Value(ref v) => {
+							LexedData::Value(ref v) => {
 								field_name = v;
 								cur = res.cont;
 								it = cur.char_indices().enumerate();
 							},
-							ParsedData::StringLiteral(ref v) => {
+							LexedData::StringLiteral(ref v) => {
 								field_name = v;
 								cur = res.cont;
 								it = cur.char_indices().enumerate();
@@ -181,7 +259,7 @@ pub mod mixki_parser
 								println!("Parse error. Could not parse value");
 								return ParsedResult {
 									cont: "",
-									data: ParsedData::Empty
+									data: LexedData::Empty
 								}
 							}
 						}
@@ -208,27 +286,44 @@ pub mod mixki_parser
 		let mut it = data.char_indices().enumerate(); 
 		let type_begin = 0;
 		let mut type_end = 0;
+		let mut id_begin = 0;
+		let mut id_end = 0;		
 		loop {
 			match it.next() {
 				None => return ParsedResult {
 					cont: "",
-					data: ParsedData::Empty
+					data: LexedData::Empty
 				},
 				Some(ref x) => {                 
 					let value = &x.1;
 					if (value.1.is_whitespace() && type_end == 0)
 					{
-						type_end = value.0;
+						type_end = value.0;						
+					}
+					else if (id_begin == 0 && !value.1.is_whitespace() && type_end != 0)
+					{
+						id_begin = value.0;
+					}
+					else if (id_begin != 0 && id_end == 0 && value.1.is_whitespace())
+					{
+						id_end = value.0;
 					}
 					if (value.1 == '{')
 					{
+						if type_end == 0 { type_end = value.0 }
+						if id_end == 0 { 
+							if id_begin != 0 {
+								id_end = value.0 
+							}
+						}
 						let res = parse_object_data(&cur[(value.0 + 1) ..]);
 						match (res.data) {
-							ParsedData::Object { id, type_name, kv } => {
+							LexedData::Object { id, type_name, kv } => {
 								return ParsedResult {
+
 									cont: res.cont,
-									data: ParsedData::Object {                                    
-										id: &cur[type_end .. value.0],
+									data: LexedData::Object {                                    
+										id: &cur[id_begin .. id_end],
 										type_name: &cur[0..type_end],
 										kv: kv
 									}
@@ -244,7 +339,7 @@ pub mod mixki_parser
 		}
 	}
 
-	pub fn parse_file(data: &str) -> HashMap<&str, ParsedData>
+	pub fn lex_file(data: &str) -> LexedDB
 	{
 		let mut cur = data;
 		let mut it = data.char_indices().enumerate();
@@ -257,9 +352,9 @@ pub mod mixki_parser
 					if value.1 == '@' {
 						let result = parse_object_with_header(&cur[value.0..]);
 						match (result.data) {
-							ParsedData::Object { kv, id, type_name } => {
-								println!("parsed object with type=[{}] id=[{}]", id, type_name);
-								objs.insert(id, ParsedData::Object {
+							LexedData::Object { kv, id, type_name } => {
+								println!("parsed object with type=[{}] id=[{}]", type_name, id);
+								objs.insert(id, LexedData::Object {
 									kv: kv,
 									id: id,
 									type_name: type_name

@@ -5,6 +5,9 @@ version = "0.1.0"
 [[package]]
 name = "putki_gen"
 version = "0.1.0"
+dependencies = [
+ "putki 0.1.0",
+]
 
 [[package]]
 name = "putkitest"

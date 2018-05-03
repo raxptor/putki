@@ -1,11 +1,18 @@
 @object1 name1 { 
-	multi = {
-		rajarj: 23
-	}
-	"hej" = 43,
-	apa = 33 
+	val_int = 1234567
+
 }
-@object2 name2 { 
+@object2   name2 { 
 	apa = 44,
 	kuken = 9
+}
+@object1 name3{ 
+	val_int = 1234567
+}
+@object1 { 
+	val_int = 1234567
+}
+
+@Main main1 {
+	val_int = 555
 }
