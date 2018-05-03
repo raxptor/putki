@@ -1,0 +1,2 @@
+@object1 name1 { hej = 43 apa = 33 }
+@object2 name2 { apa = 44 kuken = 9 }
