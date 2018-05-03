@@ -96,10 +96,10 @@ public class RustGenerator
 		switch (f)
 		{
 			case FILE:
-				return "&str";
+				return "String";
 			case STRING:
 			case PATH:
-				return "&str";
+				return "String";
 			case INT32:
 				return "i32";
 			case UINT32:
@@ -232,10 +232,10 @@ public class RustGenerator
             Path mfn = manifest.resolve("Cargo.toml");
             sb = new StringBuilder();
             sb.append("[package]\n");
-            sb.append("name = \"mixki\"\n");
+            sb.append("name = \"putki_gen\"\n");
             sb.append("version = \"0.1.0\"\n");
             sb.append("[lib]\n");
-            sb.append("name = \"generated_mixki\"\n");
+            sb.append("name = \"putki_gen\"\n");
             writer.addOutput(mfn, sb.toString().getBytes());
         }
     }
