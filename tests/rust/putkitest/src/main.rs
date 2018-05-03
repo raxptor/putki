@@ -4,6 +4,8 @@ use std::collections::HashMap;
 use std::vec::Vec;
 use std::fs::File;
 use std::io::prelude::*;
+use std::sync::Arc;
+use std::thread;
 
 pub enum ParsedData<'a>
 {
@@ -289,14 +291,27 @@ pub fn main()
         let mut f = File::open("data/main.txt").expect("file not found");    
         f.read_to_string(&mut contents).expect("something went wrong reading the file");
     }
-    let db = parse_file(&contents);
-    println!("File parsing done! got {} objects ", db.len());
-    for (ref id, ref value) in &db {
-        match *value {
-            &ParsedData::Object {ref id, ref type_name, ref kv} => {
-                println!("{} {} props={}", type_name, id, kv.len());
-             }
-            _ => { }
-        }
+
+    let parseString = Arc::new(contents);
+    let mut thrs = Vec::new();
+    for _ in 0..1 {
+        let tc = Arc::clone(&parseString);
+        thrs.push(thread::spawn(move || {
+            let db = parse_file(&tc);    
+            for (ref id, ref value) in &db {
+                match *value {
+                    &ParsedData::Object {ref id, ref type_name, ref kv} => {
+                        println!("{} {} props={}", type_name, id, kv.len());
+                    }
+                    _ => { }
+                }
+            }
+            return db.len();
+        }));
     }
+
+    for h in thrs {
+        println!("Thread parsed {} objects", h.join().unwrap());
+    }
+
 }
