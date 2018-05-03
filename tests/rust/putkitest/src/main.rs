@@ -5,6 +5,7 @@ use std::fs::File;
 use std::io::prelude::*;
 use std::vec::Vec;
 use std::rc::Rc;
+use std::cell::RefCell;
 use std::sync::Arc;
 use std::thread;
 use putki::mixki_parser;
@@ -40,11 +41,29 @@ pub fn main()
             }
 
             let mut apa = mixki_parser::ResolveContext { 
+                unparsed: &db,
+                resolved: RefCell::new(HashMap::new())
             };            
-            let mut rc = mixki_parser::ResolveContext { };
-            let mut fin : mixki_parser::ResolvedDB<mixki::AnyRc> = HashMap::new();
-            mixki_parser::resolve(&mut rc, &db, &mut fin, "main1");
-	        return fin.len();
+            let k = mixki_parser::resolve(&apa, "main1");
+            match (k)
+            {
+                Some(u) => {
+                    println!("aaa");
+                    match (u) {
+                        mixki::AnyRc::Main(m) => {
+                            println!("yes!! {}", (*m).val_int);
+                        }
+                        _ => {
+
+                        }
+                    }
+
+                },
+                None => {
+
+                }
+            }
+	        return apa.resolved.borrow().len();
         }));
     }
 

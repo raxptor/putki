@@ -7,6 +7,7 @@ pub mod mixki_parser
 	use std::str::FromStr;
 	use std::default::Default;
 	use std::marker;
+	 use std::cell::RefCell;
 
 	pub enum LexedData<'a>
 	{
@@ -21,8 +22,9 @@ pub mod mixki_parser
 		StringLiteral(&'a str)
 	}
 
+	pub type LexedKv<'a> = HashMap<&'a str, LexedData<'a>>;
 	pub type LexedDB<'a> = HashMap<&'a str, LexedData<'a>>;
-	pub type ResolvedDB<'a, ResolvedType> = HashMap<&'a str, Rc<ResolvedType>>;
+	pub type ResolvedDB<'a, ResolvedType> = HashMap<&'a str, ResolvedType>;
 
 	struct ParsedResult<'a>
 	{
@@ -30,38 +32,46 @@ pub mod mixki_parser
 		data: LexedData<'a>
 	}
 
-	pub struct ResolveContext
+	pub struct ResolveContext<'a, Base>
 	{
+		pub unparsed: &'a LexedDB<'a>,
+		pub resolved: RefCell<ResolvedDB<'a, Base>>
 	}
 
-	pub trait Parse {
-		fn parse(ctx:&mut ResolveContext, unparsed: &LexedDB, resolved:&mut ResolvedDB<Self>, obj: &LexedData) -> Option<Rc<Self>> where Self: marker::Sized;
+	pub trait ParseSpecific<Base> {
+		fn parse_to_rc(ctx:&ResolveContext<Base>, obj: &LexedKv) -> Rc<Self> where Self: marker::Sized;
+	}	
+
+	pub trait ParseGeneric {
+		fn parse(ctx:&ResolveContext<Self>, obj: &LexedData) -> Option<Self> where Self: marker::Sized;
 	}
 
-	pub fn resolve<'a, 'b, 'c, ResolvedType>(ctx:&mut ResolveContext, unparsed: &'a LexedDB, resolved:&'b mut ResolvedDB<'c, ResolvedType>, path: &'c str) -> Option<Rc<ResolvedType>> 
-		where ResolvedType : Parse
+	pub fn resolve<'a, Base>(ctx:&'a ResolveContext<'a, Base>, path: &'a str) -> Option<Base>
+		where Base : ParseGeneric + Clone
 	{		
-		
 		println!("trying to resolve [{}]", path);
-		match resolved.entry(path) {
-			Entry::Vacant(entry) => {				
-				println!("Did not find [{}] parsed.", path);
+
+		{
+			let chk = ctx.resolved.borrow_mut();
+			match (chk.get(path)) {
+				Some(x) => {
+					return Some(x.clone());
+				}
+				_ => { 
+				}
 			}
-			Entry::Occupied(entry) => {
-				println!("  => found already resolved.");
-				return Some(entry.get().clone());
-			}
+			drop(chk);
 		}
-		
-		match (unparsed.get(path))
+		match (ctx.unparsed.get(path))
 		{
 			Some(ref x) => {						
 				println!(" => found unparsed [{}]!", path);						
-				match ResolvedType::parse(ctx, &unparsed, resolved, x)
+				match Base::parse(ctx, x)
 				{
 					Some(x) => { 
 						println!("   => managed to resolve");
-						resolved.insert(path, x.clone()); return Some(x);
+						ctx.resolved.borrow_mut().insert(path, x.clone()); 
+						return Some(x);
 					}
 					None => { return Option::None; }
 				}						
@@ -88,7 +98,7 @@ pub mod mixki_parser
 		return Default::default();
 	}
 
-	pub fn get_int(kv: &HashMap<&str, LexedData>, name: &str, default: i32) -> i32
+	pub fn get_int(kv: &LexedKv, name: &str, default: i32) -> i32
 	{
 		match &kv.get(name) {
 			&Some(ref val) => {
@@ -350,7 +360,7 @@ pub mod mixki_parser
 				Some(ref x) => {                 
 					let value = &x.1;
 					if value.1 == '@' {
-						let result = parse_object_with_header(&cur[value.0..]);
+						let result = parse_object_with_header(&cur[(value.0+1)..]);
 						match (result.data) {
 							LexedData::Object { kv, id, type_name } => {
 								println!("parsed object with type=[{}] id=[{}]", type_name, id);
