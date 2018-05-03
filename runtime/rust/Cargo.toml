@@ -1,0 +1,7 @@
+[package]
+name = "putki"
+version = "0.1.0"
+authors = ["Dan Nilsson <raxptor@gmail.com>"]
+
+[lib]
+name = "putki"

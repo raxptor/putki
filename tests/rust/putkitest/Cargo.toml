@@ -5,4 +5,5 @@ authors = ["Dan Nilsson <raxptor@gmail.com>"]
 include = ["src/*rs", "../_gen/rust/outki/*.rs"]
 
 [dependencies]
-putki = { path = "../_gen/rust" }
+mixki = { path = "../_gen/rust" }
+putki = { path = "../../../runtime/rust" }

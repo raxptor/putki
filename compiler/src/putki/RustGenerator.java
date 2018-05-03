@@ -144,7 +144,7 @@ public class RustGenerator
             Path lib = tree.genCodeRoot.resolve("rust").resolve("src");
             Path fn = lib.resolve("lib.rs");
             StringBuilder sb = new StringBuilder();
-            sb.append("pub mod outki\n{");
+            sb.append("pub mod mixki\n{");
             sb.append("\n\tuse std::rc;");
             sb.append("\n\tuse std::vec;");
             
@@ -232,10 +232,10 @@ public class RustGenerator
             Path mfn = manifest.resolve("Cargo.toml");
             sb = new StringBuilder();
             sb.append("[package]\n");
-            sb.append("name = \"putki\"\n");
+            sb.append("name = \"mixki\"\n");
             sb.append("version = \"0.1.0\"\n");
             sb.append("[lib]\n");
-            sb.append("name = \"putki\"\n");
+            sb.append("name = \"generated_mixki\"\n");
             writer.addOutput(mfn, sb.toString().getBytes());
         }
     }
