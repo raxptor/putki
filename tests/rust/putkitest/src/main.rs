@@ -1,4 +1,14 @@
 extern crate putki;
+extern crate gen_test;
+
+pub fn main()
+{
+    let k = gen_test::mixki::Main { value : 33 };
+    putki::putki_init();
+}
+
+/*
+extern crate putki;
 extern crate putki_gen;
 
 use std::fs::File;
@@ -14,7 +24,7 @@ use std::collections::HashMap;
 
 pub fn skit(fin : &mut mixki_parser::ResolvedDB<mixki::AnyRc>)
 {
-
+8
 }
 
 pub fn main() 
@@ -89,4 +99,4 @@ pub fn main()
 	}	
     */
 
-}
+}*/

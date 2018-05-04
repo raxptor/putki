@@ -123,7 +123,10 @@ public class RustGenerator
 		}
 		else if (pf.type == FieldType.POINTER)
 		{
-			return "rc::Rc<" + structName(pf.resolvedRefStruct) + ">";
+			if (pf.allowNull)
+				return "Option<rc::Rc<" + structName(pf.resolvedRefStruct) + ">>";
+			else
+				return "rc::Rc<" + structName(pf.resolvedRefStruct) + ">";
 		}		
 		else
 		{
@@ -131,21 +134,10 @@ public class RustGenerator
 		}
 	}	
 	
-	static String outkiFieldTypeUnResolved(Compiler.ParsedField pf)
-	{		
-		if (pf.type == FieldType.STRUCT_INSTANCE)
-		{
-			return structName(pf.resolvedRefStruct);
-		}
-		else if (pf.type == FieldType.POINTER)
-		{
-			return "&'a str";
-		}		
-		else
-		{
-			return outkiFieldtypePod(pf.type);
-		}
-	}		
+	public static String moduleName(String in)
+	{
+		return "gen_" + withUnderscore(in);
+	}
 	
 	/*
 	public static String enumValue(Compiler.EnumValue s)
@@ -161,18 +153,17 @@ public class RustGenerator
             Path fn = lib.resolve("lib.rs");
             StringBuilder sb = new StringBuilder();
             sb.append("mod parse;\n");
-            sb.append("extern crate putki;\n");            
-            sb.append("pub mod mixki\n{");            
+            sb.append("extern crate putki;\n"); 
+            sb.append("\npub mod mixki");
+            sb.append("\n{");
             sb.append("\n\tuse std::rc;");
             sb.append("\n\tuse std::vec;");            
-            sb.append("\n\tuse std::marker;");
-            sb.append("\n\tuse putki::mixki_parser;");
             sb.append("\n\tpub use parse::*;");
-            
+
             for (Compiler.ParsedFile file : tree.parsedFiles)
             {
             	/*
-            	String pfx = "\n\t";
+            	String pfx = "\n\t";xxx
                 for (Compiler.ParsedEnum en : file.enums)
                 {
                 	int min = 0;
@@ -196,101 +187,77 @@ public class RustGenerator
                     sb.append(pfx).append("}");
                 }
             	 */
-            	for (int unp=0;unp<2;unp++)
-            	{
-            		for (Compiler.ParsedStruct struct : file.structs)
-            		{
-	                	String pfx = "\n\t";                
-	                    if ((struct.domains & Compiler.DOMAIN_OUTPUT) == 0)
-	                        continue;
-                        if (unp == 0)
-                        	sb.append(pfx).append("pub struct " + structName(struct));                        	
-                        else	                    
-                        	sb.append(pfx).append("pub struct UnRes" + structName(struct) + "<'a>");
+        		for (Compiler.ParsedStruct struct : file.structs)
+        		{
+                	String pfx = "\n\t";                
+                    if ((struct.domains & Compiler.DOMAIN_OUTPUT) == 0)
+                        continue;
+                	sb.append(pfx).append("pub struct " + structName(struct));                        	
 
-	                    sb.append(pfx).append("{");
-	                    
-	                    boolean first = true;
-	                    
-	                    String spfx = pfx + "\t";
-	                    if (unp == 1)
-	                    {
-	                    	sb.append(spfx).append("__marker : marker::PhantomData<&'a str>");
-	                    	first = false;
-	                    }	                    
-	                    for (Compiler.ParsedField field : struct.fields)
-	                    {
-	                    	
-	                        if ((field.domains & Compiler.DOMAIN_OUTPUT) == 0)
-	                            continue;
-	                        if (!first)
-	                        	sb.append(",");
-	                        first = false;
-	                        
-                        	sb.append(spfx).append("pub " + fieldName(field) + " : ");
-	//                        if (field.isParentField)
-	//                        	sb.append("&mut ");
-	                        if (field.isArray) sb.append("vec::Vec<");
-	                        
-	                        if (unp==0)
-	                        	sb.append(outkiFieldType(field));
-	                        else
-	                        	sb.append(outkiFieldTypeUnResolved(field));
-
-	//                        if (field.isParentField)
-	//                        	sb.append("<'parent>");
-	                        if (field.isArray) sb.append(">");
-	                    }
-	                    
-	                    if (struct.isTypeRoot)
-	                    {
-		                    for (Compiler.ParsedStruct subs : file.structs)
-		                    {
-		                    	if (subs.parent != null && subs.parent.equals(struct.name))
-		                    	{
-		                            if (!first)
-		                            	sb.append(",");
-		                    		sb.append(spfx).append("pub " + withUnderscore(subs.name) + " : rc::Weak<" + structName(subs) + ">");
-		                    	}
-		                    }
-	                    }                    
-	                    sb.append(pfx).append("}");
-            		}
-                }
-            }
-            
-            for (Compiler.ParsedFile file : tree.parsedFiles)
-            {
-            	String pfx = "\n\t";
-            	for (int unp=0;unp<2;unp++)
-            	{
-                    if (unp == 1)
-                    	sb.append(pfx).append("pub enum AnyUnresRc<'a> {");                        	
-                    else
-                    	sb.append(pfx).append("pub enum AnyRc {");                        	
-            		
-                    String spfx = pfx + "\t";
+                    sb.append(pfx).append("{");
+                    
                     boolean first = true;
-            		for (Compiler.ParsedStruct struct : file.structs)
-            		{
-	                    if ((struct.domains & Compiler.DOMAIN_OUTPUT) == 0)
-	                        continue;
+                    
+                    String spfx = pfx + "\t";           
+                    for (Compiler.ParsedField field : struct.fields)
+                    {
+                    	
+                        if ((field.domains & Compiler.DOMAIN_OUTPUT) == 0)
+                            continue;
                         if (!first)
                         	sb.append(",");
                         first = false;
-                        if (unp == 1)
-                        	sb.append(spfx).append("UnRes" + structName(struct) + "(rc::Rc<UnRes" + structName(struct) + "<'a>>)");
-                        else
-                        	sb.append(spfx).append("UnRes" + structName(struct) + "(rc::Rc<" + structName(struct) + ">)");
-            		}
-            		
-            		sb.append(pfx).append("}");
-                }
+                        
+                    	sb.append(spfx).append("pub " + fieldName(field) + " : ");
+//                        if (field.isParentField)
+//                        	sb.append("&mut ");
+                        if (field.isArray) sb.append("vec::Vec<");
+                        
+                    	sb.append(outkiFieldType(field));
+
+//                        if (field.isParentField)
+//                        	sb.append("<'parent>");
+                        if (field.isArray) sb.append(">");
+                    }
+                    
+                    if (struct.isTypeRoot)
+                    {
+	                    for (Compiler.ParsedStruct subs : file.structs)
+	                    {
+	                    	if (subs.parent != null && subs.parent.equals(struct.name))
+	                    	{
+	                            if (!first)
+	                            	sb.append(",");
+	                    		sb.append(spfx).append("pub " + withUnderscore(subs.name) + " : rc::Weak<" + structName(subs) + ">");
+	                    	}
+	                    }
+                    }                    
+                    sb.append(pfx).append("}");
+        		}
             }
+            
+            /*
+            for (Compiler.ParsedFile file : tree.parsedFiles)
+            {
+            	String pfx = "\n\t";
+            	sb.append(pfx).append("pub enum AnyRc {");                        	            		
+                String spfx = pfx + "\t";
+                boolean first = true;
+        		for (Compiler.ParsedStruct struct : file.structs)
+        		{
+                    if ((struct.domains & Compiler.DOMAIN_OUTPUT) == 0)
+                        continue;
+                    if (!first)
+                    	sb.append(",");
+                    first = false;
+                	sb.append(spfx).append("UnRes" + structName(struct) + "(rc::Rc<" + structName(struct) + ">)");
+        		}            		
+        		sb.append(pfx).append("}");
+            }
+            */
             
             sb.append("\n}\n");
             writer.addOutput(fn, sb.toString().getBytes());
-
             
             Path manifest = tree.genCodeRoot.resolve("rust");
             Path mfn = manifest.resolve("Cargo.toml");
@@ -299,7 +266,7 @@ public class RustGenerator
             sb.append("name = \"putki_gen\"\n");
             sb.append("version = \"0.1.0\"\n");
             sb.append("[lib]\n");
-            sb.append("name = \"putki_gen\"\n");
+            sb.append("name = \"" + moduleName(tree.moduleName) + "\"\n");
             sb.append("[dependencies]\r\nputki = { path = \"../../../../runtime/rust\" }");
             writer.addOutput(mfn, sb.toString().getBytes());
         }

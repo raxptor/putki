@@ -37,6 +37,7 @@ public class Compiler
 		public int index;
 		public int domains;
 		public boolean isArray;
+		public boolean allowNull;
 		public boolean isAuxPtr;
 		public boolean isBuildConfig;
 		public boolean showInEditor;
@@ -283,23 +284,24 @@ public class Compiler
 						break;
 					}
 				}
-
 				if (typeName.equals("text"))
 				{
 					next.type = FieldType.STRING;
 					next.stringIsText = true;
 					gotType = true;
 				}
-				if (typeName.equals("ptr"))
+				if (typeName.equals("ptr") || typeName.equals("ptr!"))
 				{
 					next.type = FieldType.POINTER;
+					next.allowNull = typeName.equals("ptr");
 					readRefType = true;
 					gotType = true;
 				}
-				else if (typeName.equals("auxptr"))
+				else if (typeName.equals("auxptr") || typeName.equals("auxptr!"))
 				{
 					next.type = FieldType.POINTER;
 					next.isAuxPtr = true;
+					next.allowNull = typeName.equals("auxptr");
 					readRefType = true;
 					gotType = true;
 				}
