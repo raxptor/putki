@@ -16,6 +16,8 @@ pub fn main()
     let p1:Option<Rc<mixki::PointerContainer>>;
     let p2:Option<Rc<mixki::PointerContainer>>;
     let p3:Option<Rc<mixki::PointerContainer>>;
+    let sc:Option<Rc<mixki::StructContainer>>;
+    let tt:Option<Rc<mixki::TestTypes>>;    
     {
         let mut contents = String::new();   
         { 
@@ -31,6 +33,8 @@ pub fn main()
         p1 = parser::resolve(&apa, "pc1");
         p2 = parser::resolve(&apa, "pc2");
         p3 = parser::resolve(&apa, "pc3");
+        sc = parser::resolve(&apa, "sc1");
+        tt = parser::resolve(&apa, "tt1");
     }
     match k
     {
@@ -48,5 +52,12 @@ pub fn main()
             println!("I got p3 container, required = {} optioal {}", p.required.value, p.optional.as_ref().unwrap().value);
         } 
         None => println!("i got nothing!")
-    }           
+    }   
+    match tt
+    {
+        Some(ref s) => {
+            println!("I got test type, inner value = {} {} {} [{}] {} ", s.int, s.float, s.byte, s.string, s.bool);
+        } 
+        None => println!("i got nothing!")
+    }            
 }

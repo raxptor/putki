@@ -3,6 +3,7 @@ use mixki::lexer::*;
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::marker;
+use std::default;
 
 pub type ResolvedDB<'a, ResolvedType> = HashMap<&'a str, ResolvedType>;
 
@@ -12,8 +13,16 @@ pub struct ResolveContext<'a, Base> {
 }
 
 pub trait ParseSpecific<'a, 'b, Base> {
-	fn parse_to_rc(ctx:&'a ResolveContext<'b, Base>, obj: &'b LexedKv) -> Rc<Self> where Self: marker::Sized;
-}	
+	fn parse(ctx:&'a ResolveContext<'b, Base>, obj: &'b LexedKv) -> Self where Self: marker::Sized;
+	fn parse_or_default(ctx:&'a ResolveContext<'b, Base>, obj: Option<&'b LexedData>) -> Self where Self: marker::Sized + default::Default
+	{		
+		match obj.and_then(|ld| { match ld { &LexedData::Object { ref kv, .. } => { return Some(kv) }, _ => return None } })
+		{
+			Some(x) => return Self::parse(ctx, x),
+			None => return Default::default()
+		}
+	}
+}
 
 pub trait ParseGeneric<'a, 'b, Base> {
 	fn parse(ctx:&'a ResolveContext<'b, Self>, type_name: &'b str, kv : &'b LexedKv) -> Option<Self> where Self: marker::Sized;
@@ -50,7 +59,7 @@ macro_rules! make_any {
 				match type_name
 				{
 					$(
-						stringify!($v) => return Some($targetName::$v(parser::ParseSpecific::parse_to_rc(_ctx, _obj))),						
+						stringify!($v) => return Some($targetName::$v(rc::Rc::new(parser::ParseSpecific::parse(_ctx, _obj)))),
 					)*
 					_ => return None
 				}
@@ -117,7 +126,7 @@ pub fn resolve_from_value<'a, 'b, Base, Target>(ctx:&'a ResolveContext<'b, Base>
 				if type_name.is_empty()
 				{
 					println!("Empty type name! Assuming type and force parse.");
-					return Some(Target::parse_to_rc(ctx, kv));
+					return Some(Rc::new(Target::parse(ctx, kv)));
 				}
 				return Base::parse(ctx, type_name, kv).and_then(|obj| {
 					match obj.cast() 

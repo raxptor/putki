@@ -15,16 +15,16 @@ pub enum LexedData<'a>
 	Value (&'a str),
 	StringLiteral(&'a str)
 }
+pub type LexedKv<'a> = HashMap<&'a str, LexedData<'a>>;
+pub type LexedDB<'a> = HashMap<&'a str, LexedData<'a>>;
 
 impl<'a> default::Default for LexedData<'a>
 {
 	fn default() -> LexedData<'a> { return LexedData::Empty; }
 }
 
-pub type LexedKv<'a> = HashMap<&'a str, LexedData<'a>>;
-pub type LexedDB<'a> = HashMap<&'a str, LexedData<'a>>;
-
-struct ScanResult<'a> {
+struct ScanResult<'a> 
+{
 	cont: &'a str,
 	data: LexedData<'a>
 }
@@ -40,8 +40,19 @@ fn parse_val<T : FromStr + Default>(val: &LexedData) -> T
 		}		
 		_ => { }
 	}
-	println!("expected int");
+	println!("expected other type");
 	return Default::default();
+}
+
+pub fn get_value<T>(kv: &LexedKv, name: &str, default: T) -> T where T : Default + FromStr
+{
+	match &kv.get(name) {
+		&Some(ref val) => {
+			return parse_val(val);
+		}
+		_ => { }
+	}	
+	return default;
 }
 
 pub fn get_int(kv: &LexedKv, name: &str, default: i32) -> i32
@@ -53,6 +64,43 @@ pub fn get_int(kv: &LexedKv, name: &str, default: i32) -> i32
 		_ => { }
 	}	
 	return default;
+}
+
+pub fn get_bool(kv: &LexedKv, name: &str, default: bool) -> bool
+{
+	match kv.get(name) {
+		Some(ref val) => {
+			match val {
+				&&LexedData::Value(ref x) => {
+					match *x {
+						"True" => return true,
+						"true" => return true,
+						"1" => return true,
+						_ => return false
+					}
+				}
+				_ => return false
+			}
+		}
+		None => return default
+	}	
+}
+
+pub fn get_string(kv: &LexedKv, name: &str, default: &str) -> String
+{
+	match kv.get(name) {
+		Some(ref val) => {
+			match val {
+				&&LexedData::StringLiteral(ref x) => {
+					return (*x).to_string()
+				}
+				_ => { 
+					return default.to_string()
+				}
+			}
+		}
+		None => return default.to_string()
+	}	
 }
 
 /*

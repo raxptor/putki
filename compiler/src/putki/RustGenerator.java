@@ -137,7 +137,9 @@ public class RustGenerator
 	static String defaultValue(Compiler.ParsedField pf)
 	{		
 		if (pf.defValue != null)
+		{
 			return pf.defValue;
+		}
 		else
 			return "Default::default()";
 		/*
@@ -252,7 +254,10 @@ public class RustGenerator
                         if (!first)
                         	sb.append(",");
                         first = false;                        
-                    	sb.append(spfx).append(fieldName(field) + " : " + defaultValue(field));
+                        if (field.type == FieldType.STRING)
+                        	sb.append(spfx).append(fieldName(field) + " : " + defaultValue(field) + ".to_string()");                        	
+                        else
+                        	sb.append(spfx).append(fieldName(field) + " : " + defaultValue(field));
                     }
 
                     sb.append(pfx).append("\t\t}");
@@ -316,9 +321,9 @@ public class RustGenerator
                         continue;
                 	sb.append(pfx).append("impl<'a, 'b> parser::ParseSpecific<'a, 'b, ParseRc> for mixki::" + structName(struct));
                     sb.append(pfx).append("{");
-                    sb.append(pfx).append("\tfn parse_to_rc(_ctx:&'a parser::ResolveContext<'b, ParseRc>, _obj: &'b lexer::LexedKv) -> rc::Rc<Self>");
+                    sb.append(pfx).append("\tfn parse(_ctx:&'a parser::ResolveContext<'b, ParseRc>, _obj: &'b lexer::LexedKv) -> Self");
                     sb.append(pfx).append("\t{");
-                    sb.append(pfx).append("\t\treturn rc::Rc::new(mixki::" + structName(struct) + " {");
+                    sb.append(pfx).append("\t\treturn mixki::" + structName(struct) + " {");
                     String spfx = pfx + "\t\t\t";
                     boolean first = true;
                     for (Compiler.ParsedField field : struct.fields)
@@ -332,10 +337,18 @@ public class RustGenerator
                         switch (field.type)
                         {
                         	case INT32:
-                        		sb.append("lexer::get_int(_obj, \"" + field.name + "\", " + defaultValue(field) + ")");
+                        	case FLOAT:
+                        	case BYTE: 
+                        		sb.append("lexer::get_value(_obj, \"" + field.name + "\", " + defaultValue(field) + ")");
+                        		break;
+                        	case BOOL: 
+                        		sb.append("lexer::get_bool(_obj, \"" + field.name + "\", " + defaultValue(field) + ")");
                         		break;
                         	case STRING:
                         		sb.append("lexer::get_string(_obj, \"" + field.name + "\", " + defaultValue(field) + ")");
+                        		break;
+                        	case STRUCT_INSTANCE:
+                        		sb.append("mixki::" + structName(field.resolvedRefStruct) + "::parse_or_default(_ctx, _obj.get(\"" + field.name + "\"))");
                         		break;
                         	case POINTER:
                         		if (field.allowNull)
@@ -347,7 +360,7 @@ public class RustGenerator
                         		sb.append("Default::default()");                            	                        	
                         }
                     }         
-                    sb.append(pfx).append("\t\t})");
+                    sb.append(pfx).append("\t\t}");
                     sb.append(pfx).append("\t}");                                        
                     sb.append(pfx).append("}");                    
                     

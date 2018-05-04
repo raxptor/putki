@@ -30,3 +30,18 @@
 	}	
 }
 
+@StructContainer sc1
+{
+	Main: {
+		Value = 33
+	}
+}
+
+@TestTypes tt1
+{
+	Int = 1
+	Float = 3.839
+	Bool = True
+	Byte = 3
+	String = "hej alla glada åäö"	
+}

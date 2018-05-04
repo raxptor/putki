@@ -15,3 +15,17 @@ PointerContainer
 	ptr! Main Required
 	ptr Main Optional
 }
+
+StructContainer
+{
+	Main Main
+}
+
+TestTypes
+{
+	string String = "defaultstring"
+	int Int
+	byte Byte
+	float Float
+	bool Bool
+}
