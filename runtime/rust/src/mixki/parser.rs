@@ -16,37 +16,84 @@ pub trait ParseSpecific<Base> {
 }	
 
 pub trait ParseGeneric {
-	fn parse(ctx:&ResolveContext<Self>, obj: &LexedData) -> Option<Self> where Self: marker::Sized;
+	fn parse(ctx:&ResolveContext<Self>,	type_name: &str, kv : &LexedKv) -> Option<Self> where Self: marker::Sized;
 }
 
-pub fn resolve<'a, Base>(ctx:&'a ResolveContext<'a, Base>, path: &'a str) -> Option<Base> where Base : ParseGeneric + Clone
+pub trait Cast<Target> {
+	fn cast(&self) -> Option<&Rc<Target>>;
+}
+
+#[macro_export]
+macro_rules! make_any {	
+	($targetName:ident, $($v:ident),*) => (
+		#[derive(Clone)]
+		pub enum $targetName
+		{			
+			$($v (rc::Rc<mixki::$v>),)*
+		}
+		$(
+			impl parser::Cast<mixki::$v> for $targetName
+			{
+				fn cast(&self) -> Option<&rc::Rc<mixki::$v>>
+				{
+					match self {
+						&$targetName::$v(ref x) => return Some(&x),
+						_ => return None
+					}
+				}
+			}			
+		)*
+		impl parser::ParseGeneric for $targetName
+		{
+			fn parse(_ctx:&parser::ResolveContext<Self>, type_name: &str, _obj: &lexer::LexedKv) -> Option<Self>
+			{
+				match type_name
+				{
+					$(
+						stringify!($v) => return Some($targetName::$v(parser::ParseSpecific::parse_to_rc(_ctx, _obj))),						
+					)*
+					_ => return None
+				}		
+			}
+		}
+	)
+}
+
+pub fn resolve<'a, 'b, Base, Target>(ctx:&'a ResolveContext<'b, Base>, path: &'b str) -> Option<Rc<Target>> 
+	where Base : ParseGeneric + Clone, Base : Cast<Target>
 {	
 	println!("trying to resolve [{}]", path);
-	{
-		let chk = ctx.resolved.borrow_mut();
-		match chk.get(path) {
-			Some(x) => return Some(x.clone()),
-			_ => { }
-		}
-		drop(chk);
-	}
-	match ctx.unparsed.get(path)
-	{
-		Some(ref x) => {						
-			println!(" => found unparsed [{}]!", path);						
-			match Base::parse(ctx, x)
-			{
-				Some(x) => { 
-					println!("   => managed to resolve");
-					ctx.resolved.borrow_mut().insert(path, x.clone()); 
-					return Some(x);
-				}
-				None => { return Option::None; }
-			}						
-		}
-		_ => {
-			println!("Did not find [{}] unparsed.", path);					
-			return Option::None;
+	{		
+		let res = ctx.resolved.borrow_mut().get(path).and_then(|x| {
+			return x.cast();
+		}).and_then(|y| {
+			return Some((*y).clone());
+		});
+		if res.is_some() {
+			return res;
 		}
 	}
+	return ctx.unparsed.get(path).and_then(|x| {
+		println!(" => found unparsed [{}]!", path);
+		match (x)
+		{
+			&LexedData::Object{ref type_name, ref id, ref kv} => {
+				return Base::parse(ctx, type_name, kv).and_then(|x| {
+					println!("   => managed to resolve it.");
+					match x.cast()
+					{
+						Some(c) => {
+							println!("   => and it was correct type, too.");
+							ctx.resolved.borrow_mut().insert(path, x.clone());
+							return Some((*c).clone());
+						}
+						None => { return None }
+					}
+				});
+			},
+			_ => {
+				unreachable!("Why is there a non-object in the unparsed data?!");
+			} 
+		}
+	});
 }

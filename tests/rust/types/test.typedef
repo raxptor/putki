@@ -1,11 +1,11 @@
 Main
 {
-	int Value
+	int Value = 90000
 }
 
 InlineContainer
 {
-	int Value
+	int Value = 8000
 }
 
 PointerContainer

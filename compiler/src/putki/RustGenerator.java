@@ -134,6 +134,30 @@ public class RustGenerator
 		}
 	}	
 	
+	static String defaultValue(Compiler.ParsedField pf)
+	{		
+		if (pf.defValue != null)
+			return pf.defValue;
+		else
+			return "Default::default()";
+		/*
+		if (pf.type == FieldType.STRUCT_INSTANCE)
+		{
+			return structName(pf.resolvedRefStruct);
+		}
+		else if (pf.type == FieldType.POINTER)
+		{
+			if (pf.allowNull)
+				return "Option<rc::Rc<" + structName(pf.resolvedRefStruct) + ">>";
+			else
+				return "rc::Rc<" + structName(pf.resolvedRefStruct) + ">";
+		}		
+		else
+		{
+			return outkiFieldtypePod(pf.type);
+		}*/
+	}		
+	
 	public static String moduleName(String in)
 	{
 		return "gen_" + withUnderscore(in);
@@ -152,11 +176,14 @@ public class RustGenerator
             Path lib = tree.genCodeRoot.resolve("rust").resolve("src");
             Path fn = lib.resolve("lib.rs");
             StringBuilder sb = new StringBuilder();
-            sb.append("mod parse;\n");
-            sb.append("extern crate putki;\n"); 
+            sb.append("#[macro_use]");
+            sb.append("\nextern crate putki;"); 
+            sb.append("\n");            
+            sb.append("\nmod parse;");
             sb.append("\npub mod mixki");
             sb.append("\n{");
             sb.append("\n\tuse std::rc;");
+            sb.append("\n\tuse std::default;");            
             sb.append("\n\tuse std::vec;");            
             sb.append("\n\tpub use parse::*;");
 
@@ -192,8 +219,7 @@ public class RustGenerator
                 	String pfx = "\n\t";                
                     if ((struct.domains & Compiler.DOMAIN_OUTPUT) == 0)
                         continue;
-                	sb.append(pfx).append("pub struct " + structName(struct));                        	
-
+                	sb.append(pfx).append("pub struct " + structName(struct));
                     sb.append(pfx).append("{");
                     
                     boolean first = true;
@@ -234,7 +260,36 @@ public class RustGenerator
                     }                    
                     sb.append(pfx).append("}");
         		}
+        		
+        		for (Compiler.ParsedStruct struct : file.structs)
+        		{
+                	String pfx = "\n\t";                
+                    if ((struct.domains & Compiler.DOMAIN_OUTPUT) == 0)
+                        continue;
+                	sb.append(pfx).append("impl default::Default for " + structName(struct));
+                    sb.append(pfx).append("{");
+                    sb.append(pfx).append("\tfn default() -> Self {");    
+                    sb.append(pfx).append("\t\treturn " + structName(struct) + " {");    
+                    boolean first = true;
+                    
+                    String spfx = pfx + "\t\t\t";           
+                    for (Compiler.ParsedField field : struct.fields)
+                    {
+                    	
+                        if ((field.domains & Compiler.DOMAIN_OUTPUT) == 0)
+                            continue;
+                        if (!first)
+                        	sb.append(",");
+                        first = false;                        
+                    	sb.append(spfx).append(fieldName(field) + " : " + defaultValue(field));
+                    }
+
+                    sb.append(pfx).append("\t\t}");
+                    sb.append(pfx).append("\t}");                    
+                    sb.append(pfx).append("}");                    
+        		}        		
             }
+            
             
             /*
             for (Compiler.ParsedFile file : tree.parsedFiles)
