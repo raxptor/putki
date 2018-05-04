@@ -169,14 +169,15 @@ public class RustGenerator
 		return enumValue(s.name);
 	}*/	
 
-    public static void generateOutkiStructs(Compiler comp, CodeWriter writer)
+    public static void generateMixkiStructs(Compiler comp, CodeWriter writer)
     {
         for (Compiler.ParsedTree tree : comp.allTrees())
         {
             Path lib = tree.genCodeRoot.resolve("rust").resolve("src");
             Path fn = lib.resolve("lib.rs");
             StringBuilder sb = new StringBuilder();
-            sb.append("#[macro_use]");
+            sb.append("#![allow(unused_imports)]");
+            sb.append("\n#[macro_use]");
             sb.append("\nextern crate putki;"); 
             sb.append("\n");            
             sb.append("\nmod parse;");
@@ -189,31 +190,7 @@ public class RustGenerator
 
             for (Compiler.ParsedFile file : tree.parsedFiles)
             {
-            	/*
-            	String pfx = "\n\t";xxx
-                for (Compiler.ParsedEnum en : file.enums)
-                {
-                	int min = 0;
-                	int max = 0;
-                    for (Compiler.EnumValue value : en.values)                    	
-                    {
-                    	if (value.value < min) min = value.value;
-                    	if (value.value > max) max = value.value;
-                    }
-                	
-                    sb.append(pfx).append("public enum " + en.name);
-                    if (max < 256 && min >= 0)
-                    	sb.append(": byte");
-                    sb.append(pfx).append("{");
-                    String sep = "";
-                    for (Compiler.EnumValue value : en.values)
-                    {
-                        sb.append(sep + pfx).append("\t" + value.name + " = " + value.value);
-                        sep = ",";
-                    }
-                    sb.append(pfx).append("}");
-                }
-            	 */
+
         		for (Compiler.ParsedStruct struct : file.structs)
         		{
                 	String pfx = "\n\t";                
@@ -235,14 +212,8 @@ public class RustGenerator
                         first = false;
                         
                     	sb.append(spfx).append("pub " + fieldName(field) + " : ");
-//                        if (field.isParentField)
-//                        	sb.append("&mut ");
                         if (field.isArray) sb.append("vec::Vec<");
-                        
                     	sb.append(outkiFieldType(field));
-
-//                        if (field.isParentField)
-//                        	sb.append("<'parent>");
                         if (field.isArray) sb.append(">");
                     }
                     
@@ -288,28 +259,7 @@ public class RustGenerator
                     sb.append(pfx).append("\t}");                    
                     sb.append(pfx).append("}");                    
         		}        		
-            }
-            
-            
-            /*
-            for (Compiler.ParsedFile file : tree.parsedFiles)
-            {
-            	String pfx = "\n\t";
-            	sb.append(pfx).append("pub enum AnyRc {");                        	            		
-                String spfx = pfx + "\t";
-                boolean first = true;
-        		for (Compiler.ParsedStruct struct : file.structs)
-        		{
-                    if ((struct.domains & Compiler.DOMAIN_OUTPUT) == 0)
-                        continue;
-                    if (!first)
-                    	sb.append(",");
-                    first = false;
-                	sb.append(spfx).append("UnRes" + structName(struct) + "(rc::Rc<" + structName(struct) + ">)");
-        		}            		
-        		sb.append(pfx).append("}");
-            }
-            */
+            }           
             
             sb.append("\n}\n");
             writer.addOutput(fn, sb.toString().getBytes());
@@ -326,5 +276,149 @@ public class RustGenerator
             writer.addOutput(mfn, sb.toString().getBytes());
         }
     }
+    
+    public static void generateParsers(Compiler comp, CodeWriter writer)
+    {
+        for (Compiler.ParsedTree tree : comp.allTrees())
+        {
+            Path lib = tree.genCodeRoot.resolve("rust").resolve("src").resolve("parse");
+            Path fn = lib.resolve("mod.rs");
+            StringBuilder sb = new StringBuilder();
+            
+            sb.append("#![allow(unused_imports)]\nuse std::rc;\n" + 
+        		"use std::default;\n" + 
+        		"use putki::mixki::parser;\n" + 
+        		"use putki::mixki::lexer;\n" + 
+        		"use mixki;\n"
+        	);
+            
+            sb.append("\n");
+            sb.append("make_any!(ParseRc");
+
+            for (Compiler.ParsedFile file : tree.parsedFiles)
+            {
+        		for (Compiler.ParsedStruct struct : file.structs)
+        		{
+                    if ((struct.domains & Compiler.DOMAIN_OUTPUT) == 0)
+                        continue;
+                	sb.append(", " + structName(struct));
+        		}
+            }
+            sb.append(");");            
+            sb.append("\n");
+            
+            for (Compiler.ParsedFile file : tree.parsedFiles)
+            {
+        		for (Compiler.ParsedStruct struct : file.structs)
+        		{
+                	String pfx = "\n";                
+                    if ((struct.domains & Compiler.DOMAIN_OUTPUT) == 0)
+                        continue;
+                	sb.append(pfx).append("impl<'a, 'b> parser::ParseSpecific<'a, 'b, ParseRc> for mixki::" + structName(struct));
+                    sb.append(pfx).append("{");
+                    sb.append(pfx).append("\tfn parse_to_rc(_ctx:&'a parser::ResolveContext<'b, ParseRc>, _obj: &'b lexer::LexedKv) -> rc::Rc<Self>");
+                    sb.append(pfx).append("\t{");
+                    sb.append(pfx).append("\t\treturn rc::Rc::new(mixki::" + structName(struct) + " {");
+                    String spfx = pfx + "\t\t\t";
+                    boolean first = true;
+                    for (Compiler.ParsedField field : struct.fields)
+                    {                    	
+                        if ((field.domains & Compiler.DOMAIN_OUTPUT) == 0)
+                            continue;
+                        if (!first)
+                        	sb.append(",");
+                        first = false;
+                    	sb.append(spfx).append(fieldName(field) + " : ");
+                        switch (field.type)
+                        {
+                        	case INT32:
+                        		sb.append("lexer::get_int(_obj, \"" + field.name + "\", " + defaultValue(field) + ")");
+                        		break;
+                        	case STRING:
+                        		sb.append("lexer::get_string(_obj, \"" + field.name + "\", " + defaultValue(field) + ")");
+                        		break;
+                        	case POINTER:
+                        		if (field.allowNull)
+                        			sb.append("_obj.get(\"" + field.name + "\").and_then(|v| { return parser::resolve_from_value(_ctx, v); })");
+                        		else
+                        			sb.append("_obj.get(\"" + field.name + "\").and_then(|v| { return parser::resolve_from_value(_ctx, v); }).unwrap_or_default()");
+                        		break;
+                        	default:
+                        		sb.append("Default::default()");                            	                        	
+                        }
+                    }         
+                    sb.append(pfx).append("\t\t})");
+                    sb.append(pfx).append("\t}");                                        
+                    sb.append(pfx).append("}");                    
+                    
+        		}
+            }
+/*            
+                    boolean first = true;
+                    
+
+                    for (Compiler.ParsedField field : struct.fields)
+                    {
+                    	
+                        if ((field.domains & Compiler.DOMAIN_OUTPUT) == 0)
+                            continue;
+                        if (!first)
+                        	sb.append(",");
+                        first = false;
+                        
+                    	sb.append(spfx).append("pub " + fieldName(field) + " : ");
+                        if (field.isArray) sb.append("vec::Vec<");
+                    	sb.append(outkiFieldType(field));
+                        if (field.isArray) sb.append(">");
+                    }
+                    
+                    if (struct.isTypeRoot)
+                    {
+	                    for (Compiler.ParsedStruct subs : file.structs)
+	                    {
+	                    	if (subs.parent != null && subs.parent.equals(struct.name))
+	                    	{
+	                            if (!first)
+	                            	sb.append(",");
+	                    		sb.append(spfx).append("pub " + withUnderscore(subs.name) + " : rc::Weak<" + structName(subs) + ">");
+	                    	}
+	                    }
+                    }                    
+                    sb.append(pfx).append("}");
+        		}
+        		
+        		for (Compiler.ParsedStruct struct : file.structs)
+        		{
+                	String pfx = "\n\t";                
+                    if ((struct.domains & Compiler.DOMAIN_OUTPUT) == 0)
+                        continue;
+                	sb.append(pfx).append("impl default::Default for " + structName(struct));
+                    sb.append(pfx).append("{");
+                    sb.append(pfx).append("\tfn default() -> Self {");    
+                    sb.append(pfx).append("\t\treturn " + structName(struct) + " {");    
+                    boolean first = true;
+                    
+                    String spfx = pfx + "\t\t\t";           
+                    for (Compiler.ParsedField field : struct.fields)
+                    {
+                    	
+                        if ((field.domains & Compiler.DOMAIN_OUTPUT) == 0)
+                            continue;
+                        if (!first)
+                        	sb.append(",");
+                        first = false;                        
+                    	sb.append(spfx).append(fieldName(field) + " : " + defaultValue(field));
+                    }
+
+                    sb.append(pfx).append("\t\t}");
+                    sb.append(pfx).append("\t}");                    
+                    sb.append(pfx).append("}");                    
+        		}        		
+            }           
+            */
+            writer.addOutput(fn, sb.toString().getBytes());
+        }
+    }
+    
 
 }

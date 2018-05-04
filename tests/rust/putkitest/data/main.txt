@@ -1,18 +1,32 @@
-@object1 name1 { 
-	val_int = 1234567
-
-}
-@object2   name2 { 
-	apa = 44,
-	kuken = 9
-}
-@object1 name3{ 
-	val_int = 1234567
-}
-@object1 { 
-	val_int = 1234567
+@Main main1 
+{
+	Value = 1111
 }
 
-@Main main1 {
-	value = 341212323
+@Main main2
+{
+	Value = 2222
 }
+
+@PointerContainer pc1 
+{
+	Optional: "main1"
+	Required: "main2"
+}
+
+@PointerContainer pc2
+{
+	Optional: "main2"
+	Required: "main1"
+}
+
+@PointerContainer pc3
+{
+	Required: @Main {
+		Value = 54321
+	}	
+	Optional: {
+		Value = 65432
+	}	
+}
+

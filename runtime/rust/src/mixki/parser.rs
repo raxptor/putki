@@ -11,12 +11,12 @@ pub struct ResolveContext<'a, Base> {
 	pub resolved: RefCell<ResolvedDB<'a, Base>>
 }
 
-pub trait ParseSpecific<Base> {
-	fn parse_to_rc(ctx:&ResolveContext<Base>, obj: &LexedKv) -> Rc<Self> where Self: marker::Sized;
+pub trait ParseSpecific<'a, 'b, Base> {
+	fn parse_to_rc(ctx:&'a ResolveContext<'b, Base>, obj: &'b LexedKv) -> Rc<Self> where Self: marker::Sized;
 }	
 
-pub trait ParseGeneric {
-	fn parse(ctx:&ResolveContext<Self>,	type_name: &str, kv : &LexedKv) -> Option<Self> where Self: marker::Sized;
+pub trait ParseGeneric<'a, 'b, Base> {
+	fn parse(ctx:&'a ResolveContext<'b, Self>, type_name: &'b str, kv : &'b LexedKv) -> Option<Self> where Self: marker::Sized;
 }
 
 pub trait Cast<Target> {
@@ -42,10 +42,10 @@ macro_rules! make_any {
 					}
 				}
 			}			
-		)*
-		impl parser::ParseGeneric for $targetName
+		)*		
+		impl<'a, 'b> parser::ParseGeneric<'a, 'b, $targetName> for $targetName
 		{
-			fn parse(_ctx:&parser::ResolveContext<Self>, type_name: &str, _obj: &lexer::LexedKv) -> Option<Self>
+			fn parse(_ctx:&'a parser::ResolveContext<'b, Self>, type_name: &'b str, _obj: &'b lexer::LexedKv) -> Option<Self>
 			{
 				match type_name
 				{
@@ -53,16 +53,29 @@ macro_rules! make_any {
 						stringify!($v) => return Some($targetName::$v(parser::ParseSpecific::parse_to_rc(_ctx, _obj))),						
 					)*
 					_ => return None
-				}		
+				}
 			}
-		}
+		}		
 	)
 }
 
+/*
+mod test {
+	use std::rc;
+	use super::super::parser as parser;
+	use super::super::lexer as lexer;
+	mod mixki {
+		pub struct TestA { }
+		pub struct TestB { }
+	}
+	make_any!(TestRC, TestA, TestB);
+}
+*/
+
+
 pub fn resolve<'a, 'b, Base, Target>(ctx:&'a ResolveContext<'b, Base>, path: &'b str) -> Option<Rc<Target>> 
-	where Base : ParseGeneric + Clone, Base : Cast<Target>
-{	
-	println!("trying to resolve [{}]", path);
+	where Base : ParseGeneric<'a, 'b, Base> + Clone, Base : Cast<Target>
+{
 	{		
 		let res = ctx.resolved.borrow_mut().get(path).and_then(|x| {
 			return x.cast();
@@ -74,16 +87,14 @@ pub fn resolve<'a, 'b, Base, Target>(ctx:&'a ResolveContext<'b, Base>, path: &'b
 		}
 	}
 	return ctx.unparsed.get(path).and_then(|x| {
-		println!(" => found unparsed [{}]!", path);
-		match (x)
+		match x
 		{
 			&LexedData::Object{ref type_name, ref id, ref kv} => {
 				return Base::parse(ctx, type_name, kv).and_then(|x| {
-					println!("   => managed to resolve it.");
 					match x.cast()
 					{
 						Some(c) => {
-							println!("   => and it was correct type, too.");
+							println!("=> parsed {} from unparsed with type {}", id, type_name);
 							ctx.resolved.borrow_mut().insert(path, x.clone());
 							return Some((*c).clone());
 						}
@@ -96,4 +107,27 @@ pub fn resolve<'a, 'b, Base, Target>(ctx:&'a ResolveContext<'b, Base>, path: &'b
 			} 
 		}
 	});
+}
+
+pub fn resolve_from_value<'a, 'b, Base, Target>(ctx:&'a ResolveContext<'b, Base>, value: &'b LexedData) -> Option<Rc<Target>> 
+	where Base : ParseGeneric<'a, 'b, Base> + Clone, Base : Cast<Target>, Target : ParseSpecific<'a, 'b, Base>
+{
+	match value {
+		&LexedData::Object { ref kv, type_name, .. } => {
+				if type_name.is_empty()
+				{
+					println!("Empty type name! Assuming type and force parse.");
+					return Some(Target::parse_to_rc(ctx, kv));
+				}
+				return Base::parse(ctx, type_name, kv).and_then(|obj| {
+					match obj.cast() 
+					{
+						Some(c) => { return Some((*c).clone()); }
+						None => { println!("Type mismatch in annoymous object!"); return None; }
+					}
+				});
+		},
+		&LexedData::StringLiteral ( path ) => { return resolve(ctx, path) }
+		_ => { println!("unexpected contents at pointer"); return None }
+	}
 }

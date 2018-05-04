@@ -5,10 +5,13 @@ Main
 
 InlineContainer
 {
-	int Value = 8000
+	int Value1
+	int Value2
+	int Value3 = 333
 }
 
 PointerContainer
 {
-	ptr! Main Pointer
+	ptr! Main Required
+	ptr Main Optional
 }

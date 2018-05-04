@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::vec::Vec;
 use std::str::FromStr;
+use std::default;
 
 pub enum LexedData<'a>
 {
@@ -13,6 +14,11 @@ pub enum LexedData<'a>
 	Array (Vec<&'a str>),
 	Value (&'a str),
 	StringLiteral(&'a str)
+}
+
+impl<'a> default::Default for LexedData<'a>
+{
+	fn default() -> LexedData<'a> { return LexedData::Empty; }
 }
 
 pub type LexedKv<'a> = HashMap<&'a str, LexedData<'a>>;
