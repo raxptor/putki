@@ -4,19 +4,29 @@ extern crate gen_test;
 
 use putki::mixki::lexer;
 use putki::mixki::parser;
+use putki::mixki::parser::TypeId;
 use gen_test::mixki;
 use std::fs::File;
 use std::io::Read;
 use std::rc::Rc;
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::any;
+
+pub struct Hej
+{
+}
+
+impl Hej {const TYPE_ID: i32 = 1; }
 
 pub fn main() 
 { 
+    println!("type is {}", Hej::TYPE_ID);
     let k:Option<Rc<mixki::Main>>;
     let p1:Option<Rc<mixki::PointerContainer>>;
     let p3:Option<Rc<mixki::PointerContainer>>;
     let tt:Option<Rc<mixki::TestTypes>>;    
+    let dlg:Option<Rc<mixki::Dialog>>;    
     {
         let mut contents = String::new();   
         { 
@@ -33,6 +43,8 @@ pub fn main()
         p1 = parser::resolve(&apa, "pc1");
         p3 = parser::resolve(&apa, "pc3");
         tt = parser::resolve(&apa, "tt1");
+        dlg = parser::resolve(&apa, "dlg");
+
     }
     match k
     {
@@ -57,5 +69,21 @@ pub fn main()
             println!("I got test type, inner value = {} {} {} [{}] {} ", s.int, s.float, s.byte, s.string, s.bool);
         } 
         None => println!("i got nothing!")
-    }            
+    }    
+    match dlg
+    {
+        Some(ref s) => {
+            println!("I got dialog id {} {} {}", s.id, s.node1.id, s.node2.id);            
+            match s.node1.type_id
+            {
+                mixki::DlgMood::TYPE_ID => { println!("mood!"); },
+                mixki::DlgSay::TYPE_ID => {
+                    let say:Rc<mixki::DlgSay> = s.node1.child.clone().downcast().unwrap();
+                    println!("say ({})!", say.text);                        
+                },
+                _ => {}
+            }
+        } 
+        None => println!("i got nothing!")
+    }                  
 }

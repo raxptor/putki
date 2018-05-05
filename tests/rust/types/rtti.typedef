@@ -15,3 +15,10 @@ DlgMood : IDlgNode
     int Who
     string Text
 }
+
+Dialog
+{
+    string Id
+    ptr! IDlgNode Node1    
+    ptr! IDlgNode Node2
+}

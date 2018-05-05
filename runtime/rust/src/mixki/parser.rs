@@ -26,6 +26,10 @@ pub trait ParseSpecific<'a, 'b, ParseDef> where Self : Sized {
 	}
 }
 
+pub trait TypeId {
+    const TYPE_ID: i32;
+}
+
 pub trait ParseToRoot<'a, 'b, ParseDef, Sub> where Sub : ParseSpecific<'a, 'b, ParseDef> {
 	fn parse(ctx:&'a ResolveContext<'b, ParseDef>, obj: &'b LexedKv) -> Self;
 }
@@ -41,7 +45,7 @@ pub trait ParseGeneric<'a, 'b, ParseDef> {
 #[macro_export]
 macro_rules! impl_subtype_parse {
 	($parser:path, $base:path, $baseInner:path, $sub:path) => {		
-		impl<'a, 'b> parser::ParseToRoot<'a, 'b, $parser, $sub> for $base
+		impl<'a, 'b> parser::ParseToRoot<'a, 'b, $parser, $sub> for $base where $base : parser::TypeId
 		{
 			fn parse(ctx:&'a parser::ResolveContext<'b, $parser >, obj: &'b lexer::LexedKv) -> ($base)
 			{
@@ -49,7 +53,7 @@ macro_rules! impl_subtype_parse {
 				let inner : $baseInner = parser::ParseSpecific::<'a, 'b, $parser >::parse(ctx, obj);
 				return Self {
 					child: rc::Rc::new(child),
-					type_id: any::TypeId::of::< $sub >(),
+					type_id: <$sub as parser::TypeId>::TYPE_ID,
 					inner: inner
 				}
 			}
@@ -58,7 +62,7 @@ macro_rules! impl_subtype_parse {
 }
 
 #[macro_export]
-macro_rules! impl_root_parse {
+macro_rules! impl_type_with_rtti {
 	($parser:path, $base:path, $baseInner:path) => {		
 		impl<'a, 'b> parser::ParseToPure<'a, 'b, $parser > for $base
 		{
@@ -67,11 +71,24 @@ macro_rules! impl_root_parse {
 				let inner : $baseInner = parser::ParseSpecific::<'a, 'b, $parser >::parse(ctx, obj);
 				return Self {
 					child: rc::Rc::new(0),
-					type_id: any::TypeId::of::<Self>(),
+					type_id: <Self as parser::TypeId>::TYPE_ID,
 					inner: inner
 				}
 			}
 		}
+		impl<'a, 'b> parser::ParseSpecific<'a, 'b, $parser > for $base
+		{
+			fn parse(ctx:&'a parser::ResolveContext<'b, $parser >, obj: &'b lexer::LexedKv) -> Self
+			{
+				return parser::ParseToPure::parse(ctx, obj);
+			}
+		}		
+		impl Deref for $base {
+			type Target = $baseInner;
+			fn deref(&self) -> &$baseInner {
+				&self.inner
+			}
+		}		
 	}
 }
 

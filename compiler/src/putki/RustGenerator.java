@@ -143,6 +143,10 @@ public class RustGenerator
 	
 	static String defaultValue(Compiler.ParsedField pf)
 	{		
+		if (pf.type == FieldType.POINTER && !pf.allowNull)
+			return "rc::Rc::new(Default::default())";
+		else if (pf.type == FieldType.POINTER)
+			return "None";
 		if (pf.type == FieldType.STRING && pf.defValue != null)
 			return pf.defValue + ".to_string()";
 		else if (pf.type == FieldType.STRING)
@@ -184,6 +188,7 @@ public class RustGenerator
             sb.append("\n\tuse std::default;");            
             sb.append("\n\tuse std::vec;");            
             sb.append("\n\tpub use parse::*;");
+            sb.append("\n\tpub use putki::mixki::parser;");
 
             for (Compiler.ParsedFile file : tree.parsedFiles)
             {
@@ -199,9 +204,10 @@ public class RustGenerator
                     {
                         sb.append(pfx).append("{");
                         sb.append(pfx).append("\tpub inner: " + structNameWrap(struct) + ",");
-                        sb.append(pfx).append("\tpub type_id: any::TypeId,");
+                        sb.append(pfx).append("\tpub type_id: i32,");
                         sb.append(pfx).append("\tpub child: rc::Rc<any::Any>");
-                        sb.append(pfx).append("}");                        
+                        sb.append(pfx).append("}");
+                        sb.append(pfx).append("impl parser::TypeId for " + structNameWrap(struct) + " { const TYPE_ID: i32 = -" + struct.uniqueId + "; }");
                     	sb.append(pfx).append("pub struct " + structNameWrap(struct));
                     }
 
@@ -228,6 +234,7 @@ public class RustGenerator
                     }
                 
                     sb.append(pfx).append("}");
+                    sb.append(pfx).append("impl parser::TypeId for " + structName(struct) + " { const TYPE_ID: i32 = -" + struct.uniqueId + "; }");
         		}
         		
         		for (Compiler.ParsedStruct struct : file.structs)
@@ -235,6 +242,21 @@ public class RustGenerator
                 	String pfx = "\n\t";                
                     if ((struct.domains & Compiler.DOMAIN_OUTPUT) == 0)
                         continue;
+                    
+                    if (struct.possibleChildren.size() > 0 || struct.isTypeRoot)
+                    {
+                    	sb.append(pfx).append("impl default::Default for " + structName(struct));
+                        sb.append(pfx).append("{");
+                        sb.append(pfx).append("\tfn default() -> Self {");    
+                        sb.append(pfx).append("\t\treturn " + structName(struct) + " {");
+                        sb.append(pfx).append("\t\t\tchild: rc::Rc::new(0),");
+                        sb.append(pfx).append("\t\t\ttype_id: <Self as parser::TypeId>::TYPE_ID,");
+                        sb.append(pfx).append("\t\t\tinner: Default::default()");
+                        sb.append(pfx).append("\t\t}");
+                        sb.append(pfx).append("\t}");                    
+                        sb.append(pfx).append("}");                    
+                    }
+                    
                 	sb.append(pfx).append("impl default::Default for " + structNameWrap(struct));
                     sb.append(pfx).append("{");
                     sb.append(pfx).append("\tfn default() -> Self {");    
@@ -289,6 +311,7 @@ public class RustGenerator
         		"use putki::mixki::parser;\n" + 
         		"use putki::mixki::lexer;\n" + 
             	"use std::any;\n" +
+            	"use std::ops::Deref;\n" +
         		"use std::default;\n"
         	);
             
@@ -351,9 +374,9 @@ public class RustGenerator
                     			", mixki::" + structNameWrap(struct.resolvedParent) + ", mixki::" + structName(struct) + ");");
                         sb.append("\n");
                     }
-                    if (struct.possibleChildren.size()>0)
+                    if (struct.possibleChildren.size()>0 || struct.isTypeRoot)
                     {
-                    	sb.append("impl_root_parse!(ParseRc, mixki::" + struct.name + ", mixki::" + structNameWrap(struct) + ");");
+                    	sb.append("impl_type_with_rtti!(ParseRc, mixki::" + struct.name + ", mixki::" + structNameWrap(struct) + ");");
                     }
                     
                     sb.append(pfx).append("impl<'a, 'b> parser::ParseSpecific<'a, 'b, ParseRc> for mixki::" + structNameWrap(struct));
