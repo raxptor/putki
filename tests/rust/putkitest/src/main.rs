@@ -5,6 +5,7 @@ extern crate gen_test;
 use putki::mixki::lexer;
 use putki::mixki::parser;
 use putki::mixki::parser::TypeId;
+use putki::mixki::rtti::Rtti;
 use gen_test::mixki;
 use std::fs::File;
 use std::io::Read;
@@ -74,13 +75,11 @@ pub fn main()
     {
         Some(ref s) => {
             println!("I got dialog id {} {} {}", s.id, s.node1.id, s.node2.id);            
-            match s.node1.type_id
+            use mixki::IDlgNodeTypes::*;
+            match s.node1.get_child()
             {
-                mixki::DlgMood::TYPE_ID => { println!("mood!"); },
-                mixki::DlgSay::TYPE_ID => {
-                    let say:Rc<mixki::DlgSay> = s.node1.child.clone().downcast().unwrap();
-                    println!("say ({})!", say.text);                        
-                },
+                DlgMood (_) => { println!("mood!"); },
+                DlgSay (k) => { println!("say! {}", k.text); },
                 _ => {}
             }
         } 

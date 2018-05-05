@@ -1,7 +1,7 @@
 #![feature(rc_downcast)]
 
 pub mod mixki;
-pub mod rtti;
+
 pub fn putki_init()
 {
 
@@ -9,7 +9,7 @@ pub fn putki_init()
 
 pub use mixki::lexer::*;
 pub use mixki::parser::*;
-pub use rtti::*;
+pub use mixki::rtti::*;
 
 
 //pub mod putki

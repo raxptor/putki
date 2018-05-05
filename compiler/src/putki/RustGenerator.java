@@ -189,6 +189,7 @@ public class RustGenerator
             sb.append("\n\tuse std::vec;");            
             sb.append("\n\tpub use parse::*;");
             sb.append("\n\tpub use putki::mixki::parser;");
+            sb.append("\n\tpub use putki::mixki::rtti;");
 
             for (Compiler.ParsedFile file : tree.parsedFiles)
             {
@@ -279,6 +280,14 @@ public class RustGenerator
                     sb.append(pfx).append("\t\t}");
                     sb.append(pfx).append("\t}");                    
                     sb.append(pfx).append("}");                    
+                    if (struct.possibleChildren.size()>0 || struct.isTypeRoot)
+                    {
+                    	sb.append(pfx).append("impl_mixki_rtti!(" + struct.name + "Types, " + struct.name );
+                    	for (int i=0;i<struct.possibleChildren.size();i++)
+                    		sb.append(", " + structName(struct.possibleChildren.get(i)) + ", " + structName(struct.possibleChildren.get(i)));
+                    	sb.append(");");
+                    	sb.append(pfx);
+                    }
         		}        		
             }           
             
@@ -310,6 +319,7 @@ public class RustGenerator
            		"use mixki;\n" +
         		"use putki::mixki::parser;\n" + 
         		"use putki::mixki::lexer;\n" + 
+        		"use putki::mixki::rtti;\n" +
             	"use std::any;\n" +
             	"use std::ops::Deref;\n" +
         		"use std::default;\n"
@@ -377,6 +387,7 @@ public class RustGenerator
                     if (struct.possibleChildren.size()>0 || struct.isTypeRoot)
                     {
                     	sb.append("impl_type_with_rtti!(ParseRc, mixki::" + struct.name + ", mixki::" + structNameWrap(struct) + ");");
+                    	sb.append("\n");
                     }
                     
                     sb.append(pfx).append("impl<'a, 'b> parser::ParseSpecific<'a, 'b, ParseRc> for mixki::" + structNameWrap(struct));
