@@ -80,6 +80,13 @@ public class RustGenerator
 	{
 		return s.name;
 	}
+	
+	public static String structNameWrap(Compiler.ParsedStruct s)
+	{
+		if (s.possibleChildren.size() > 0 || s.isTypeRoot)
+			return s.name + "RttiInner";
+		return s.name;
+	}
 
 	public static String fieldName(Compiler.ParsedField s)
 	{
@@ -136,28 +143,14 @@ public class RustGenerator
 	
 	static String defaultValue(Compiler.ParsedField pf)
 	{		
-		if (pf.defValue != null)
-		{
+		if (pf.type == FieldType.STRING && pf.defValue != null)
+			return pf.defValue + ".to_string()";
+		else if (pf.type == FieldType.STRING)
+			return "String::new()";
+		else if (pf.defValue != null)
 			return pf.defValue;
-		}
 		else
 			return "Default::default()";
-		/*
-		if (pf.type == FieldType.STRUCT_INSTANCE)
-		{
-			return structName(pf.resolvedRefStruct);
-		}
-		else if (pf.type == FieldType.POINTER)
-		{
-			if (pf.allowNull)
-				return "Option<rc::Rc<" + structName(pf.resolvedRefStruct) + ">>";
-			else
-				return "rc::Rc<" + structName(pf.resolvedRefStruct) + ">";
-		}		
-		else
-		{
-			return outkiFieldtypePod(pf.type);
-		}*/
 	}		
 	
 	public static String moduleName(String in)
@@ -178,7 +171,8 @@ public class RustGenerator
             Path lib = tree.genCodeRoot.resolve("rust").resolve("src");
             Path fn = lib.resolve("lib.rs");
             StringBuilder sb = new StringBuilder();
-            sb.append("#![allow(unused_imports)]");
+            sb.append("#![feature(rc_downcast)]");
+            sb.append("\n#![allow(unused_imports)]");            
             sb.append("\n#[macro_use]");
             sb.append("\nextern crate putki;"); 
             sb.append("\n");            
@@ -186,6 +180,7 @@ public class RustGenerator
             sb.append("\npub mod mixki");
             sb.append("\n{");
             sb.append("\n\tuse std::rc;");
+            sb.append("\n\tuse std::any;");
             sb.append("\n\tuse std::default;");            
             sb.append("\n\tuse std::vec;");            
             sb.append("\n\tpub use parse::*;");
@@ -197,8 +192,19 @@ public class RustGenerator
         		{
                 	String pfx = "\n\t";                
                     if ((struct.domains & Compiler.DOMAIN_OUTPUT) == 0)
-                        continue;
-                	sb.append(pfx).append("pub struct " + structName(struct));
+                        continue;                    
+                    
+                    sb.append(pfx).append("pub struct " + structName(struct));
+                    if (struct.possibleChildren.size() > 0 || struct.isTypeRoot)
+                    {
+                        sb.append(pfx).append("{");
+                        sb.append(pfx).append("\tpub inner: " + structNameWrap(struct) + ",");
+                        sb.append(pfx).append("\tpub type_id: any::TypeId,");
+                        sb.append(pfx).append("\tpub child: rc::Rc<any::Any>");
+                        sb.append(pfx).append("}");                        
+                    	sb.append(pfx).append("pub struct " + structNameWrap(struct));
+                    }
+
                     sb.append(pfx).append("{");
                     
                     boolean first = true;
@@ -209,6 +215,8 @@ public class RustGenerator
                     	
                         if ((field.domains & Compiler.DOMAIN_OUTPUT) == 0)
                             continue;
+                        if (field.isParentField)
+                        	continue;
                         if (!first)
                         	sb.append(",");
                         first = false;
@@ -218,19 +226,7 @@ public class RustGenerator
                     	sb.append(outkiFieldType(field));
                         if (field.isArray) sb.append(">");
                     }
-                    
-                    if (struct.isTypeRoot)
-                    {
-	                    for (Compiler.ParsedStruct subs : file.structs)
-	                    {
-	                    	if (subs.parent != null && subs.parent.equals(struct.name))
-	                    	{
-	                            if (!first)
-	                            	sb.append(",");
-	                    		sb.append(spfx).append("pub " + withUnderscore(subs.name) + " : rc::Weak<" + structName(subs) + ">");
-	                    	}
-	                    }
-                    }                    
+                
                     sb.append(pfx).append("}");
         		}
         		
@@ -239,25 +235,23 @@ public class RustGenerator
                 	String pfx = "\n\t";                
                     if ((struct.domains & Compiler.DOMAIN_OUTPUT) == 0)
                         continue;
-                	sb.append(pfx).append("impl default::Default for " + structName(struct));
+                	sb.append(pfx).append("impl default::Default for " + structNameWrap(struct));
                     sb.append(pfx).append("{");
                     sb.append(pfx).append("\tfn default() -> Self {");    
-                    sb.append(pfx).append("\t\treturn " + structName(struct) + " {");    
+                    sb.append(pfx).append("\t\treturn " + structNameWrap(struct) + " {");    
                     boolean first = true;
                     
                     String spfx = pfx + "\t\t\t";           
                     for (Compiler.ParsedField field : struct.fields)
                     {
-                    	
                         if ((field.domains & Compiler.DOMAIN_OUTPUT) == 0)
                             continue;
+                        if (field.isParentField)
+                        	continue;
                         if (!first)
                         	sb.append(",");
                         first = false;                        
-                        if (field.type == FieldType.STRING)
-                        	sb.append(spfx).append(fieldName(field) + " : " + defaultValue(field) + ".to_string()");                        	
-                        else
-                        	sb.append(spfx).append(fieldName(field) + " : " + defaultValue(field));
+                    	sb.append(spfx).append(fieldName(field) + " : " + defaultValue(field));
                     }
 
                     sb.append(pfx).append("\t\t}");
@@ -290,16 +284,17 @@ public class RustGenerator
             Path fn = lib.resolve("mod.rs");
             StringBuilder sb = new StringBuilder();
             
-            sb.append("#![allow(unused_imports)]\nuse std::rc;\n" + 
-        		"use std::default;\n" + 
+            sb.append("#![allow(unused_imports)]\nuse std::rc;\n" +
+           		"use mixki;\n" +
         		"use putki::mixki::parser;\n" + 
         		"use putki::mixki::lexer;\n" + 
-        		"use mixki;\n"
+            	"use std::any;\n" +
+        		"use std::default;\n"
         	);
             
             sb.append("\n");
-            sb.append("make_any!(ParseRc");
 
+            /*
             for (Compiler.ParsedFile file : tree.parsedFiles)
             {
         		for (Compiler.ParsedStruct struct : file.structs)
@@ -309,7 +304,36 @@ public class RustGenerator
                 	sb.append(", " + structName(struct));
         		}
             }
-            sb.append(");");            
+            */
+                        
+            sb.append("pub struct ParseRc { }");
+            
+            sb.append("\nimpl<'a, 'b> parser::ParseGeneric<'a, 'b, ParseRc> for ParseRc {");
+            sb.append("\n\tfn parse(ctx:&'a parser::ResolveContext<'b, ParseRc>, type_name: &'b str, obj: &'b lexer::LexedKv) -> Option<rc::Rc<any::Any>>"); 
+            sb.append("\n\t{");
+            sb.append("\n\t\tmatch type_name {");
+                        
+            for (Compiler.ParsedFile file : tree.parsedFiles)
+            {
+            	String pfx = "\n\t\t\t";
+        		for (Compiler.ParsedStruct struct : file.structs)
+        		{                	                
+                    if ((struct.domains & Compiler.DOMAIN_OUTPUT) == 0)
+                        continue;
+                    sb.append(pfx).append("\"" + struct.name + "\" => ");
+                    if (struct.possibleChildren.size() > 0 || struct.isTypeRoot)
+                    	sb.append("return Some(rc::Rc::<mixki::" + struct.name + ">::new(parser::ParseToPure::parse(ctx, obj))), ");
+                    else if (struct.resolvedParent == null)
+                    	sb.append("return Some(rc::Rc::<mixki::" + struct.name + ">::new(parser::ParseSpecific::parse(ctx, obj))), ");
+                    else
+                    	sb.append("return Some(rc::Rc::<mixki::" + struct.resolvedParent.name + ">::new(parser::ParseToRoot::<'a, 'b, ParseRc, mixki::" + struct.name + ">::parse(ctx, obj))), ");
+        		}
+            }
+            
+            sb.append("\n\t\t\t_ => return None");
+            sb.append("\n\t\t}");
+            sb.append("\n\t}");
+            sb.append("\n}");            		
             sb.append("\n");
             
             for (Compiler.ParsedFile file : tree.parsedFiles)
@@ -319,17 +343,34 @@ public class RustGenerator
                 	String pfx = "\n";                
                     if ((struct.domains & Compiler.DOMAIN_OUTPUT) == 0)
                         continue;
-                	sb.append(pfx).append("impl<'a, 'b> parser::ParseSpecific<'a, 'b, ParseRc> for mixki::" + structName(struct));
+                    
+                    sb.append("\n");
+                    if (struct.resolvedParent != null)
+                    {
+                    	sb.append(pfx).append("impl_subtype_parse!(ParseRc, mixki::" + structName(struct.resolvedParent) + 
+                    			", mixki::" + structNameWrap(struct.resolvedParent) + ", mixki::" + structName(struct) + ");");
+                        sb.append("\n");
+                    }
+                    if (struct.possibleChildren.size()>0)
+                    {
+                    	sb.append("impl_root_parse!(ParseRc, mixki::" + struct.name + ", mixki::" + structNameWrap(struct) + ");");
+                    }
+                    
+                    sb.append(pfx).append("impl<'a, 'b> parser::ParseSpecific<'a, 'b, ParseRc> for mixki::" + structNameWrap(struct));
                     sb.append(pfx).append("{");
                     sb.append(pfx).append("\tfn parse(_ctx:&'a parser::ResolveContext<'b, ParseRc>, _obj: &'b lexer::LexedKv) -> Self");
                     sb.append(pfx).append("\t{");
-                    sb.append(pfx).append("\t\treturn mixki::" + structName(struct) + " {");
+                    sb.append(pfx).append("\t\treturn mixki::" + structNameWrap(struct) + " {");
                     String spfx = pfx + "\t\t\t";
                     boolean first = true;
                     for (Compiler.ParsedField field : struct.fields)
                     {                    	
                         if ((field.domains & Compiler.DOMAIN_OUTPUT) == 0)
                             continue;
+                        if (field.isParentField)
+                        	continue;
+                        
+                            
                         if (!first)
                         	sb.append(",");
                         first = false;
@@ -345,7 +386,7 @@ public class RustGenerator
                         		sb.append("lexer::get_bool(_obj, \"" + field.name + "\", " + defaultValue(field) + ")");
                         		break;
                         	case STRING:
-                        		sb.append("lexer::get_string(_obj, \"" + field.name + "\", " + defaultValue(field) + ")");
+                        		sb.append("lexer::get_string(_obj, \"" + field.name + "\", " + (field.defValue != null ? field.defValue : "\"\"") + ")");
                         		break;
                         	case STRUCT_INSTANCE:
                         		sb.append("mixki::" + structName(field.resolvedRefStruct) + "::parse_or_default(_ctx, _obj.get(\"" + field.name + "\"))");

@@ -70,6 +70,7 @@ public class Compiler
 		public boolean permitAsAsset;
 
 		public ParsedStruct resolvedParent;
+		public List<ParsedStruct> possibleChildren;
 
 		public boolean hasParent(ParsedStruct p)
 		{
@@ -818,7 +819,7 @@ public class Compiler
 
 		for (ParsedStruct struct : allTypes)
 		{
-
+			struct.possibleChildren = new ArrayList<ParsedStruct>();
 			for (ParsedField field : struct.fields)
 			{
 				if (field.type == FieldType.ENUM)
@@ -850,7 +851,15 @@ public class Compiler
 				}
 			}
 		}
-
+		
+		for (ParsedStruct struct : allTypes)
+		{
+			if (struct.parent != null)
+			{
+				struct.resolvedParent.possibleChildren.add(struct);
+			}
+		}
+		
 		return true;
 	}
 

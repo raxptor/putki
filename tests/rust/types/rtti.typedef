@@ -1,0 +1,17 @@
+IDlgNode rtti no-asset
+{
+    string Id
+    string Next
+}
+
+DlgSay : IDlgNode
+{
+    int Who
+    string Text
+}
+
+DlgMood : IDlgNode
+{
+    int Who
+    string Text
+}

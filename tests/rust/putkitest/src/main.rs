@@ -1,3 +1,4 @@
+#![feature(rc_downcast)]
 extern crate putki;
 extern crate gen_test;
 
@@ -11,12 +12,10 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 
 pub fn main() 
-{   
+{ 
     let k:Option<Rc<mixki::Main>>;
     let p1:Option<Rc<mixki::PointerContainer>>;
-    let p2:Option<Rc<mixki::PointerContainer>>;
     let p3:Option<Rc<mixki::PointerContainer>>;
-    let sc:Option<Rc<mixki::StructContainer>>;
     let tt:Option<Rc<mixki::TestTypes>>;    
     {
         let mut contents = String::new();   
@@ -25,15 +24,14 @@ pub fn main()
             f.read_to_string(&mut contents).expect("something went wrong reading the file");
         }
         let db = lexer::lex_file(&contents);    
-        let mut apa : parser::ResolveContext<mixki::ParseRc> = parser::ResolveContext { 
+        let apa : parser::ResolveContext<mixki::ParseRc> = parser::ResolveContext {
+            def: mixki::ParseRc { },
             unparsed: &db,
             resolved: RefCell::new(HashMap::new())
         };            
         k = parser::resolve(&apa, "main1");        
         p1 = parser::resolve(&apa, "pc1");
-        p2 = parser::resolve(&apa, "pc2");
         p3 = parser::resolve(&apa, "pc3");
-        sc = parser::resolve(&apa, "sc1");
         tt = parser::resolve(&apa, "tt1");
     }
     match k
