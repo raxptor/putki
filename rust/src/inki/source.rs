@@ -9,6 +9,10 @@ pub enum ResolveStatus<T>
     Null
 }
 
+pub trait SourceLoader {
+    fn load(&self, path: &str) -> Option<Rc<Any>>;
+}
+
 pub trait ObjectLoader {
 	fn load(&self, path: &str) -> Option<(&str, &lexer::LexedKv)>;
 }

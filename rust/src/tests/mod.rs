@@ -24,7 +24,7 @@ struct PtrStruct1 {
 }
 
 impl ParseFromKV for PointedTo {
-	fn parse(kv : &lexer::LexedKv, pctx: &PtrContext, res:&Resolver) -> Self {
+	fn parse(kv : &lexer::LexedKv, _pctx: &PtrContext, _res:&Resolver) -> Self {
 		return Self {
 			value : lexer::get_int(&kv, "Value", 0)
 		}
@@ -32,9 +32,9 @@ impl ParseFromKV for PointedTo {
 }
 
 impl ParseFromKV for PtrStruct1 {
-	fn parse(kv : &lexer::LexedKv, pctx: &PtrContext, res:&Resolver) -> Self {
+	fn parse(kv : &lexer::LexedKv, _pctx: &PtrContext, _res:&Resolver) -> Self {
 		return Self {
-			ptr : Ptr::new(pctx.clone(), lexer::get_string(&kv, "Ptr", "").as_str())
+			ptr : Ptr::new(_pctx.clone(), lexer::get_string(&kv, "Ptr", "").as_str())
 		}
 	}
 }
