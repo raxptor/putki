@@ -1,48 +1,18 @@
-#![feature(rc_downcast)]
+#![feature(rc_downcast)] 
 
 pub mod mixki;
 pub mod pipeline;
 pub mod loader;
 pub mod inki;
 
+//#[cfg(test)]
+mod tests;
+
 pub use mixki::lexer::*;
 pub use mixki::parser::*;
 pub use mixki::rtti::*;
+pub use inki::*;
 
 pub trait Mixki { }
 pub trait Inki { }
 pub trait Outki { }
-
-//pub mod putki
-//{
-//use pukti::mixki::lexer;
-// pub use lexer::*;
-	/*
-	pub mod parser
-	{
-		use std::collections::HashMap;
-		use std::collections::hash_map::Entry;
-		use std::vec::Vec;
-		use std::rc::Rc;
-		
-		use std::default::Default;
-		use std::marker;
-		use std::cell::RefCell;
-
-		mod mixki_lexer;
-
-	pub enum LexedData<'a>
-	{
-		Empty,
-		Object { 
-			kv : HashMap<&'a str, LexedData<'a>>, 
-			id: &'a str,
-			type_name: &'a str 
-		},
-		Array (Vec<&'a str>),
-		Value (&'a str),
-		StringLiteral(&'a str)
-	}
-
-	*/
-//}

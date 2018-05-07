@@ -9,7 +9,7 @@ pub type ResolvedDB<'a> = HashMap<&'a str, Rc<Any>>;
 
 pub struct ResolveContext<'a, ParseDef> {
 	pub def:ParseDef,
-	pub unparsed: &'a LexedDB<'a>,
+	pub unparsed: &'a LexedKv,
 	pub resolved: RefCell<ResolvedDB<'a>>
 }
 
@@ -95,6 +95,8 @@ macro_rules! impl_type_with_rtti {
 pub fn resolve<'a, 'b, ParseDef, Target>(ctx:&'a ResolveContext<'b, ParseDef>, path: &'b str) -> Option<Rc<Target>> 
 	where ParseDef : ParseGeneric<'a, 'b, ParseDef>, Target : 'static
 {
+	return None;
+/*
 	{		
 		let res = ctx.resolved.borrow_mut().get(path).and_then(|x| {
 			return x.clone().downcast::<Target>().ok();
@@ -124,11 +126,14 @@ pub fn resolve<'a, 'b, ParseDef, Target>(ctx:&'a ResolveContext<'b, ParseDef>, p
 			} 
 		}
 	});
+	*/
 }
 
 pub fn resolve_from_value<'a, 'b, ParseDef, Target>(ctx:&'a ResolveContext<'b, ParseDef>, value: &'b LexedData) -> Option<Rc<Target>> 
 	where ParseDef : ParseGeneric<'a, 'b, ParseDef>, Target : ParseSpecific<'a, 'b, ParseDef> + 'static
 {
+	return None;
+	/*
 	match value {
 		&LexedData::Object { ref kv, type_name, .. } => {
 				if type_name.is_empty()
@@ -147,4 +152,5 @@ pub fn resolve_from_value<'a, 'b, ParseDef, Target>(ctx:&'a ResolveContext<'b, P
 		&LexedData::StringLiteral ( path ) => { return resolve(ctx, path) }
 		_ => { println!("unexpected contents at pointer"); return None }
 	}
+	*/
 }

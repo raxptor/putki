@@ -3,30 +3,31 @@ use std::vec::Vec;
 use std::str::FromStr;
 use std::default;
 
-pub enum LexedData<'a>
+#[derive(Clone)]
+pub enum LexedData
 {
 	Empty,
 	Object { 
-		kv : HashMap<&'a str, LexedData<'a>>, 
-		id: &'a str,
-		type_name: &'a str 
+		kv : HashMap<String, LexedData>, 
+		id: String,
+		type_name: String 
 	},
-	Array (Vec<&'a str>),
-	Value (&'a str),
-	StringLiteral(&'a str)
-}
-pub type LexedKv<'a> = HashMap<&'a str, LexedData<'a>>;
-pub type LexedDB<'a> = HashMap<&'a str, LexedData<'a>>;
-
-impl<'a> default::Default for LexedData<'a>
-{
-	fn default() -> LexedData<'a> { return LexedData::Empty; }
+	Array (Vec<LexedData>),
+	Value (String),
+	StringLiteral(String)
 }
 
-struct ScanResult<'a> 
+pub type LexedKv = HashMap<String, LexedData>;
+
+impl default::Default for LexedData
 {
-	cont: &'a str,
-	data: LexedData<'a>
+	fn default() -> LexedData { return LexedData::Empty; }
+}
+
+pub struct ScanResult<'a> 
+{
+	pub cont: &'a str,
+	pub data: LexedData
 }
 
 fn parse_val<T : FromStr + Default>(val: &LexedData) -> T
@@ -72,7 +73,7 @@ pub fn get_bool(kv: &LexedKv, name: &str, default: bool) -> bool
 		Some(ref val) => {
 			match val {
 				&&LexedData::Value(ref x) => {
-					match *x {
+					match x.as_ref() {
 						"True" => return true,
 						"true" => return true,
 						"1" => return true,
@@ -103,30 +104,6 @@ pub fn get_string(kv: &LexedKv, name: &str, default: &str) -> String
 	}	
 }
 
-/*
-fn parse_list<F>(data: &str, parser:F, term:char) -> &str
-	where F: Fn(&str) -> &str
-{
-	let mut cur = data;
-	let mut it = data.char_indices().enumerate();
-	loop {
-		match it.next() {
-			None => return "",
-			Some(ref x) => {                 
-				let value = &x.1;
-				if value.1 == term {
-					return &cur[value.0 ..];
-				} else if !value.1.is_whitespace() {
-					cur = parser(cur);
-					it = cur.char_indices().enumerate();
-				}
-			}
-		}
-	}
-	return "";
-}
-*/
-
 fn make_parse_error(err: &str) -> ScanResult
 {
 	println!("Parse error. {}", err);
@@ -138,7 +115,7 @@ fn make_parse_error(err: &str) -> ScanResult
 
 fn is_syntax_delimiter(c : char) -> bool
 {
-	return c.is_whitespace() || c == ',' || c == '}' || c == ']' || c == ':' || c == '=';
+	return c.is_whitespace() || c == ',' || c == '}' || c == ']' || c == ':' || c == '=' || c == ']' || c == '}' || c == '{' || c == '[';
 }
 
 fn parse_keyword_or_string<'a>(data: &'a str) -> ScanResult<'a>
@@ -169,18 +146,26 @@ fn parse_keyword_or_string<'a>(data: &'a str) -> ScanResult<'a>
 					}
 				} else if value.1 == '\"' {
 					inside_string = true;
+					string_start = value.0;
 					continue;
 				}
 				if (inside_string && value.1 == '\"') || (!inside_string && is_syntax_delimiter(value.1)) {
 					if !inside_string {
-						return ScanResult {
-							cont: &data[value.0 ..],
-							data: LexedData::Value(&data[0 .. value.0])
-						};
+						if value.0 > 0 {
+							return ScanResult {							
+								cont: &data[value.0 ..],
+								data: LexedData::Value(String::from(&data[0 .. value.0]))
+							};
+						} else {
+							return ScanResult {							
+								cont: "",
+								data: LexedData::Empty
+							};
+						}
 					} else {
 						return ScanResult {
 							cont: &data[(value.0 + 1) ..],
-							data: LexedData::StringLiteral(&data[(string_start + 1) .. value.0])
+							data: LexedData::StringLiteral(String::from(&data[(string_start + 1) .. value.0]))
 						};
 					}
 				}
@@ -189,39 +174,19 @@ fn parse_keyword_or_string<'a>(data: &'a str) -> ScanResult<'a>
 	}    
 }
 
-fn parse_auto_detect<'a>(data: &'a str) -> ScanResult<'a>
-{
-	// first should be {
-	let mut it = data.char_indices().enumerate();
-	loop {
-		match it.next() {
-			None => return make_parse_error("Unexpected end at auto."),
-			Some(ref x) => {
-				let value = &x.1;
-				if value.1.is_whitespace() {
-					continue;
-				} else if value.1 == '{' {
-					return parse_object_data(&data[(value.0 + 1) ..]);
-				} else if value.1 == '@' {
-					return parse_object_with_header(&data[(value.0+1) ..]);
-				} else if value.1 == '[' {
-					// parse array
-					// return parse_object_data(&cur[value.0 ..]);
-				} else {
-					return parse_keyword_or_string(&data[value.0 ..]);
-				}
-			}
-		}
-	}	
-}
-
-fn parse_object_data<'a>(data: &'a str) -> ScanResult<'a>
+pub fn parse_array<'a>(data: &'a str) -> ScanResult<'a>
 {
 	let mut cur = data;
-	let mut it = data.char_indices().enumerate();
-	let mut field_name = "";
-	let mut kv = HashMap::new();
-	//
+	let mut it = data.char_indices().enumerate();		
+	if let Some(first) = it.next() {
+		if (first.1).1 != '[' {
+			return ScanResult {
+				data: LexedData::Empty,
+				cont: ""
+			}
+		}
+	}
+	let mut arr = Vec::new();	
 	loop {
 		match it.next() {
 			None => return ScanResult {
@@ -232,46 +197,121 @@ fn parse_object_data<'a>(data: &'a str) -> ScanResult<'a>
 				let value = &x.1;
 				if value.1.is_whitespace() || value.1 == ',' {
 					continue;
+				} else if value.1 == ']' {
+					return ScanResult {
+						data: LexedData::Array(arr),
+						cont: &cur[(value.0+1) ..]						
+					}
+				} else {
+					let result = parse_auto_detect(&cur[value.0 ..]);
+					arr.push(result.data);					
+					cur = result.cont;
+					it = cur.char_indices().enumerate();
+				}
+			}
+		}
+	}
+}
+
+fn parse_auto_detect<'a>(data: &'a str) -> ScanResult<'a>
+{
+	// first should be {
+	let mut it = data.char_indices().enumerate();
+	let mut is_comment = false;
+	loop {
+		match it.next() {
+			None => return make_parse_error("Unexpected end at auto."),
+			Some(ref x) => {
+				let value = &x.1;
+				if is_comment {
+					if value.1 == '\n' {
+						is_comment = false;
+					} else {
+						continue;
+					}
+				}
+				if value.1.is_whitespace() {
+					continue;
+				} else if value.1 == '#' {
+					is_comment = true;
+				} else if value.1 == '{' {
+					return parse_object_data(&data[(value.0) ..]);
+				} else if value.1 == '[' {
+					return parse_array(&data[(value.0) ..]);				
+				} else if value.1 == '@' {
+					return parse_object_with_header(&data[(value.0) ..]);
+				} else {
+					return parse_keyword_or_string(&data[value.0 ..]);
+				}
+			}
+		}
+	}	
+}
+
+pub fn parse_object_data<'a>(data: &'a str) -> ScanResult<'a>
+{
+	let mut cur = data;
+	let mut it = data.char_indices().enumerate();
+	let mut field_name = String::new();
+	let mut kv = HashMap::new();
+
+	if let Some(first) = it.next() {
+		if (first.1).1 != '{' {
+			panic!("Object did not start with {{, it was {}!", (first.1).1);
+		}
+	}
+
+	loop {
+		match it.next() {
+			None => {
+				println!("Reached end of file before object is done.");
+				return ScanResult {
+					cont: "",
+					data: LexedData::Empty
+				};
+			}
+			Some(ref x) => {                 
+				let value = &x.1;
+				if value.1.is_whitespace() || value.1 == ',' || value.1 == ':' || value.1 == '=' {
+					continue;
 				} else if value.1 == '}' {
 					return ScanResult {
 						cont: &cur[(value.0 + 1) ..],
 						data: LexedData::Object {
-							id: "",
-							type_name: "",
+							id: String::new(),
+							type_name: String::new(),
 							kv: kv
 						}
 					};
 				} else if field_name.is_empty() {
-					let res = parse_keyword_or_string(&cur[value.0 ..]);
-					match res.data {
-						LexedData::Value(ref v) => {
+					let res = parse_auto_detect(&cur[value.0 ..]);					
+					let d = res.data;
+					match d {
+						LexedData::Value(v) => {
 							field_name = v;
 							cur = res.cont;
 							it = cur.char_indices().enumerate();
 						},
-						LexedData::StringLiteral(ref v) => {
+						LexedData::StringLiteral(v) => {
 							field_name = v;
 							cur = res.cont;
 							it = cur.char_indices().enumerate();
 						}                        
 						_ => {
-							println!("Parse error. Could not parse value");
+							println!("Parse error. Could not parse field name at {}", &cur[value.0 ..]);
+							println!("Full: {}", cur);
 							return ScanResult {
 								cont: "",
 								data: LexedData::Empty
 							}
 						}
 					}
-				} else if value.1 == ':' || value.1 == '=' {
-					let res = parse_auto_detect(&cur[value.0 + value.1.len_utf8() ..]);
+				} else {
+					let res = parse_auto_detect(&cur[value.0 ..]);
 					cur = res.cont;
 					it = cur.char_indices().enumerate();
-					kv.insert(field_name, res.data);
-					field_name = "";
-				} else {
-					let a = &cur[value.0 .. (value.0 + 4)];
-					println!("Syntax error in object. {}", &a);
-					return make_parse_error("Syntax error in object.");
+					kv.insert(String::from(field_name), res.data);
+					field_name = String::new();
 				}
 			}
 		}
@@ -286,6 +326,16 @@ fn parse_object_with_header<'a>(data: &'a str) -> ScanResult<'a>
 	let mut type_end = 0;
 	let mut id_begin = 0;
 	let mut id_end = 0;		
+
+	if let Some(first) = it.next() {
+		if (first.1).1 != '@' {
+			return ScanResult {
+				data: LexedData::Empty,
+				cont: ""
+			}
+		}
+	}
+
 	loop {
 		match it.next() {
 			None => return ScanResult {
@@ -314,21 +364,21 @@ fn parse_object_with_header<'a>(data: &'a str) -> ScanResult<'a>
 							id_end = value.0 
 						}
 					}
-					let res = parse_object_data(&cur[(value.0 + 1) ..]);
+					let res = parse_object_data(&cur[value.0 ..]);
 					match res.data {
 						LexedData::Object { kv, .. } => {
 							return ScanResult {
-
 								cont: res.cont,
 								data: LexedData::Object {                                    
-									id: &cur[id_begin .. id_end],
-									type_name: &cur[0..type_end],
+									id: String::from(&cur[id_begin .. id_end]),
+									type_name: String::from(&cur[1..type_end]),
 									kv: kv
 								}
 							};
 						},
 						_ => {
-							return make_parse_error("Aah!");
+							println!("How can i fail {}?", &cur[value.0 ..]);
+							return make_parse_error("Parsed object but not real!");
 						}
 					}
 				}
@@ -337,7 +387,7 @@ fn parse_object_with_header<'a>(data: &'a str) -> ScanResult<'a>
 	}
 }
 
-pub fn lex_file(data: &str) -> LexedDB
+pub fn lex_file(data: &str) -> LexedKv
 {
 	let mut cur = data;
 	let mut it = data.char_indices().enumerate();
@@ -348,18 +398,17 @@ pub fn lex_file(data: &str) -> LexedDB
 			Some(ref x) => {                 
 				let value = &x.1;
 				if value.1 == '@' {
-					let result = parse_object_with_header(&cur[(value.0+1)..]);
+					let result = parse_object_with_header(&cur[value.0..]);
 					match result.data {
 						LexedData::Object { kv, id, type_name } => {
-							println!("parsed object with type=[{}] id=[{}]", type_name, id);
-							objs.insert(id, LexedData::Object {
+							objs.insert(id.clone(), LexedData::Object {
 								kv: kv,
 								id: id,
 								type_name: type_name
 							});
 						}
-						_ => { 
-							println!("parse error; expected object");
+						_ => {
+							println!("parse error; expected object at {}", &cur[value.0 ..]);
 							return HashMap::new();
 						}
 					}
