@@ -1,16 +1,17 @@
 #![feature(rc_downcast)]
 
 pub mod mixki;
-
-pub fn putki_init()
-{
-
-}
+pub mod pipeline;
+pub mod loader;
+pub mod inki;
 
 pub use mixki::lexer::*;
 pub use mixki::parser::*;
 pub use mixki::rtti::*;
 
+pub trait Mixki { }
+pub trait Inki { }
+pub trait Outki { }
 
 //pub mod putki
 //{

@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use mixki::lexer::*;
 use std::cell::RefCell;
 use std::rc::Rc;
-use std::marker;
 use std::default;
 use std::any::Any;
 
