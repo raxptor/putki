@@ -38,7 +38,7 @@ pub trait ParseFromKV where Self:Sized {
 }
 
 pub trait PutkiTypeCast where Self : Sized + 'static {
-	fn rc_convert(src:Rc<Any>) -> Option<Rc<Self>> { return None; /*return src.downcast().ok();*/ }
+	fn rc_convert(src:Rc<Any>) -> Option<Rc<Self>> { return src.downcast().ok(); }
 }
 
 pub fn resolve_from<T>(src:&Rc<Resolver>, pctx: &PtrContext, path:&str) -> ResolveStatus<T> where T : ParseFromKV + PutkiTypeCast
