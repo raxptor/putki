@@ -1,7 +1,6 @@
-use mixki::lexer;
+use super::lexer;
 use std::rc::Rc;
 use std::any::Any;
-use std::collections::HashMap;
 
 pub enum ResolveStatus<T>
 {

@@ -1,11 +1,13 @@
+use super::lexer;
+use super::source;
+
 use std::collections::HashMap;
 use std::io;
 use std::fs::{self, DirEntry, File};
 use std::path::Path;
 use std::io::BufReader;
 use std::io::prelude::*;
-use source;
-use mixki::lexer;
+
 
 pub struct ObjEntry {
 	type_: String,

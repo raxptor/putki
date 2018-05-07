@@ -1,7 +1,4 @@
-use loadall::*;
 use inki::*;
-use inki::source::*;
-use mixki::*;
 use std::rc::Rc;
 use std::any::Any;
 

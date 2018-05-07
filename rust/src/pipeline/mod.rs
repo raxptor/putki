@@ -15,7 +15,7 @@ use std::marker::PhantomData;
 use std::collections::HashMap;
 use std::collections::HashSet;
 
-use super::loader;
+use super::inki;
 
 pub trait Builder where Self : Sync + Send
 {    
@@ -30,7 +30,7 @@ struct ObjEntry
 
 pub struct BuildContext<'a>
 {
-    loader: &'a loader::SourceLoader
+    loader: &'a inki::SourceLoader
 }
 
 pub struct BuildRecord<'a>

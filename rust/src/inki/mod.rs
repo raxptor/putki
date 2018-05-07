@@ -2,29 +2,38 @@ use std::marker::PhantomData;
 use std::rc::Rc;
 use std::fmt;
 use std::result;
+use std::any::Any;
 
 pub mod source;
 pub mod loadall;
+pub mod lexer;
 
-use source::*;  
+pub use self::source::*;
+pub use self::loadall::*;
+pub use self::lexer::*;
 
-pub struct Ptr<Target> where Target : ParseFromKV
+pub trait SourceLoader
 {
-    context : PtrContext,
+    fn load(&self, path: &str) -> Option<Rc<Any>>;
+}
+
+pub struct Ptr<Target> where Target : source::ParseFromKV
+{
+    context : source::PtrContext,
     path : String,
     _m : PhantomData<Rc<Target>>
 }
 
-impl<Target> fmt::Debug for Ptr<Target> where Target : ParseFromKV {
+impl<Target> fmt::Debug for Ptr<Target> where Target : source::ParseFromKV {
     fn fmt(&self, f: &mut fmt::Formatter) -> result::Result<(), fmt::Error> {
         write!(f, "Ptr path[{}]", &self.path);
         return Ok(());
     }
 }
 
-impl<Target> Ptr<Target> where Target : ParseFromKV
+impl<Target> Ptr<Target> where Target : source::ParseFromKV
 {
-    pub fn new(context : PtrContext, path: &str) -> Ptr<Target>
+    pub fn new(context : source::PtrContext, path: &str) -> Ptr<Target>
     {
         return Ptr {
             context: context,
@@ -34,13 +43,13 @@ impl<Target> Ptr<Target> where Target : ParseFromKV
     }
 }
 
-impl<T> Ptr<T> where T : ParseFromKV + PutkiTypeCast
+impl<T> Ptr<T> where T : source::ParseFromKV + source::PutkiTypeCast
 {
     pub fn resolve(&self) -> Option<Rc<T>> {
         if let &Some(ref trk) = &self.context.tracker {
             trk.follow(&self.path);
         }
-        if let ResolveStatus::Resolved(ptr) = resolve_from(&self.context.source, &self.context, &self.path) {
+        if let source::ResolveStatus::Resolved(ptr) = source::resolve_from(&self.context.source, &self.context, &self.path) {
             return Some(ptr);
         }
         return None;
