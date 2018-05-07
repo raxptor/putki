@@ -1,7 +1,9 @@
 #![feature(rc_downcast)] 
 
 pub mod inki;
+pub mod outki;
 pub mod pipeline;
+pub mod shared;
 
 #[cfg(test)]
 mod tests;

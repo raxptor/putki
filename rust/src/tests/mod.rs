@@ -2,6 +2,9 @@ use inki::*;
 use std::rc::Rc;
 use std::any::Any;
 
+#[cfg(test)]
+mod outki;
+
 #[test]
 fn test_txty_1() {
 	loadall::LoadAll::from_txty_data(r#"
