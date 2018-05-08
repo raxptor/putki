@@ -17,13 +17,7 @@ use std::collections::HashSet;
 use shared;
 use inki;
 
-pub trait PackWriter<Layout> where Layout : shared::Layout { }
-pub trait PackWithRefs<PW, Layout> where Layout : shared::Layout {
-    fn pack(pkg:&mut PackWriter<Layout>, data:&mut [u8]) -> usize;
-}
-pub trait PackStatic<Layout> {
-    fn pack(data:&mut [u8]) -> usize;
-}
+mod writer;
 
 pub trait Builder where Self : Sync + Send
 {    
