@@ -28,9 +28,9 @@ impl UnpackStatic<shared::BinLayout> for i32 {
     fn unpack(data:&[u8]) -> Self { return <u32 as UnpackStatic<shared::BinLayout>>::unpack(data) as i32; }
 }
 
-impl<TR, Layout, T> UnpackWithRefs<TR, Layout> for Option<Rc<T>> where Layout : shared::Layout, u32: UnpackStatic<Layout>, T : UnpackWithRefs<TR, Layout> + shared::PutkiTypeCast, TR : TypeResolver<Layout> {
+impl<TR, Layout, T> UnpackWithRefs<TR, Layout> for Option<Rc<T>> where Layout : shared::Layout, u32: UnpackStatic<Layout>, T : UnpackWithRefs<TR, Layout> + 'static, TR : TypeResolver<Layout> {
     fn unpack(pkg:&RefsSource<TR, Layout>, data:&[u8]) -> Self {
-        return PackageManager::obj_from_slot(pkg, <u32 as UnpackStatic<Layout>>::unpack(data)).and_then(|x| { shared::PutkiTypeCast::rc_convert(x) });
+        return PackageManager::obj_from_slot(pkg, <u32 as UnpackStatic<Layout>>::unpack(data)).and_then(|x| { x.downcast::<T>().ok() });
     }
 }
 
@@ -90,7 +90,7 @@ impl<TR, Layout> PackageManager<TR, Layout> where TR : TypeResolver<Layout>, Lay
     }}
 
     pub fn insert(&mut self, p:Package) { self.packages.push(p); }
-    pub fn resolve<T>(&self, path:&str) -> Option<Rc<T>> where T : shared::PutkiTypeCast + UnpackWithRefs<TR, Layout> { 
+    pub fn resolve<T>(&self, path:&str) -> Option<Rc<T>> where T : 'static { 
         for ref p in &self.packages {
             for idx in 0 .. p.slots.len() {
                 let s = &p.slots[idx];
@@ -100,7 +100,7 @@ impl<TR, Layout> PackageManager<TR, Layout> where TR : TypeResolver<Layout>, Lay
                             mgr: self,
                             package: 0
                         };
-                        return Self::obj_from_slot(&rs, idx as u32).and_then(|x| { shared::PutkiTypeCast::rc_convert(x) });;
+                        return Self::obj_from_slot(&rs, idx as u32).and_then(|x| { return x.downcast::<T>().ok() });;
                     }
                 }
             }

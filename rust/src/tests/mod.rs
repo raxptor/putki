@@ -46,18 +46,6 @@ impl ParseFromKV for PtrStruct1 {
 	}
 }
 
-impl shared::PutkiTypeCast for PointedTo {
-	fn rc_convert(src: Rc<Any>) -> Option<Rc<PointedTo>> {
-		return src.downcast().ok();
-	}
-}
-
-impl shared::PutkiTypeCast for PtrStruct1 {
-	fn rc_convert(src: Rc<Any>) -> Option<Rc<PtrStruct1>> {
-		return src.downcast().ok();
-	}
-}
-
 struct DumbResolver {
 	db : loadall::LoadAll 
 }

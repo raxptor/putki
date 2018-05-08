@@ -7,10 +7,6 @@ use std::any::Any;
 
 use outki::UnpackStatic;
 
-struct IRootParent { 
-    value: i32
-}
-
 struct IRootData { }
 
 enum IRoot {
@@ -143,7 +139,27 @@ impl outki::TypeResolver<shared::BinLayout> for TypeResolver
 }
 
 #[test]
-pub fn dummy()
+pub fn unpack_typecast()
 {
-
+    let mut pm : outki::PackageManager<TypeResolver, shared::BinLayout> = outki::PackageManager::new();
+    let mut pkg = outki::Package::new();
+    {
+        let data:[u8;0] = [];
+        pkg.insert(Some("subroot"), tag_of::<SubRoot>(), &data);        
+    }
+    {
+        let data:[u8;4] = [123,0,0,0];
+        pkg.insert(Some("sub1"), tag_of::<Sub1>(), &data);
+    }
+    pm.insert(pkg);
+    let k:Option<Rc<IRoot>> = pm.resolve("subroot");
+    assert_eq!(k.is_some(), true);  
+    let l:Option<Rc<IRoot>> = pm.resolve("sub1");
+    assert_eq!(l.is_some(), true);  
+    let k = l.unwrap();
+    if let &IRoot::Sub1(ref s1) = &(*k) {
+        assert_eq!(s1.value, 123);
+    } else {
+        panic!("sub1 wasn't sub1");
+    }
 }

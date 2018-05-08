@@ -9,10 +9,6 @@ pub trait Resolver<ResolveContext> {
 pub trait Layout where Self : 'static { 
 }
 
-pub trait PutkiTypeCast where Self : Sized + 'static {
-	fn rc_convert(src:Rc<Any>) -> Option<Rc<Self>> { return src.downcast().ok(); }
-}
-
 pub trait LayoutDescriptor {
     const TAG : &'static str;
 }

@@ -57,9 +57,6 @@ impl shared::OutkiTypeDescriptor for PtrStruct {
     const SIZE : usize = 4;
 }
 
-impl shared::PutkiTypeCast for PointedTo { }
-impl shared::PutkiTypeCast for PtrStruct { }
-
 #[test]
 pub fn unpack_simple()
 {

@@ -35,7 +35,7 @@ pub trait ParseFromKV where Self:Sized {
 	fn parse(kv : &lexer::LexedKv, pctx: &InkiPtrContext, res:&InkiResolver) -> Self;
 }
 
-pub fn resolve_from<T>(src:&Rc<InkiResolver>, pctx: &InkiPtrContext, path:&str) -> ResolveStatus<T> where T : ParseFromKV + shared::PutkiTypeCast
+pub fn resolve_from<T>(src:&Rc<InkiResolver>, pctx: &InkiPtrContext, path:&str) -> ResolveStatus<T> where T : ParseFromKV + 'static
 {	
 	if path.is_empty() {
 		return ResolveStatus::Null;
@@ -43,7 +43,7 @@ pub fn resolve_from<T>(src:&Rc<InkiResolver>, pctx: &InkiPtrContext, path:&str) 
 
 	// Here is where it will be necessary to deal with the subtypes mess.
 	let k = src.load(pctx, path).and_then(|rc| {
-		return shared::PutkiTypeCast::rc_convert(rc);
+		return rc.downcast::<T>().ok();
 	});
 
 	if let Some(r) = k {

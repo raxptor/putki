@@ -3,7 +3,6 @@ use std::marker::PhantomData;
 use std::rc::Rc;
 use std::fmt;
 use std::result;
-use shared;
 
 pub struct Ptr<Target> where Target : source::ParseFromKV
 {
@@ -31,7 +30,7 @@ impl<Target> Ptr<Target> where Target : source::ParseFromKV
     }
 }
 
-impl<T> Ptr<T> where T : source::ParseFromKV + shared::PutkiTypeCast
+impl<T> Ptr<T> where T : source::ParseFromKV + 'static
 {
     pub fn resolve(&self) -> Option<Rc<T>> {
         if let &Some(ref trk) = &self.context.tracker {
