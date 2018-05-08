@@ -54,7 +54,7 @@ impl Package {
             slots: Vec::new()
         }
     }
-    pub fn insert(&mut self, path: Option<String>, type_name:String, data:&[u8]) {
+    pub fn insert(&mut self, path: Option<&str>, type_name:&str, data:&[u8]) {
         let begin;
         if let Some(ref mut d) = self.content {
             begin = d.len();
@@ -64,8 +64,8 @@ impl Package {
             self.content = Some(Vec::from(data));
         }
         self.slots.push(Slot {
-            path: path,
-            type_name: type_name,
+            path: path.and_then(|x| { return Some(String::from(x)) }),
+            type_name: String::from(type_name),
             _package_ref: 0,
             begin: begin,
             end: begin + data.len()             

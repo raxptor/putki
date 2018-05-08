@@ -6,6 +6,8 @@ use std::any::Any;
 
 #[cfg(test)]
 mod outki;
+#[cfg(test)]
+mod outki_enum;
 
 #[test]
 fn test_txty_1() {
