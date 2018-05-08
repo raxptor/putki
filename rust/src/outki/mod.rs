@@ -42,7 +42,7 @@ impl<TR, Layout, T> UnpackWithRefs<TR, Layout> for Option<Rc<T>> where Layout : 
 
 pub struct Slot {
     path: Option<String>,
-    _type_name: Option<String>,
+    type_name: Option<String>,
     _package_ref:u32, // 0 = self, otherwise external package mapping table.
     begin: usize,
     end: usize
@@ -60,7 +60,7 @@ impl Package {
             slots: Vec::new()
         }
     }
-    pub fn insert_object(&mut self, path: Option<String>, type_name:Option<String>, data:&[u8]) {
+    pub fn insert(&mut self, path: Option<String>, type_name:Option<String>, data:&[u8]) {
         let begin;
         if let Some(ref mut d) = self.content {
             begin = data.len();
@@ -71,7 +71,7 @@ impl Package {
         }
         self.slots.push(Slot {
             path: path,
-            _type_name: type_name,
+            type_name: type_name,
             _package_ref: 0,
             begin: begin,
             end: begin + data.len()             
@@ -95,9 +95,27 @@ impl<TR, Layout> PackageManager<TR, Layout> where TR : TypeResolver<Layout>, Lay
         _m1: PhantomData
     }}
 
-    pub fn insert_package(&mut self, p:Package) { self.packages.push(p); }
-    pub fn resolve<T>(&self, path:&str) -> Option<Rc<T>> { 
-        unimplemented!(); 
+    pub fn insert(&mut self, p:Package) { self.packages.push(p); }
+    pub fn resolve<T>(&self, path:&str) -> Option<Rc<T>> where T : shared::PutkiTypeCast { 
+        for ref p in &self.packages {
+            for ref s in &p.slots {
+                if let &Some(ref pth) = &s.path {
+                    if let &Some(ref type_name) = &s.type_name {
+                        println!("it is {}", pth);
+                        if pth.as_str() == path {
+                            let rs:RefsSource<TR, Layout> = RefsSource {
+                                mgr: self,
+                                package: 0
+                            };
+                            if let &Some(ref data) = &p.content {
+                                return TR::unpack_with_type(&rs, &data[0..4], type_name).and_then(|x| { shared::PutkiTypeCast::rc_convert(x) });
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return None;
     }
     fn resolve_unnamed<'a, Target>(src:&RefsSource<'a, TR, Layout>, slot:i32) -> Option<Rc<Any>> where Target : UnpackWithRefs<TR, Layout>, Layout : shared::Layout {
          unimplemented!();
