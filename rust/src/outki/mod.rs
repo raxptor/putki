@@ -5,7 +5,7 @@ use shared;
 
 pub struct RefsSource<'a, TR, Layout> where TR: 'a, Layout : shared::Layout {
     mgr: &'a PackageManager<TR, Layout>,
-    package: i32
+    package: u32
 }
 
 pub trait TypeResolver<Layout> where Layout : shared::Layout {
@@ -28,21 +28,15 @@ impl UnpackStatic<shared::BinLayout> for i32 {
     fn unpack(data:&[u8]) -> Self { return <u32 as UnpackStatic<shared::BinLayout>>::unpack(data) as i32; }
 }
 
-pub struct PackageSlotRef {
-    begin: usize,
-    end: usize,
-    package: usize
-}
-
-impl<TR, Layout, T> UnpackWithRefs<TR, Layout> for Option<Rc<T>> where Layout : shared::Layout, i32: UnpackStatic<Layout>, T : UnpackWithRefs<TR, Layout> + shared::PutkiTypeCast, TR : TypeResolver<Layout> {
+impl<TR, Layout, T> UnpackWithRefs<TR, Layout> for Option<Rc<T>> where Layout : shared::Layout, u32: UnpackStatic<Layout>, T : UnpackWithRefs<TR, Layout> + shared::PutkiTypeCast, TR : TypeResolver<Layout> {
     fn unpack(pkg:&RefsSource<TR, Layout>, data:&[u8]) -> Self {
-        return PackageManager::resolve_unnamed::<T>(pkg, <i32 as UnpackStatic<Layout>>::unpack(data)).and_then(|x| { shared::PutkiTypeCast::rc_convert(x) });
+        return PackageManager::obj_from_slot(pkg, <u32 as UnpackStatic<Layout>>::unpack(data)).and_then(|x| { shared::PutkiTypeCast::rc_convert(x) });
     }
 }
 
 pub struct Slot {
     path: Option<String>,
-    type_name: Option<String>,
+    type_name: String,
     _package_ref:u32, // 0 = self, otherwise external package mapping table.
     begin: usize,
     end: usize
@@ -60,10 +54,10 @@ impl Package {
             slots: Vec::new()
         }
     }
-    pub fn insert(&mut self, path: Option<String>, type_name:Option<String>, data:&[u8]) {
+    pub fn insert(&mut self, path: Option<String>, type_name:String, data:&[u8]) {
         let begin;
         if let Some(ref mut d) = self.content {
-            begin = data.len();
+            begin = d.len();
             d.extend_from_slice(data);
         } else {
             begin = 0;
@@ -96,29 +90,36 @@ impl<TR, Layout> PackageManager<TR, Layout> where TR : TypeResolver<Layout>, Lay
     }}
 
     pub fn insert(&mut self, p:Package) { self.packages.push(p); }
-    pub fn resolve<T>(&self, path:&str) -> Option<Rc<T>> where T : shared::PutkiTypeCast { 
+    pub fn resolve<T>(&self, path:&str) -> Option<Rc<T>> where T : shared::PutkiTypeCast + UnpackWithRefs<TR, Layout> { 
         for ref p in &self.packages {
-            for ref s in &p.slots {
+            for idx in 0 .. p.slots.len() {
+                let s = &p.slots[idx];
                 if let &Some(ref pth) = &s.path {
-                    if let &Some(ref type_name) = &s.type_name {
-                        println!("it is {}", pth);
-                        if pth.as_str() == path {
-                            let rs:RefsSource<TR, Layout> = RefsSource {
-                                mgr: self,
-                                package: 0
-                            };
-                            if let &Some(ref data) = &p.content {
-                                return TR::unpack_with_type(&rs, &data[0..4], type_name).and_then(|x| { shared::PutkiTypeCast::rc_convert(x) });
-                            }
-                        }
+                    if pth == path {
+                        let rs:RefsSource<TR, Layout> = RefsSource {
+                            mgr: self,
+                            package: 0
+                        };
+                        return Self::obj_from_slot(&rs, idx as u32).and_then(|x| { shared::PutkiTypeCast::rc_convert(x) });;
                     }
                 }
             }
         }
         return None;
     }
-    fn resolve_unnamed<'a, Target>(src:&RefsSource<'a, TR, Layout>, slot:i32) -> Option<Rc<Any>> where Target : UnpackWithRefs<TR, Layout>, Layout : shared::Layout {
-         unimplemented!();
+
+    fn obj_from_slot<'a>(refs:&RefsSource<'a, TR, Layout>, slot:u32) -> Option<Rc<Any>> where Layout : shared::Layout {
+        let pkg = &refs.mgr.packages[refs.package as usize];
+        let slotidx = slot as usize;
+        if slotidx >= pkg.slots.len() {
+            return None;
+        }         
+        if let &Some(ref data) = &pkg.content {
+            let s = &pkg.slots[slotidx];
+            println!("Unpacking object at slot {}, byte range [{}..{}] in package {} with type {}", slot, s.begin, s.end, slotidx, s.type_name);
+            return TR::unpack_with_type(&refs, &data[s.begin .. s.end], s.type_name.as_str());
+        }
+        return None;
     }
 }
 
