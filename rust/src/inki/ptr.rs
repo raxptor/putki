@@ -1,12 +1,13 @@
-use super::source;
+use inki::source;
 use std::marker::PhantomData;
 use std::rc::Rc;
 use std::fmt;
 use std::result;
+use shared;
 
 pub struct Ptr<Target> where Target : source::ParseFromKV
 {
-    context : source::PtrContext,
+    context : source::InkiPtrContext,
     path : String,
     _m : PhantomData<Rc<Target>>
 }
@@ -20,7 +21,7 @@ impl<Target> fmt::Debug for Ptr<Target> where Target : source::ParseFromKV {
 
 impl<Target> Ptr<Target> where Target : source::ParseFromKV
 {
-    pub fn new(context : source::PtrContext, path: &str) -> Ptr<Target>
+    pub fn new(context : source::InkiPtrContext, path: &str) -> Ptr<Target>
     {
         return Ptr {
             context: context,
@@ -30,7 +31,7 @@ impl<Target> Ptr<Target> where Target : source::ParseFromKV
     }
 }
 
-impl<T> Ptr<T> where T : source::ParseFromKV + source::PutkiTypeCast
+impl<T> Ptr<T> where T : source::ParseFromKV + shared::PutkiTypeCast
 {
     pub fn resolve(&self) -> Option<Rc<T>> {
         if let &Some(ref trk) = &self.context.tracker {

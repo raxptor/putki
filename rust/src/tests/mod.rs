@@ -1,4 +1,6 @@
 use inki::*;
+use shared;
+use inki::source;
 use std::rc::Rc;
 use std::any::Any;
 
@@ -27,7 +29,7 @@ struct PtrStruct1 {
 }
 
 impl ParseFromKV for PointedTo {
-	fn parse(kv : &lexer::LexedKv, _pctx: &PtrContext, _res:&Resolver) -> Self {
+	fn parse(kv : &lexer::LexedKv, _pctx: &InkiPtrContext, _res:&source::InkiResolver) -> Self {
 		return Self {
 			value : lexer::get_int(&kv, "Value", 0)
 		}
@@ -35,20 +37,20 @@ impl ParseFromKV for PointedTo {
 }
 
 impl ParseFromKV for PtrStruct1 {
-	fn parse(kv : &lexer::LexedKv, _pctx: &PtrContext, _res:&Resolver) -> Self {
+	fn parse(kv : &lexer::LexedKv, _pctx: &InkiPtrContext, _res:&InkiResolver) -> Self {
 		return Self {
 			ptr : Ptr::new(_pctx.clone(), lexer::get_string(&kv, "Ptr", "").as_str())
 		}
 	}
 }
 
-impl PutkiTypeCast for PointedTo {
+impl shared::PutkiTypeCast for PointedTo {
 	fn rc_convert(src: Rc<Any>) -> Option<Rc<PointedTo>> {
 		return src.downcast().ok();
 	}
 }
 
-impl PutkiTypeCast for PtrStruct1 {
+impl shared::PutkiTypeCast for PtrStruct1 {
 	fn rc_convert(src: Rc<Any>) -> Option<Rc<PtrStruct1>> {
 		return src.downcast().ok();
 	}
@@ -58,9 +60,9 @@ struct DumbResolver {
 	db : loadall::LoadAll 
 }
 
-impl Resolver for DumbResolver
+impl shared::Resolver<InkiPtrContext> for DumbResolver
 {
-	fn load(&self, pctx: &PtrContext, path:&str) -> Option<Rc<Any>>
+	fn load(&self, pctx: &InkiPtrContext, path:&str) -> Option<Rc<Any>>
 	{
 		return self.db.load(path).and_then(|res| {
 			match res.0
@@ -91,8 +93,8 @@ fn test_ptr_1() {
 	"#);	
 	let dr = Rc::new(DumbResolver {
 		db: la
-	}) as Rc<Resolver>;
-	let ctx = PtrContext {
+	}) as Rc<shared::Resolver<InkiPtrContext>>;
+	let ctx = InkiPtrContext {
 		tracker: None,
 		source: dr.clone()
 	};

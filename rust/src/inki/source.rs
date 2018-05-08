@@ -1,4 +1,5 @@
-use super::lexer;
+use inki::lexer;
+use shared;
 use std::rc::Rc;
 use std::any::Any;
 
@@ -17,31 +18,24 @@ pub trait ObjectLoader {
 	fn load(&self, path: &str) -> Option<(&str, &lexer::LexedKv)>;
 }
 
-pub trait Resolver {
-	fn load(&self, pctx: &PtrContext, path:&str) -> Option<Rc<Any>>;
-}
+pub type InkiResolver = shared::Resolver<InkiPtrContext>;
 
-pub trait Tracker
-{
+pub trait Tracker {
     fn follow(&self, path:&str);
 }
 
 #[derive(Clone)]
-pub struct PtrContext
+pub struct InkiPtrContext
 {
     pub tracker: Option<Rc<Tracker>>,
-    pub source: Rc<Resolver>
+    pub source: Rc<InkiResolver>
 }
 
 pub trait ParseFromKV where Self:Sized {
-	fn parse(kv : &lexer::LexedKv, pctx: &PtrContext, res:&Resolver) -> Self;
+	fn parse(kv : &lexer::LexedKv, pctx: &InkiPtrContext, res:&InkiResolver) -> Self;
 }
 
-pub trait PutkiTypeCast where Self : Sized + 'static {
-	fn rc_convert(src:Rc<Any>) -> Option<Rc<Self>> { return src.downcast().ok(); }
-}
-
-pub fn resolve_from<T>(src:&Rc<Resolver>, pctx: &PtrContext, path:&str) -> ResolveStatus<T> where T : ParseFromKV + PutkiTypeCast
+pub fn resolve_from<T>(src:&Rc<InkiResolver>, pctx: &InkiPtrContext, path:&str) -> ResolveStatus<T> where T : ParseFromKV + shared::PutkiTypeCast
 {	
 	if path.is_empty() {
 		return ResolveStatus::Null;
@@ -49,7 +43,7 @@ pub fn resolve_from<T>(src:&Rc<Resolver>, pctx: &PtrContext, path:&str) -> Resol
 
 	// Here is where it will be necessary to deal with the subtypes mess.
 	let k = src.load(pctx, path).and_then(|rc| {
-		return PutkiTypeCast::rc_convert(rc);
+		return shared::PutkiTypeCast::rc_convert(rc);
 	});
 
 	if let Some(r) = k {
