@@ -42,40 +42,13 @@ struct Sub2 {
 
 struct TypeResolver { }
 
-impl shared::OutkiTypeDescriptor for IRootData {
-    const TAG : &'static str = "IRootData";
-    const SIZE : usize = 0;
-}
-
-impl shared::OutkiTypeDescriptor for SubRootData {
-    const TAG : &'static str = "IRootData";
-    const SIZE : usize = <IRootData as shared::OutkiTypeDescriptor>::SIZE;
-}
-
-impl shared::OutkiTypeDescriptor for SubRoot {
-    const TAG : &'static str = "SubRoot";
-    const SIZE : usize = 0;
-}
-
-impl shared::OutkiTypeDescriptor for SubSub1 {
-    const TAG : &'static str = "SubSub1";
-    const SIZE : usize = 4;
-}
-
-impl shared::OutkiTypeDescriptor for IRoot {
-    const TAG : &'static str = "IRoot";
-    const SIZE : usize = 0;
-}
-
-impl shared::OutkiTypeDescriptor for Sub1 {
-    const TAG : &'static str = "Sub1";
-    const SIZE : usize = 4;
-}
-
-impl shared::OutkiTypeDescriptor for Sub2 {
-    const TAG : &'static str = "Sub2";
-    const SIZE : usize = 4;
-}
+impl shared::OutkiTypeDescriptor for IRootData { const TAG : &'static str = "IRootData"; const SIZE : usize = 0; }
+impl shared::OutkiTypeDescriptor for SubRootData { const TAG : &'static str = "IRootData"; const SIZE : usize = <IRootData as shared::OutkiTypeDescriptor>::SIZE; }
+impl shared::OutkiTypeDescriptor for SubRoot { const TAG : &'static str = "SubRoot"; const SIZE : usize = <SubRootData as shared::OutkiTypeDescriptor>::SIZE; }
+impl shared::OutkiTypeDescriptor for SubSub1 {  const TAG : &'static str = "SubSub1"; const SIZE : usize = 4; }
+impl shared::OutkiTypeDescriptor for IRoot { const TAG : &'static str = "IRoot"; const SIZE : usize = 0; }
+impl shared::OutkiTypeDescriptor for Sub1 { const TAG : &'static str = "Sub1"; const SIZE : usize = 4; }
+impl shared::OutkiTypeDescriptor for Sub2 { const TAG : &'static str = "Sub2"; const SIZE : usize = 4; }
 
 impl outki::UnpackWithRefs<TypeResolver, shared::BinLayout> for Sub1 {
     fn unpack(_refs:&outki::RefsSource<TypeResolver, shared::BinLayout>, data:&[u8]) -> Self {        

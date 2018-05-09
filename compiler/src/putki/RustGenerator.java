@@ -167,13 +167,22 @@ public class RustGenerator
 	{
 		return enumValue(s.name);
 	}*/	
+	
+    public static void generateRustRoot(Compiler comp, CodeWriter writer)
+    {
+        Path lib = tree.genCodeRoot.resolve("rust").resolve("src");
+        Path fn = lib.resolve("lib.rs");
+        StringBuilder sb = new StringBuilder();
+        sb.append("mod inki");
+        writer.addOutput(fn, sb.toString().getBytes());        
+    }
 
-    public static void generateMixkiStructs(Compiler comp, CodeWriter writer)
+    public static void generateInkiStructs(Compiler comp, CodeWriter writer)
     {
         for (Compiler.ParsedTree tree : comp.allTrees())
         {
             Path lib = tree.genCodeRoot.resolve("rust").resolve("src");
-            Path fn = lib.resolve("lib.rs");
+            Path fn = lib.resolve("inki.rs");
             StringBuilder sb = new StringBuilder();
             sb.append("#![feature(rc_downcast)]");
             sb.append("\n#![allow(unused_imports)]");            
@@ -302,7 +311,7 @@ public class RustGenerator
             sb.append("version = \"0.1.0\"\n");
             sb.append("[lib]\n");
             sb.append("name = \"" + moduleName(tree.moduleName) + "\"\n");
-            sb.append("[dependencies]\r\nputki = { path = \"../../../../runtime/rust\" }");
+            sb.append("[dependencies]\r\nputki = { path = \"../../../../rust\" }");
             writer.addOutput(mfn, sb.toString().getBytes());
         }
     }

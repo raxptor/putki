@@ -46,7 +46,7 @@ pub struct PackageRecipe {
     resources: Vec<Vec<u8>>
 }
 
-pub fn write_package(recipe:&PackageRecipe)
+pub fn write_package(_recipe:&PackageRecipe)
 {
 
 }

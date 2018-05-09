@@ -28,6 +28,21 @@ impl LayoutDescriptor for BinLayout {
     const TAG : &'static str = "BinLayout";
 }
 
+impl OutkiTypeDescriptor for i32 {
+    const TAG : &'static str = "i32";
+    const SIZE : usize = 4;
+}
+
+impl OutkiTypeDescriptor for u32 {
+    const TAG : &'static str = "i32";
+    const SIZE : usize = 4;
+}
+
+impl OutkiTypeDescriptor for usize {
+    const TAG : &'static str = "usize";
+    const SIZE : usize = 4;
+}
+
 pub fn tag_of<T>() -> &'static str where T : OutkiTypeDescriptor
 {
     return <T as OutkiTypeDescriptor>::TAG;    

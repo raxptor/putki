@@ -894,7 +894,7 @@ public class Compiler
 		}
 
 		CodeWriter writer = new CodeWriter();
-		RustGenerator.generateMixkiStructs(c, writer);
+		RustGenerator.generateInkiStructs(c, writer);
 		RustGenerator.generateParsers(c, writer);
 		/*
 		CSharpGenerator.generateMixkiParsers(c, writer);
