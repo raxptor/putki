@@ -130,6 +130,10 @@ public class RustGenerator
 		{
 			return structName(pf.resolvedRefStruct);
 		}
+		else if (pf.type == FieldType.ENUM)
+		{
+			return pf.resolvedEnum.name;
+		}
 		else if (pf.type == FieldType.POINTER)
 		{
 			if (pf.allowNull)
@@ -173,6 +177,10 @@ public class RustGenerator
 		{
 			return structNameWrap(pf.resolvedRefStruct);
 		}
+		else if (pf.type == FieldType.ENUM)
+		{
+			return pf.resolvedEnum.name;
+		}		
 		else if (pf.type == FieldType.POINTER)
 		{
 			return "putki_inki::Ptr<" + structName(pf.resolvedRefStruct) + ">";
@@ -222,6 +230,26 @@ public class RustGenerator
 	        generateInkiParsers(comp, tree, writer);
         }
     }
+    
+	public static String capsToCamelCase(String name)
+	{
+		StringBuilder sb = new StringBuilder();
+		boolean word = true;
+		for (int i=0;i<name.length();i++)
+		{
+			if (name.charAt(i) == '_')
+			{
+				word = true;
+				continue;
+			}
+			if (word)
+				sb.append(Character.toUpperCase(name.charAt(i)));
+			else
+				sb.append(Character.toLowerCase(name.charAt(i)));
+			word = false;
+		}
+		return sb.toString();
+	}    
 
     public static void generateInkiStructs(Compiler comp, Compiler.ParsedTree tree, CodeWriter writer)
     {
@@ -242,6 +270,69 @@ public class RustGenerator
 
         for (Compiler.ParsedFile file : tree.parsedFiles)
         {
+        	for (Compiler.ParsedEnum e : file.enums)
+        	{
+        		String prefix = "\n";
+    			sb.append("\n");
+        		sb.append(prefix).append("pub enum " + e.name + " {");
+        		boolean first = true;
+        		for (Compiler.EnumValue val : e.values)
+        		{
+        			if (!first) sb.append(",");
+        			sb.append(prefix).append("\t" + capsToCamelCase(val.name));
+        			first = false;
+        		}
+    			sb.append(prefix).append("}");
+    			sb.append("\n");
+        		sb.append(prefix).append("impl Default for " + e.name + " { fn default() -> Self { " + e.name + "::" + capsToCamelCase(e.values.get(0).name) + " } }");
+    			sb.append("\n");    			
+        		sb.append(prefix).append("impl From<" + e.name + "> for i32 {");
+        		sb.append(prefix).append("\tfn from(val:" + e.name + ") -> i32 {");        		
+        		sb.append(prefix).append("\t\tmatch val {");
+        		for (Compiler.EnumValue val : e.values)
+        		{        		
+        			sb.append(prefix).append("\t\t\t" + e.name + "::" + capsToCamelCase(val.name) + " => " + val.value + ",");
+        		}
+        		sb.append(prefix).append("\t\t}");
+        		sb.append(prefix).append("\t}");
+        		sb.append(prefix).append("}");
+    			sb.append("\n");
+        		sb.append(prefix).append("impl From<i32> for " + e.name + " {");
+        		sb.append(prefix).append("\tfn from(val:i32) -> Self {");        		
+        		sb.append(prefix).append("\t\tmatch val {");
+        		for (Compiler.EnumValue val : e.values)
+        		{        		
+        			sb.append(prefix).append("\t\t\t" + val.value + " => " + e.name + "::" + capsToCamelCase(val.name) + ",");
+        		}
+    			sb.append(prefix).append("\t\t\t_ => Default::default()");
+        		sb.append(prefix).append("\t\t}");
+        		sb.append(prefix).append("\t}");
+        		sb.append(prefix).append("}");       
+    			sb.append("\n");
+        		sb.append(prefix).append("impl<'a> From<&'a str> for " + e.name + " {");
+        		sb.append(prefix).append("\tfn from(val:&str) -> Self {");        		
+        		sb.append(prefix).append("\t\tmatch val {");
+        		for (Compiler.EnumValue val : e.values)
+        		{        		
+        			sb.append(prefix).append("\t\t\t\"" + val.name + "\" => " + e.name + "::" + capsToCamelCase(val.name) + ",");
+        		}
+    			sb.append(prefix).append("\t\t\t_ => Default::default()");
+        		sb.append(prefix).append("\t\t}");
+        		sb.append(prefix).append("\t}");
+        		sb.append(prefix).append("}");
+    			sb.append("\n");
+        		sb.append(prefix).append("impl From<" + e.name + "> for &'static str {");
+        		sb.append(prefix).append("\tfn from(val:" + e.name + ") -> Self {");        		
+        		sb.append(prefix).append("\t\tmatch val {");
+        		for (Compiler.EnumValue val : e.values)
+        		{        		
+        			sb.append(prefix).append("\t\t\t" + e.name + "::" + capsToCamelCase(val.name) + " => \"" + val.name + "\",");
+        		}
+        		sb.append(prefix).append("\t\t}");
+        		sb.append(prefix).append("\t}");
+        		sb.append(prefix).append("}");              		
+        	}
+
     		for (Compiler.ParsedStruct struct : file.structs)
     		{
             	String pfx = "\n";

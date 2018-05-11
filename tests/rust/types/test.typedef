@@ -21,6 +21,13 @@ StructContainer
 	Main Main
 }
 
+enum TestEnum
+{
+	HEJ_KALLE_KULA 
+	GURKA_TRUBADUR = 1
+	TO_INDEX = 2
+}
+
 TestTypes
 {
 	string String = "defaultstring"
@@ -28,4 +35,5 @@ TestTypes
 	byte Byte
 	float Float
 	bool Bool
+	enum TestEnum EnumValue
 }
