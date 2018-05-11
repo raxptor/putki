@@ -9,7 +9,8 @@ import putki.Compiler.ParsedField;
 import putki.Compiler.ParsedFile;
 import putki.Compiler.ParsedStruct;
 import putki.Compiler.ParsedTree;
-import putki.CppGenerator.Platform;;
+import putki.CppGenerator.Platform;
+import sun.misc.FormattedFloatingDecimal;;
 
 public class RustGenerator
 {
@@ -92,7 +93,11 @@ public class RustGenerator
 
 	public static String fieldName(Compiler.ParsedField s)
 	{
-		return withUnderscore(s.name);
+		String fn = withUnderscore(s.name);
+		if (fn.equals("type")) return "type_";
+		if (fn.equals("self")) return "self_";		
+		if (fn.equals("bool")) return "bool_";
+		return fn;
 	}
 
 	public static String enumName(Compiler.ParsedEnum s)
@@ -191,8 +196,20 @@ public class RustGenerator
 		}
 	}
 	
+	static String defaultEnumValue(Compiler.ParsedField pf, String prefix)
+	{
+		if (pf.defValue != null)
+			return prefix + pf.resolvedEnum.name + "::" + pf.defValue;
+		else
+			return prefix + pf.resolvedEnum.name + "::" + capsToCamelCase(pf.resolvedEnum.values.get(0).name);
+	}
+	
 	static String defaultValue(Compiler.ParsedField pf)
 	{		
+		if (pf.type == FieldType.FLOAT)
+			return fmtFloat(pf.defValue);
+		if (pf.type == FieldType.ENUM && pf.defValue != null)
+			return  pf.resolvedEnum.name + "::" +capsToCamelCase(pf.defValue);
 		if (pf.type == FieldType.POINTER)
 			return "putki_inki::Ptr::null()";
 		if (pf.type == FieldType.STRING && pf.defValue != null)
@@ -250,6 +267,13 @@ public class RustGenerator
 		}
 		return sb.toString();
 	}    
+	
+	public static String fmtFloat(String value)
+	{
+		if (value == null || value.length() == 0)
+			return "0f32";
+		return value.replace("f", "") + "f32";
+	}
 
     public static void generateInkiStructs(Compiler comp, Compiler.ParsedTree tree, CodeWriter writer)
     {
@@ -339,7 +363,7 @@ public class RustGenerator
                 if ((struct.domains & Compiler.DOMAIN_OUTPUT) == 0)
                     continue;                    
                 
-                if (struct.isTypeRoot)
+                if (struct.isTypeRoot || struct.possibleChildren.size() > 0)
                 {
                 	sb.append("\n");                	
                 	sb.append(pfx).append("pub enum " + structName(struct) + " {");
@@ -366,12 +390,13 @@ public class RustGenerator
 	                {	                	
 	                    if ((field.domains & Compiler.DOMAIN_OUTPUT) == 0)
 	                        continue;
+                    	if (field.resolvedRefStruct != null && structNameWrap(field.resolvedRefStruct).length() == 0)
+                    		continue;
+	                    
 	                    if (!first)
 	                    	sb.append(",");
 	                    first = false;
 	                    
-                    	if (field.resolvedRefStruct != null && structNameWrap(field.resolvedRefStruct).length() == 0)
-                    		continue;
 	                    
 	                	sb.append(spfx).append("pub " + fieldName(field) + " : ");
 	                    if (field.isArray) sb.append("vec::Vec<");
@@ -419,12 +444,14 @@ public class RustGenerator
 	                    if ((field.domains & Compiler.DOMAIN_OUTPUT) == 0)
 	                        continue;
                     	if (field.resolvedRefStruct != null && structNameWrap(field.resolvedRefStruct).length() == 0)
-                    		continue;
-	                    
+                    		continue;	                    
 	                    if (!first)
 	                    	sb.append(",");
 	                    first = false;                        
-	                	sb.append(spfx).append(fieldName(field) + " : " + defaultValue(field));
+	                    if (field.isArray)
+		                	sb.append(spfx).append(fieldName(field) + " : Vec::new()");
+	                    else
+	                    	sb.append(spfx).append(fieldName(field) + " : " + defaultValue(field));
 	                }
 	
 	                sb.append(pfx).append("\t\t}");
@@ -473,17 +500,17 @@ public class RustGenerator
                 {
                     sb.append("\n");                 	
                 	sb.append(pfx).append("impl source::ParseFromKV for inki::" + structName(struct) + " {");
-                	sb.append(pfx).append("\tfn parse_with_type(kv : &lexer::LexedKv, pctx: &putki_inki::InkiPtrContext, type_name:&str) -> Self {");
+                	sb.append(pfx).append("\tfn parse_with_type(_kv : &lexer::LexedKv, _pctx: &putki_inki::InkiPtrContext, type_name:&str) -> Self {");
                 	sb.append(pfx).append("\t\tmatch type_name {");
                 	
                 	if (structNameWrap(struct).length() > 0)
-                		sb.append(pfx).append("\t\t\t<inki::" + structName(struct) + " as source::InkiTypeDescriptor>::TAG => inki::" + structName(struct) + "::" + structName(struct) + "(<inki::" + structNameWrap(struct) + " as source::ParseFromKV>::parse(kv, pctx)),");
+                		sb.append(pfx).append("\t\t\t<inki::" + structName(struct) + " as source::InkiTypeDescriptor>::TAG => inki::" + structName(struct) + "::" + structName(struct) + "(<inki::" + structNameWrap(struct) + " as source::ParseFromKV>::parse(_kv, _pctx)),");
                 	else
                 		sb.append(pfx).append("\t\t\t<inki::" + structName(struct) + " as source::InkiTypeDescriptor>::TAG => inki::" + structName(struct) + "::" + structName(struct) + ",");
                 	
                 	for (Compiler.ParsedStruct child : struct.possibleChildren)
                 	{                		
-                    	sb.append(pfx).append("\t\t\t<inki::" + structName(child) + " as source::InkiTypeDescriptor>::TAG => inki::" + structName(struct) + "::" + structName(child) + "(<inki::" + structName(child) + " as source::ParseFromKV>::parse(kv, pctx)),");                		
+                    	sb.append(pfx).append("\t\t\t<inki::" + structName(child) + " as source::InkiTypeDescriptor>::TAG => inki::" + structName(struct) + "::" + structName(child) + "(<inki::" + structName(child) + " as source::ParseFromKV>::parse(_kv, _pctx)),");                		
                 	}                	
                 	sb.append(pfx).append("\t\t\t_ => Default::default()");
                 	sb.append(pfx).append("\t\t}");
@@ -509,11 +536,10 @@ public class RustGenerator
                     {                    	
                         if ((field.domains & Compiler.DOMAIN_OUTPUT) == 0)
                             continue;
-                        if (!first)
-                        	sb.append(",");
                         if (field.resolvedRefStruct != null && structNameWrap(field.resolvedRefStruct).length() == 0)
                         	continue;
-                                                
+                        if (!first)
+                        	sb.append(",");                                                
                         first = false;                                               
                     	sb.append(spfx).append(fieldName(field) + " : {");
                     	
@@ -528,8 +554,8 @@ public class RustGenerator
                     	
                       	switch (field.type)
                         {
+                        	case FLOAT:                      	
                         	case INT32:
-                        	case FLOAT:
                         	case BYTE: 
                         		sb.append("lexer::get_value(data, " + defaultValue(field) + ")");
                         		break;
@@ -551,7 +577,10 @@ public class RustGenerator
                     			sb.append("data.and_then(|v| { Some(putki_inki::ptr_from_data(_pctx, v)) }).unwrap_or_default()");
                         		break;
                         	case ENUM:
-                        		sb.append("inki::" + field.resolvedEnum.name + "::from(lexer::get_string(data, " + (field.defValue != null ? field.defValue : "\"\"") + ").as_ref())");
+                        		sb.append("inki::" + field.resolvedEnum.name + "::from(lexer::get_string(data, \"");
+                        		if (field.defValue != null) 
+                        			sb.append(field.defValue);
+                        		sb.append("\").as_ref())");
                         		break;                        		
                         	default:
                         		sb.append("Default::default()");                            	                        	

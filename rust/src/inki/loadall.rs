@@ -63,7 +63,6 @@ fn process_jsony_obj(base:&Path, file:&Path, idx: &mut LoadAll, ld:&lexer::Lexed
 									data: (*kv).clone()
 								};
 								let s = String::from(obj_ref);
-								println!("There was an object with a type [{}] and path [{}] in the file.", type_name, s);
 								idx.objs.insert(s, entry);
 							}
 						}
@@ -96,8 +95,7 @@ fn index_jsony_data(base:&Path, path:&Path, idx: &mut LoadAll) -> io::Result<()>
 fn collect_txty_inline_objs(idx: &mut LoadAll, obj: &lexer::LexedData)
 {
 	if let &lexer::LexedData::Object{ ref type_name, ref kv, ref id } = obj {
-		if !id.is_empty() {		
-			println!("There was an object with a type [{}] and path [{}] in the txty file.", type_name, id);
+		if !id.is_empty() {
 			idx.objs.insert(id.clone(), ObjEntry {
 				type_: type_name.clone(),
 				data: kv.clone()
