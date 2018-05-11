@@ -117,6 +117,7 @@ public class Compiler
 		public String loaderName;
 		public String typeFileEnding;
 		public Path genCodeRoot;
+		public Path putkiPath;
 		public List<ParsedFile> parsedFiles;
 		public HashMap<String, ParsedTree> deps;
 	}
@@ -639,6 +640,7 @@ public class Compiler
 			pt.typeFileEnding = "typedef";
 			pt.parsedFiles = new ArrayList<ParsedFile>();
 			pt.genCodeRoot = start.resolve("_gen");
+			pt.putkiPath = start;
 			pt.deps = new HashMap<>();
 
 			if (lines.size() > 0 && !lines.get(0).trim().equals("config-version:1.0"))
@@ -677,6 +679,10 @@ public class Compiler
 					{
 						pt.genCodeRoot = start.resolve(line.substring(8));
 					}
+					else if (line.startsWith("putkipath:"))
+					{
+						pt.putkiPath = start.resolve(line.substring(10));
+					}					
 					else if (line.startsWith("name:"))
 					{
 						pt.moduleName = line.substring(5);

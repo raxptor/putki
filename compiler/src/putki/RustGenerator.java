@@ -353,7 +353,7 @@ public class RustGenerator
         sb.append("version = \"0.1.0\"\n");
         sb.append("[lib]\n");
         sb.append("name = \"" + moduleName(tree.moduleName) + "\"\n");
-        sb.append("[dependencies]\r\nputki = { path = \"../../../../rust\" }");
+        sb.append("[dependencies]\r\nputki = { path = \""  + tree.putkiPath.resolve("rust").toAbsolutePath().toString().replaceAll("\\\\",  "/") + "\" }");
         writer.addOutput(mfn, sb.toString().getBytes());
     }
     
