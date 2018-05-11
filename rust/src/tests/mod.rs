@@ -44,7 +44,7 @@ impl source::InkiTypeDescriptor for PtrStruct1 {
 impl ParseFromKV for PointedTo {
 	fn parse(kv : &lexer::LexedKv, _pctx: &InkiPtrContext) -> Self {
 		return Self {
-			value : lexer::get_int(&kv, "Value", 0)
+			value : lexer::get_int(kv.get("Value"), 0)
 		}
 	}
 }
@@ -52,7 +52,7 @@ impl ParseFromKV for PointedTo {
 impl ParseFromKV for PtrStruct1 {
 	fn parse(kv : &lexer::LexedKv, _pctx: &InkiPtrContext) -> Self {
 		return Self {
-			ptr : Ptr::new(_pctx.clone(), lexer::get_string(&kv, "Ptr", "").as_str())
+			ptr : Ptr::new(_pctx.clone(), lexer::get_string(kv.get("Ptr"), "").as_str())
 		}
 	}
 }
