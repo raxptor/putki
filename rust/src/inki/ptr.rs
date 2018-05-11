@@ -97,6 +97,9 @@ impl<T> Ptr<T> where T : source::ParseFromKV + 'static
             }
         }
     }
+    pub fn unwrap(&self) -> Rc<T> {
+        return self.resolve().unwrap();
+    }
 }
 
 pub fn ptr_from_data<T>(context : &source::InkiPtrContext, ld:&lexer::LexedData) -> Ptr<T> where T : source::ParseFromKV {
