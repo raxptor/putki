@@ -87,7 +87,7 @@ impl<T> Ptr<T> where T : source::ParseFromKV + 'static
                     trk.follow(path);
                 }
                 if let source::ResolveStatus::Resolved(ptr) = source::resolve_from::<T>(context, path) {
-                    return Some(ptr.clone());
+                    return Some(ptr);
                 } else {
                     return None;
                 } 
@@ -101,6 +101,7 @@ impl<T> Ptr<T> where T : source::ParseFromKV + 'static
 
 pub fn ptr_from_data<T>(context : &source::InkiPtrContext, ld:&lexer::LexedData) -> Ptr<T> where T : source::ParseFromKV {
     match ld {
+        &lexer::LexedData::Value(ref path) => Ptr::new(context.clone(), path),
         &lexer::LexedData::StringLiteral(ref path) => Ptr::new(context.clone(), path),
         &lexer::LexedData::Object { ref type_name, ref kv, ref id } => Ptr::new_inline(context.clone(), kv, type_name, id),
         _ => Ptr::null()

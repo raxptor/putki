@@ -51,7 +51,7 @@ impl InkiResolver {
 }
 
 impl InkiResolver {
-	fn resolve<T>(ctx:&InkiPtrContext, path:&str) -> ResolveStatus<T> where T : ParseFromKV {
+	pub fn resolve<T>(ctx:&InkiPtrContext, path:&str) -> ResolveStatus<T> where T : ParseFromKV {
 		match ctx.source.loader.load(path)
 		{
 			Some((type_name, data)) => return ResolveStatus::Resolved(Rc::new(<T as ParseFromKV>::parse_with_type(data, ctx, type_name))),

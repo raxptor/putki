@@ -46,6 +46,10 @@
 	String = "hej alla glada åäö"	
 }
 
+@IDlgNode pure {
+
+}
+
 @Dialog dlg
 {
 	Id: "DIALOG HEJ",
@@ -54,8 +58,5 @@
 		Text = "hej",
 		Who = 0
 	},
-	Node2: @DlgMood {
-		Id = "dlgmoody"
-		Text = "maåäöp",		
-	}	
+	Node2: pure
 }
