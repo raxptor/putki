@@ -60,3 +60,8 @@
 	},
 	Node2: pure
 }
+
+@TestArrays testarrays {
+	ArrF : [9,3,5,1]
+	ArrB : [1,0,true,false,True,False]
+}

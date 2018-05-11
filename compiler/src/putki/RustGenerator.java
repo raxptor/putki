@@ -501,7 +501,7 @@ public class RustGenerator
                 {          
                     sb.append("\n");                 	
                 	sb.append(pfx).append("impl source::ParseFromKV for inki::" + structNameWrap(struct) + " {");
-                	sb.append(pfx).append("\tfn parse(_kv : &lexer::LexedKv, _pctx: &putki_inki::InkiPtrContext) -> Self {");
+                	sb.append(pfx).append("\tfn parse(_src : &lexer::LexedKv, _pctx: &putki_inki::InkiPtrContext) -> Self {");
                 	sb.append(pfx).append("\t\tSelf {");
                     String spfx = pfx + "\t\t\t";
                     boolean first = true;
@@ -513,35 +513,55 @@ public class RustGenerator
                         	sb.append(",");
                         if (field.resolvedRefStruct != null && structNameWrap(field.resolvedRefStruct).length() == 0)
                         	continue;
-                        first = false;
-                    	sb.append(spfx).append(fieldName(field) + " : ");
-                        switch (field.type)
+                                                
+                        first = false;                                               
+                    	sb.append(spfx).append(fieldName(field) + " : {");
+                    	
+                    	if (field.isArray)
+                    	{
+                    		sb.append("lexer::get_array(_src.get(\"" + field.name + "\")).and_then(|iter| { Some(iter.map(|da| { let data = Some(da); ");
+                    	}
+                    	else
+                    	{
+                    		sb.append("let data = _src.get(\"" + field.name + "\"); ");
+                    	}
+                    	
+                      	switch (field.type)
                         {
                         	case INT32:
                         	case FLOAT:
                         	case BYTE: 
-                        		sb.append("lexer::get_value(_kv, \"" + field.name + "\", " + defaultValue(field) + ")");
+                        		sb.append("lexer::get_value(data, " + defaultValue(field) + ")");
                         		break;
                         	case BOOL: 
-                        		sb.append("lexer::get_bool(_kv, \"" + field.name + "\", " + defaultValue(field) + ")");
+                        		sb.append("lexer::get_bool(data, " + defaultValue(field) + ")");
                         		break;
                         	case STRING:
-                        		sb.append("lexer::get_string(_kv, \"" + field.name + "\", " + (field.defValue != null ? field.defValue : "\"\"") + ")");
+                        		sb.append("lexer::get_string(data, " + (field.defValue != null ? field.defValue : "\"\"") + ")");
                         		break;
                         	case STRUCT_INSTANCE:
                         		if (!field.isParentField && (field.resolvedRefStruct.isTypeRoot || field.resolvedRefStruct.possibleChildren.size() > 0))
-                            		sb.append("<inki::" + structName(field.resolvedRefStruct) + " as source::ParseFromKV>::parse(_pctx, _kv.get(\"" + field.name + "\"))");
+                            		sb.append("<inki::" + structName(field.resolvedRefStruct) + " as source::ParseFromKV>::parse(_pctx, data)");
                         		else if (field.isParentField)
-                        			sb.append("<inki::" + structNameWrap(field.resolvedRefStruct) + " as source::ParseFromKV>::parse(lexer::get_kv(_kv, \"" + field.name + "\").unwrap_or(_kv), _pctx)");
+                        			sb.append("<inki::" + structNameWrap(field.resolvedRefStruct) + " as source::ParseFromKV>::parse(lexer::get_kv(data).unwrap_or(_src), _pctx)");
                        			else
-                        			sb.append("lexer::get_object(_kv, \"" + field.name + "\").and_then(|v| { Some(<inki::" + structNameWrap(field.resolvedRefStruct) + " as source::ParseFromKV>::parse(v.0, _pctx)) }).unwrap_or_default()");
+                        			sb.append("lexer::get_object(data).and_then(|v| { Some(<inki::" + structNameWrap(field.resolvedRefStruct) + " as source::ParseFromKV>::parse(v.0, _pctx)) }).unwrap_or_default()");
                         		break;
                         	case POINTER:
-                    			sb.append("_kv.get(\"" + field.name + "\").and_then(|v| { Some(putki_inki::ptr_from_data(_pctx, v)) }).unwrap_or_default()");
+                    			sb.append("data.and_then(|v| { Some(putki_inki::ptr_from_data(_pctx, v)) }).unwrap_or_default()");
                         		break;
+                        	case ENUM:
+                        		sb.append("inki::" + field.resolvedEnum.name + "::from(lexer::get_string(data, " + (field.defValue != null ? field.defValue : "\"\"") + ").as_ref())");
+                        		break;                        		
                         	default:
                         		sb.append("Default::default()");                            	                        	
-                        }
+                        }                    	
+           
+                		sb.append("}");                    	                		                    	
+                    	if (field.isArray)
+                    	{
+                    		sb.append(").collect())}).unwrap_or_default()}");
+                    	}                		
                     }    
                 	sb.append(pfx).append("\t\t}");                	                  
                 	sb.append(pfx).append("\t}");

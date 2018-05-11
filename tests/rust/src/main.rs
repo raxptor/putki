@@ -47,6 +47,12 @@ pub fn main()
         _ => println!("i got nothing!")
     }
 
+    let ta : pinki::ResolveStatus<inki::TestArrays> = pinki::InkiResolver::resolve(&resolveContext, "testarrays");
+    match ta {
+        pinki::ResolveStatus::Resolved(m) => println!("I got arrays with length {:?} and {:?}", m.arr_f, m.arr_b),
+        _ => println!("i got nothing!")
+    }    
+
     let dlg : pinki::ResolveStatus<inki::Dialog> = pinki::InkiResolver::resolve(&resolveContext, "dlg");
     match dlg
     {

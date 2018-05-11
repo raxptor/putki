@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::vec::Vec;
 use std::str::FromStr;
 use std::default;
+use std::slice;
 
 #[derive(Clone)]
 pub enum LexedData
@@ -45,73 +46,57 @@ fn parse_val<T : FromStr + Default>(val: &LexedData) -> T
 	return Default::default();
 }
 
-pub fn get_value<T>(kv: &LexedKv, name: &str, default: T) -> T where T : Default + FromStr
+pub fn get_value<T>(data: Option<&LexedData>, default: T) -> T where T : Default + FromStr
 {
-	match &kv.get(name) {
-		&Some(ref val) => {
-			return parse_val(val);
-		}
-		_ => { }
-	}	
-	return default;
+	data.map(|v| { parse_val(v) }).unwrap_or(default)
 }
 
-pub fn get_int(kv: &LexedKv, name: &str, default: i32) -> i32
+pub fn get_int(data: Option<&LexedData>, default: i32) -> i32
 {
-	match &kv.get(name) {
-		&Some(ref val) => {
-			return parse_val(val);
-		}
-		_ => { }
-	}	
-	return default;
+	data.map(|v| { parse_val(v) }).unwrap_or(default)
 }
 
-pub fn get_bool(kv: &LexedKv, name: &str, default: bool) -> bool
+pub fn get_bool(data: Option<&LexedData>, default: bool) -> bool
 {
-	match kv.get(name) {
-		Some(ref val) => {
-			match val {
-				&&LexedData::Value(ref x) => {
-					match x.as_ref() {
-						"True" => return true,
-						"true" => return true,
-						"1" => return true,
-						_ => return false
-					}
-				}
-				_ => return false
-			}
-		}
-		None => return default
-	}	
-}
-
-pub fn get_string(kv: &LexedKv, name: &str, default: &str) -> String
-{
-	match kv.get(name) {
-		Some(ref val) => {
-			match val {
-				&&LexedData::StringLiteral(ref x) => {
-					return (*x).to_string()
-				}
-				_ => { 
-					return default.to_string()
+	data.and_then(|val| {
+		match val {
+			&LexedData::Value(ref x) => {
+				match x.as_ref() {
+					"True" => return Some(true),
+					"true" => return Some(true),
+					"1" => return Some(true),
+					_ => return None
 				}
 			}
+			_ => return None
 		}
-		None => return default.to_string()
-	}	
+	}).unwrap_or(default)
 }
 
-pub fn skitkorv()
+pub fn get_string(data: Option<&LexedData>, default: &str) -> String
 {
-
+	data.map(|val| {
+		match val {
+			&LexedData::Value(ref x) => x.clone(),
+			&LexedData::StringLiteral(ref x) => x.clone(),
+			_ => String::from(default)
+		}
+	}).unwrap_or(String::from(default))
 }
 
-pub fn get_object<'a>(kv: &'a LexedKv, name: &str) -> Option<(&'a LexedKv, &'a str)>
+pub fn get_array<'a>(data: Option<&'a LexedData>) -> Option<slice::Iter<'a, LexedData>>
 {
-	kv.get(name).and_then(|val| {
+	data.and_then(|v| { 
+		match v {
+			&LexedData::Array(ref arr) => Some(arr.iter()),
+			_ => None
+		}
+	})
+}
+
+pub fn get_object<'a>(data: Option<&'a LexedData>) -> Option<(&'a LexedKv, &'a str)>
+{
+	data.and_then(|val| {
 		match val {
 			&LexedData::Object{ref kv, ref type_name, ..} => Some((kv, type_name.as_ref())),
 			_ => None
@@ -119,9 +104,9 @@ pub fn get_object<'a>(kv: &'a LexedKv, name: &str) -> Option<(&'a LexedKv, &'a s
 	})
 }
 
-pub fn get_kv<'a>(kv: &'a LexedKv, name: &str) -> Option<&'a LexedKv>
+pub fn get_kv<'a>(data: Option<&'a LexedData>) -> Option<&'a LexedKv>
 {
-	kv.get(name).and_then(|val| {
+	data.and_then(|val| {
 		match val {
 			&LexedData::Object{ref kv, ..} => Some(kv),
 			_ => None
