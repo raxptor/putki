@@ -1,7 +1,6 @@
 use inki::lexer;
 use std::boxed::Box;
 use std::rc::Rc;
-use shared;
 
 pub enum ResolveStatus<T> {
     Resolved(Rc<T>),

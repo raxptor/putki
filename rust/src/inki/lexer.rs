@@ -104,6 +104,31 @@ pub fn get_string(kv: &LexedKv, name: &str, default: &str) -> String
 	}	
 }
 
+pub fn skitkorv()
+{
+
+}
+
+pub fn get_object<'a>(kv: &'a LexedKv, name: &str) -> Option<(&'a LexedKv, &'a str)>
+{
+	kv.get(name).and_then(|val| {
+		match val {
+			&LexedData::Object{ref kv, ref type_name, ..} => Some((kv, type_name.as_ref())),
+			_ => None
+		}
+	})
+}
+
+pub fn get_kv<'a>(kv: &'a LexedKv, name: &str) -> Option<&'a LexedKv>
+{
+	kv.get(name).and_then(|val| {
+		match val {
+			&LexedData::Object{ref kv, ..} => Some(kv),
+			_ => None
+		}
+	})
+}
+
 fn make_parse_error(err: &str) -> ScanResult
 {
 	println!("Parse error. {}", err);

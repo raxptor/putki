@@ -417,7 +417,48 @@ public class RustGenerator
                     sb.append("\n");                 	
                 	sb.append(pfx).append("impl source::ParseFromKV for inki::" + structNameWrap(struct) + " {");
                 	sb.append(pfx).append("\tfn parse(_kv : &lexer::LexedKv, _pctx: &putki_inki::InkiPtrContext) -> Self {");
-                	sb.append(pfx).append("\t\tDefault::default()");                	
+                	sb.append(pfx).append("\t\tSelf {");
+                    String spfx = pfx + "\t\t\t";
+                    boolean first = true;
+                    for (Compiler.ParsedField field : struct.fields)
+                    {                    	
+                        if ((field.domains & Compiler.DOMAIN_OUTPUT) == 0)
+                            continue;
+                        if (!first)
+                        	sb.append(",");
+                        if (field.resolvedRefStruct != null && structNameWrap(field.resolvedRefStruct).length() == 0)
+                        	continue;
+                        first = false;
+                    	sb.append(spfx).append(fieldName(field) + " : ");
+                        switch (field.type)
+                        {
+                        	case INT32:
+                        	case FLOAT:
+                        	case BYTE: 
+                        		sb.append("lexer::get_value(_kv, \"" + field.name + "\", " + defaultValue(field) + ")");
+                        		break;
+                        	case BOOL: 
+                        		sb.append("lexer::get_bool(_kv, \"" + field.name + "\", " + defaultValue(field) + ")");
+                        		break;
+                        	case STRING:
+                        		sb.append("lexer::get_string(_kv, \"" + field.name + "\", " + (field.defValue != null ? field.defValue : "\"\"") + ")");
+                        		break;
+                        	case STRUCT_INSTANCE:
+                        		if (!field.isParentField && (field.resolvedRefStruct.isTypeRoot || field.resolvedRefStruct.possibleChildren.size() > 0))
+                            		sb.append("<inki::" + structName(field.resolvedRefStruct) + " as source::ParseFromKV>::parse(_pctx, _kv.get(\"" + field.name + "\"))");
+                        		else if (field.isParentField)
+                        			sb.append("<inki::" + structNameWrap(field.resolvedRefStruct) + " as source::ParseFromKV>::parse(lexer::get_kv(_kv, \"" + field.name + "\").unwrap_or(_kv), _pctx)");
+                       			else
+                        			sb.append("lexer::get_object(_kv, \"" + field.name + "\").and_then(|v| { Some(<inki::" + structNameWrap(field.resolvedRefStruct) + " as source::ParseFromKV>::parse(v.0, _pctx)) }).unwrap_or_default()");
+                        		break;
+                        	case POINTER:
+                    			sb.append("_kv.get(\"" + field.name + "\").and_then(|v| { Some(putki_inki::ptr_from_data(_pctx, v)) }).unwrap_or_default()");
+                        		break;
+                        	default:
+                        		sb.append("Default::default()");                            	                        	
+                        }
+                    }    
+                	sb.append(pfx).append("\t\t}");                	                  
                 	sb.append(pfx).append("\t}");
                 	sb.append(pfx).append("}");                	
                 }                
@@ -426,46 +467,7 @@ public class RustGenerator
         /*
                 sb.append(pfx).append("\t{");
                 sb.append(pfx).append("\t\treturn mixki::" + structNameWrap(struct) + " {");
-                String spfx = pfx + "\t\t\t";
-                boolean first = true;
-                for (Compiler.ParsedField field : struct.fields)
-                {                    	
-                    if ((field.domains & Compiler.DOMAIN_OUTPUT) == 0)
-                        continue;
-                    if (field.isParentField)
-                    	continue;
-                    
-                        
-                    if (!first)
-                    	sb.append(",");
-                    first = false;
-                	sb.append(spfx).append(fieldName(field) + " : ");
-                    switch (field.type)
-                    {
-                    	case INT32:
-                    	case FLOAT:
-                    	case BYTE: 
-                    		sb.append("lexer::get_value(_obj, \"" + field.name + "\", " + defaultValue(field) + ")");
-                    		break;
-                    	case BOOL: 
-                    		sb.append("lexer::get_bool(_obj, \"" + field.name + "\", " + defaultValue(field) + ")");
-                    		break;
-                    	case STRING:
-                    		sb.append("lexer::get_string(_obj, \"" + field.name + "\", " + (field.defValue != null ? field.defValue : "\"\"") + ")");
-                    		break;
-                    	case STRUCT_INSTANCE:
-                    		sb.append("mixki::" + structName(field.resolvedRefStruct) + "::parse_or_default(_ctx, _obj.get(\"" + field.name + "\"))");
-                    		break;
-                    	case POINTER:
-                    		if (field.allowNull)
-                    			sb.append("_obj.get(\"" + field.name + "\").and_then(|v| { return parser::resolve_from_value(_ctx, v); })");
-                    		else
-                    			sb.append("_obj.get(\"" + field.name + "\").and_then(|v| { return parser::resolve_from_value(_ctx, v); }).unwrap_or_default()");
-                    		break;
-                    	default:
-                    		sb.append("Default::default()");                            	                        	
-                    }
-                }         
+
                 sb.append(pfx).append("\t\t}");
                 sb.append(pfx).append("\t}");                                        
                 sb.append(pfx).append("}");                    
