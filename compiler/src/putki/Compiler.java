@@ -894,7 +894,6 @@ public class Compiler
 		}
 
 		CodeWriter writer = new CodeWriter();
-		RustGenerator.generateCrate(c, writer);
 		CSharpGenerator.generateMixkiParsers(c, writer);
 		CSharpGenerator.generateOutkiStructs(c, writer);
 		if (!c.mixkiOnly)
@@ -907,6 +906,7 @@ public class Compiler
 		CppGenerator.generateInkiImplementation(c, writer);
 		CppGenerator.generateOutkiHeader(c, writer);
 		CppGenerator.generateOutkiImplementation(c, writer);
+		RustGenerator.generateCrate(c, writer);
 		writer.write();
 	}
 }
