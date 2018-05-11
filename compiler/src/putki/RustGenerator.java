@@ -406,9 +406,27 @@ public class RustGenerator
                 {
                     sb.append("\n");                 	
                 	sb.append(pfx).append("impl source::ParseFromKV for inki::" + structName(struct) + " {");
-                	sb.append(pfx).append("\tfn parse(_kv : &lexer::LexedKv, _pctx: &putki_inki::InkiPtrContext) -> Self {");
-                	sb.append(pfx).append("\t\tDefault::default()");                	
+                	sb.append(pfx).append("\tfn parse_with_type(kv : &lexer::LexedKv, pctx: &putki_inki::InkiPtrContext, type_name:&str) -> Self {");
+                	sb.append(pfx).append("\t\tmatch type_name {");
+                	
+                	if (structNameWrap(struct).length() > 0)
+                		sb.append(pfx).append("\t\t\t<inki::" + structName(struct) + " as source::InkiTypeDescriptor>::TAG => inki::" + structName(struct) + "::" + structName(struct) + "(<inki::" + structNameWrap(struct) + " as source::ParseFromKV>::parse(kv, pctx)),");
+                	else
+                		sb.append(pfx).append("\t\t\t<inki::" + structName(struct) + " as source::InkiTypeDescriptor>::TAG => inki::" + structName(struct) + "::" + structName(struct) + ",");
+                	
+                	for (Compiler.ParsedStruct child : struct.possibleChildren)
+                	{                		
+                    	sb.append(pfx).append("\t\t\t<inki::" + structName(child) + " as source::InkiTypeDescriptor>::TAG => inki::" + structName(struct) + "::" + structName(child) + "(<inki::" + structName(child) + " as source::ParseFromKV>::parse(kv, pctx)),");                		
+                	}                	
+                	sb.append(pfx).append("\t\t\t_ => Default::default()");
+                	sb.append(pfx).append("\t\t}");
                 	sb.append(pfx).append("\t}");
+                	sb.append(pfx).append("\tfn parse(_kv : &lexer::LexedKv, _pctx: &putki_inki::InkiPtrContext) -> Self {");
+                	if (structNameWrap(struct).length() > 0)
+                		sb.append(pfx).append("\t\tinki::" + structName(struct) + "::" + structName(struct) + "(<inki::" + structNameWrap(struct) + " as source::ParseFromKV>::parse(_kv, _pctx))");
+                	else
+                		sb.append(pfx).append("\t\tinki::" + structName(struct) + "::" + structName(struct));
+                	sb.append(pfx).append("\t}");                	
                 	sb.append(pfx).append("}");                	
                 }
                 

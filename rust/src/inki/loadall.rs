@@ -8,7 +8,6 @@ use std::path::Path;
 use std::io::BufReader;
 use std::io::prelude::*;
 
-
 pub struct ObjEntry {
 	type_: String,
 	data: lexer::LexedKv	
