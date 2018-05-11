@@ -1,3 +1,18 @@
+IScriptNode rtti no-asset
+{
+
+}
+
+Scropt : IScriptNode
+{
+
+}
+
+Scrupt : IScriptNode
+{
+    
+}
+
 IDlgNode rtti no-asset
 {
     string Id

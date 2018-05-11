@@ -1,0 +1,61 @@
+@Main main1 
+{
+	Value = 1111
+}
+
+@Main main2
+{
+	Value = 2222
+}
+
+@PointerContainer pc1 
+{
+	Optional: "main1"
+	Required: "main2"
+}
+
+@PointerContainer pc2
+{
+	Optional: "main2"
+	Required: "main1"
+}
+
+@PointerContainer pc3
+{
+	Required: @Main {
+		Value = 54321
+	}	
+	Optional: {
+		Value = 65432
+	}	
+}
+
+@StructContainer sc1
+{
+	Main: {
+		Value = 33
+	}
+}
+
+@TestTypes tt1
+{
+	Int = 1
+	Float = 3.839
+	Bool = True
+	Byte = 3
+	String = "hej alla glada åäö"	
+}
+
+@Dialog dlg
+{
+	Id: "DIALOG HEJ",
+	Node1: @DlgSay {
+		Id = "dlgsay"
+		Text = "hej",
+		Who = 0
+	},
+	Node2: @DlgMood {
+		Id = "dlgmoody"
+		Text = "maåäöp",		
+	}	
+}

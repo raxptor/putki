@@ -31,12 +31,12 @@ struct PtrStruct1 {
     pub ptr: Ptr<PointedTo>
 }
 
-impl shared::InkiTypeDescriptor for PointedTo {
+impl source::InkiTypeDescriptor for PointedTo {
 	const TAG : &'static str = "PointedTo";
 	type OutkiType = ();
 }
 
-impl shared::InkiTypeDescriptor for PtrStruct1 {
+impl source::InkiTypeDescriptor for PtrStruct1 {
 	const TAG : &'static str = "PtrStruct1";
 	type OutkiType = ();
 }

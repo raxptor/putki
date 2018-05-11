@@ -9,15 +9,20 @@ pub enum ResolveStatus<T> {
     Null
 }
 
+pub trait InkiTypeDescriptor {
+    const TAG : &'static str;
+    type OutkiType;
+}
+
 pub trait ObjectLoader {
 	fn load(&self, path: &str) -> Option<(&str, &lexer::LexedKv)>;
 }
 
-pub trait ParseFromKV where Self:Sized + shared::InkiTypeDescriptor {
+pub trait ParseFromKV where Self:Sized + InkiTypeDescriptor {
 	fn parse(kv : &lexer::LexedKv, pctx: &InkiPtrContext) -> Self;
 	fn parse_with_type(kv : &lexer::LexedKv, pctx: &InkiPtrContext, type_name:&str) -> Self {
-		if <Self as shared::InkiTypeDescriptor>::TAG != type_name {
-			println!("Mismatched type in parse_with_type {} vs {}", type_name, <Self as shared::InkiTypeDescriptor>::TAG);
+		if <Self as InkiTypeDescriptor>::TAG != type_name {
+			println!("Mismatched type in parse_with_type {} vs {}", type_name, <Self as InkiTypeDescriptor>::TAG);
 		}		
 		<Self as ParseFromKV>::parse(kv, pctx)
 	}
@@ -55,6 +60,7 @@ impl InkiResolver {
 		}
 	}
 }
+
 pub fn resolve_from<T>(ctx: &InkiPtrContext, path:&str) -> ResolveStatus<T> where T : ParseFromKV + 'static
 {	
 	return InkiResolver::resolve(ctx, path);
