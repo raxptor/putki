@@ -18,6 +18,11 @@ pub trait OutkiTypeDescriptor {
     const SIZE : usize;
 }
 
+pub trait InkiTypeDescriptor {
+    const TAG : &'static str;
+    type OutkiType;
+}
+
 pub struct BinLayout { }
 pub struct JsonLayout { }
 

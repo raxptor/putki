@@ -32,7 +32,7 @@ struct ObjEntry
 
 pub struct BuildContext<'a>
 {
-    loader: &'a inki::SourceLoader
+    resolver: &'a inki::InkiResolver
 }
 
 pub struct BuildRecord<'a>

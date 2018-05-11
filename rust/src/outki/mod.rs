@@ -1,19 +1,20 @@
 use std::rc::Rc;
-use std::any::Any;
 use std::marker::PhantomData;
 use shared;
 
-pub struct RefsSource<'a, TR, Layout> where TR: 'a, Layout : shared::Layout {
-    mgr: &'a PackageManager<TR, Layout>,
+pub struct RefsSource<'a, Layout> where Layout : shared::Layout {
+    mgr: &'a PackageManager<Layout>,
     package: u32
 }
 
-pub trait TypeResolver<Layout> where Layout : shared::Layout {
-    fn unpack_with_type(pkg:&RefsSource<Self, Layout>, data:&[u8], type_name:&str) -> Option<Rc<Any>> where Self : Sized;
-}
-
-pub trait UnpackWithRefs<TR, Layout> where Layout : shared::Layout {
-    fn unpack(pkg:&RefsSource<TR, Layout>, data:&[u8]) -> Self;
+pub trait UnpackWithRefs<Layout> where Layout : shared::Layout, Self : Sized + shared::OutkiTypeDescriptor {
+    fn unpack(pkg:&RefsSource<Layout>, data:&[u8]) -> Self;
+    fn unpack_with_type(pkg:&RefsSource<Layout>, data:&[u8], type_name:&str) -> Self {
+        if type_name != <Self as shared::OutkiTypeDescriptor>::TAG {
+            println!("unpack_with_type: Saw type {}, but i impl for {}", type_name, <Self as shared::OutkiTypeDescriptor>::TAG);
+        }                    
+        return <Self as UnpackWithRefs<Layout>>::unpack(pkg, data);
+    }
 }
 
 pub trait UnpackStatic<Layout> {
@@ -28,9 +29,15 @@ impl UnpackStatic<shared::BinLayout> for i32 {
     fn unpack(data:&[u8]) -> Self { return <u32 as UnpackStatic<shared::BinLayout>>::unpack(data) as i32; }
 }
 
-impl<TR, Layout, T> UnpackWithRefs<TR, Layout> for Option<Rc<T>> where Layout : shared::Layout, u32: UnpackStatic<Layout>, T : UnpackWithRefs<TR, Layout> + 'static, TR : TypeResolver<Layout> {
-    fn unpack(pkg:&RefsSource<TR, Layout>, data:&[u8]) -> Self {
-        return PackageManager::obj_from_slot(pkg, <u32 as UnpackStatic<Layout>>::unpack(data)).and_then(|x| { x.downcast::<T>().ok() });
+impl<T> shared::OutkiTypeDescriptor for Option<Rc<T>>
+{
+    const TAG : &'static str = "Option<Rc<T>> placeholder";
+    const SIZE : usize = 0;
+}
+
+impl<Layout, T> UnpackWithRefs<Layout> for Option<Rc<T>> where Layout : shared::Layout, u32: UnpackStatic<Layout>, T : shared::OutkiTypeDescriptor + UnpackWithRefs<Layout> + 'static {
+    fn unpack(pkg:&RefsSource<Layout>, data:&[u8]) -> Self {
+        return PackageManager::obj_from_slot(pkg, <u32 as UnpackStatic<Layout>>::unpack(data));
     }
 }
 
@@ -73,34 +80,32 @@ impl Package {
     }
 }
 
-pub struct PackageManager<TypeResolver, Layout> {
+pub struct PackageManager<Layout> {
     packages: Vec<Package>,
-    _m0: PhantomData<TypeResolver>,
     _m1: PhantomData<Layout>
 }
 
 // TypeResolver impl knows how map type name strings to unpack implementations
 // Layout defines how to serialize
-impl<TR, Layout> PackageManager<TR, Layout> where TR : TypeResolver<Layout>, Layout : shared::Layout
+impl<Layout> PackageManager<Layout> where Layout : shared::Layout
 {
-    pub fn new() -> PackageManager<TR, Layout> { PackageManager {
+    pub fn new() -> PackageManager<Layout> { PackageManager {
         packages: Vec::new(),
-        _m0: PhantomData,
         _m1: PhantomData
     }}
 
     pub fn insert(&mut self, p:Package) { self.packages.push(p); }
-    pub fn resolve<T>(&self, path:&str) -> Option<Rc<T>> where T : 'static { 
+    pub fn resolve<T>(&self, path:&str) -> Option<Rc<T>> where T : 'static, T : shared::OutkiTypeDescriptor, T : UnpackWithRefs<Layout> { 
         for ref p in &self.packages {
             for idx in 0 .. p.slots.len() {
                 let s = &p.slots[idx];
                 if let &Some(ref pth) = &s.path {
                     if pth == path {
-                        let rs:RefsSource<TR, Layout> = RefsSource {
+                        let rs:RefsSource<Layout> = RefsSource {
                             mgr: self,
                             package: 0
                         };
-                        return Self::obj_from_slot(&rs, idx as u32).and_then(|x| { return x.downcast::<T>().ok() });;
+                        return Self::obj_from_slot(&rs, idx as u32);
                     }
                 }
             }
@@ -108,7 +113,7 @@ impl<TR, Layout> PackageManager<TR, Layout> where TR : TypeResolver<Layout>, Lay
         return None;
     }
 
-    fn obj_from_slot<'a>(refs:&RefsSource<'a, TR, Layout>, slot:u32) -> Option<Rc<Any>> where Layout : shared::Layout {
+    fn obj_from_slot<'a, T>(refs:&RefsSource<'a, Layout>, slot:u32) -> Option<Rc<T>> where Layout : shared::Layout, T : UnpackWithRefs<Layout>, T : shared::OutkiTypeDescriptor {
         let pkg = &refs.mgr.packages[refs.package as usize];
         let slotidx = slot as usize;
         if slotidx >= pkg.slots.len() {
@@ -116,11 +121,9 @@ impl<TR, Layout> PackageManager<TR, Layout> where TR : TypeResolver<Layout>, Lay
         }         
         if let &Some(ref data) = &pkg.content {
             let s = &pkg.slots[slotidx];
-            println!("Unpacking object at slot {}, byte range [{}..{}] in package {} with type {}", slot, s.begin, s.end, slotidx, s.type_name);
-            return TR::unpack_with_type(&refs, &data[s.begin .. s.end], s.type_name.as_str());
+             println!("Unpacking object at slot {}, byte range [{}..{}] in package {} with type {}", slot, s.begin, s.end, slotidx, s.type_name);
+            return Some(Rc::new(<T as UnpackWithRefs<Layout>>::unpack_with_type(&refs, &data[s.begin .. s.end], &s.type_name)));
         }
         return None;
     }
 }
-
-

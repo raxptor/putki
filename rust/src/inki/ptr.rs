@@ -36,7 +36,7 @@ impl<T> Ptr<T> where T : source::ParseFromKV + 'static
         if let &Some(ref trk) = &self.context.tracker {
             trk.follow(&self.path);
         }
-        if let source::ResolveStatus::Resolved(ptr) = source::resolve_from(&self.context.source, &self.context, &self.path) {
+        if let source::ResolveStatus::Resolved(ptr) = source::resolve_from(&self.context, &self.path) {
             return Some(ptr);
         }
         return None;

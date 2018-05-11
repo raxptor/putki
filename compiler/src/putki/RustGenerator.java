@@ -168,154 +168,157 @@ public class RustGenerator
 		return enumValue(s.name);
 	}*/	
 	
-    public static void generateRustRoot(Compiler comp, CodeWriter writer)
-    {
-        Path lib = tree.genCodeRoot.resolve("rust").resolve("src");
-        Path fn = lib.resolve("lib.rs");
-        StringBuilder sb = new StringBuilder();
-        sb.append("mod inki");
-        writer.addOutput(fn, sb.toString().getBytes());        
-    }
-
-    public static void generateInkiStructs(Compiler comp, CodeWriter writer)
+    public static void generateCrate(Compiler comp, CodeWriter writer)
     {
         for (Compiler.ParsedTree tree : comp.allTrees())
+        {    	
+	        Path lib = tree.genCodeRoot.resolve("rust").resolve("src");
+	        Path fn = lib.resolve("lib.rs");
+	        StringBuilder sb = new StringBuilder();
+	        sb.append("mod inki;");
+	        writer.addOutput(fn, sb.toString().getBytes());
+	        generateInkiStructs(comp, tree, writer);
+        }
+    }
+
+    public static void generateInkiStructs(Compiler comp, Compiler.ParsedTree tree, CodeWriter writer)
+    {
+        Path lib = tree.genCodeRoot.resolve("rust").resolve("src");
+        Path fn = lib.resolve("inki.rs");
+        StringBuilder sb = new StringBuilder();
+        sb.append("#![feature(rc_downcast)]");
+        sb.append("\n#![allow(unused_imports)]");            
+        sb.append("\n#[macro_use]");
+        sb.append("\nextern crate putki;"); 
+        sb.append("\n");            
+        sb.append("\nmod parse;");
+        sb.append("\npub mod mixki");
+        sb.append("\n{");
+        sb.append("\n\tuse std::rc;");
+        sb.append("\n\tuse std::any;");
+        sb.append("\n\tuse std::default;");            
+        sb.append("\n\tuse std::vec;");            
+        sb.append("\n\tpub use parse::*;");
+        sb.append("\n\tpub use putki::mixki::parser;");
+        sb.append("\n\tpub use putki::mixki::rtti;");
+
+        for (Compiler.ParsedFile file : tree.parsedFiles)
         {
-            Path lib = tree.genCodeRoot.resolve("rust").resolve("src");
-            Path fn = lib.resolve("inki.rs");
-            StringBuilder sb = new StringBuilder();
-            sb.append("#![feature(rc_downcast)]");
-            sb.append("\n#![allow(unused_imports)]");            
-            sb.append("\n#[macro_use]");
-            sb.append("\nextern crate putki;"); 
-            sb.append("\n");            
-            sb.append("\nmod parse;");
-            sb.append("\npub mod mixki");
-            sb.append("\n{");
-            sb.append("\n\tuse std::rc;");
-            sb.append("\n\tuse std::any;");
-            sb.append("\n\tuse std::default;");            
-            sb.append("\n\tuse std::vec;");            
-            sb.append("\n\tpub use parse::*;");
-            sb.append("\n\tpub use putki::mixki::parser;");
-            sb.append("\n\tpub use putki::mixki::rtti;");
 
-            for (Compiler.ParsedFile file : tree.parsedFiles)
-            {
-
-        		for (Compiler.ParsedStruct struct : file.structs)
-        		{
-                	String pfx = "\n\t";                
-                    if ((struct.domains & Compiler.DOMAIN_OUTPUT) == 0)
-                        continue;                    
-                    
-                    sb.append(pfx).append("pub struct " + structName(struct));
-                    if (struct.possibleChildren.size() > 0 || struct.isTypeRoot)
-                    {
-                        sb.append(pfx).append("{");
-                        sb.append(pfx).append("\tpub inner: " + structNameWrap(struct) + ",");
-                        sb.append(pfx).append("\tpub type_id: i32,");
-                        sb.append(pfx).append("\tpub child: rc::Rc<any::Any>");
-                        sb.append(pfx).append("}");
-                        sb.append(pfx).append("impl parser::TypeId for " + structNameWrap(struct) + " { const TYPE_ID: i32 = -" + struct.uniqueId + "; }");
-                    	sb.append(pfx).append("pub struct " + structNameWrap(struct));
-                    }
-
-                    sb.append(pfx).append("{");
-                    
-                    boolean first = true;
-                    
-                    String spfx = pfx + "\t";           
-                    for (Compiler.ParsedField field : struct.fields)
-                    {
-                    	
-                        if ((field.domains & Compiler.DOMAIN_OUTPUT) == 0)
-                            continue;
-                        if (field.isParentField)
-                        	continue;
-                        if (!first)
-                        	sb.append(",");
-                        first = false;
-                        
-                    	sb.append(spfx).append("pub " + fieldName(field) + " : ");
-                        if (field.isArray) sb.append("vec::Vec<");
-                    	sb.append(outkiFieldType(field));
-                        if (field.isArray) sb.append(">");
-                    }
+    		for (Compiler.ParsedStruct struct : file.structs)
+    		{
+            	String pfx = "\n\t";                
+                if ((struct.domains & Compiler.DOMAIN_OUTPUT) == 0)
+                    continue;                    
                 
+                sb.append(pfx).append("pub struct " + structName(struct));
+                if (struct.possibleChildren.size() > 0 || struct.isTypeRoot)
+                {
+                    sb.append(pfx).append("{");
+                    sb.append(pfx).append("\tpub inner: " + structNameWrap(struct) + ",");
+                    sb.append(pfx).append("\tpub type_id: i32,");
+                    sb.append(pfx).append("\tpub child: rc::Rc<any::Any>");
                     sb.append(pfx).append("}");
-                    sb.append(pfx).append("impl parser::TypeId for " + structName(struct) + " { const TYPE_ID: i32 = -" + struct.uniqueId + "; }");
-        		}
-        		
-        		for (Compiler.ParsedStruct struct : file.structs)
-        		{
-                	String pfx = "\n\t";                
-                    if ((struct.domains & Compiler.DOMAIN_OUTPUT) == 0)
+                    sb.append(pfx).append("impl parser::TypeId for " + structNameWrap(struct) + " { const TYPE_ID: i32 = -" + struct.uniqueId + "; }");
+                	sb.append(pfx).append("pub struct " + structNameWrap(struct));
+                }
+
+                sb.append(pfx).append("{");
+                
+                boolean first = true;
+                
+                String spfx = pfx + "\t";           
+                for (Compiler.ParsedField field : struct.fields)
+                {
+                	
+                    if ((field.domains & Compiler.DOMAIN_OUTPUT) == 0)
                         continue;
+                    if (field.isParentField)
+                    	continue;
+                    if (!first)
+                    	sb.append(",");
+                    first = false;
                     
-                    if (struct.possibleChildren.size() > 0 || struct.isTypeRoot)
-                    {
-                    	sb.append(pfx).append("impl default::Default for " + structName(struct));
-                        sb.append(pfx).append("{");
-                        sb.append(pfx).append("\tfn default() -> Self {");    
-                        sb.append(pfx).append("\t\treturn " + structName(struct) + " {");
-                        sb.append(pfx).append("\t\t\tchild: rc::Rc::new(0),");
-                        sb.append(pfx).append("\t\t\ttype_id: <Self as parser::TypeId>::TYPE_ID,");
-                        sb.append(pfx).append("\t\t\tinner: Default::default()");
-                        sb.append(pfx).append("\t\t}");
-                        sb.append(pfx).append("\t}");                    
-                        sb.append(pfx).append("}");                    
-                    }
-                    
-                	sb.append(pfx).append("impl default::Default for " + structNameWrap(struct));
+                	sb.append(spfx).append("pub " + fieldName(field) + " : ");
+                    if (field.isArray) sb.append("vec::Vec<");
+                	sb.append(outkiFieldType(field));
+                    if (field.isArray) sb.append(">");
+                }
+            
+                sb.append(pfx).append("}");
+                sb.append(pfx).append("impl parser::TypeId for " + structName(struct) + " { const TYPE_ID: i32 = -" + struct.uniqueId + "; }");
+    		}
+    		
+    		for (Compiler.ParsedStruct struct : file.structs)
+    		{
+            	String pfx = "\n\t";                
+                if ((struct.domains & Compiler.DOMAIN_OUTPUT) == 0)
+                    continue;
+                
+                if (struct.possibleChildren.size() > 0 || struct.isTypeRoot)
+                {
+                	sb.append(pfx).append("impl default::Default for " + structName(struct));
                     sb.append(pfx).append("{");
                     sb.append(pfx).append("\tfn default() -> Self {");    
-                    sb.append(pfx).append("\t\treturn " + structNameWrap(struct) + " {");    
-                    boolean first = true;
-                    
-                    String spfx = pfx + "\t\t\t";           
-                    for (Compiler.ParsedField field : struct.fields)
-                    {
-                        if ((field.domains & Compiler.DOMAIN_OUTPUT) == 0)
-                            continue;
-                        if (field.isParentField)
-                        	continue;
-                        if (!first)
-                        	sb.append(",");
-                        first = false;                        
-                    	sb.append(spfx).append(fieldName(field) + " : " + defaultValue(field));
-                    }
-
+                    sb.append(pfx).append("\t\treturn " + structName(struct) + " {");
+                    sb.append(pfx).append("\t\t\tchild: rc::Rc::new(0),");
+                    sb.append(pfx).append("\t\t\ttype_id: <Self as parser::TypeId>::TYPE_ID,");
+                    sb.append(pfx).append("\t\t\tinner: Default::default()");
                     sb.append(pfx).append("\t\t}");
                     sb.append(pfx).append("\t}");                    
                     sb.append(pfx).append("}");                    
-                    if (struct.possibleChildren.size()>0 || struct.isTypeRoot)
-                    {
-                    	sb.append(pfx).append("impl_mixki_rtti!(" + struct.name + "Types, " + struct.name );
-                    	for (int i=0;i<struct.possibleChildren.size();i++)
-                    		sb.append(", " + structName(struct.possibleChildren.get(i)) + ", " + structName(struct.possibleChildren.get(i)));
-                    	sb.append(");");
-                    	sb.append(pfx);
-                    }
-        		}        		
-            }           
-            
-            sb.append("\n}\n");
-            writer.addOutput(fn, sb.toString().getBytes());
-            
-            Path manifest = tree.genCodeRoot.resolve("rust");
-            Path mfn = manifest.resolve("Cargo.toml");
-            sb = new StringBuilder();
-            sb.append("[package]\n");
-            sb.append("name = \"putki_gen\"\n");
-            sb.append("version = \"0.1.0\"\n");
-            sb.append("[lib]\n");
-            sb.append("name = \"" + moduleName(tree.moduleName) + "\"\n");
-            sb.append("[dependencies]\r\nputki = { path = \"../../../../rust\" }");
-            writer.addOutput(mfn, sb.toString().getBytes());
-        }
+                }
+                
+            	sb.append(pfx).append("impl default::Default for " + structNameWrap(struct));
+                sb.append(pfx).append("{");
+                sb.append(pfx).append("\tfn default() -> Self {");    
+                sb.append(pfx).append("\t\treturn " + structNameWrap(struct) + " {");    
+                boolean first = true;
+                
+                String spfx = pfx + "\t\t\t";           
+                for (Compiler.ParsedField field : struct.fields)
+                {
+                    if ((field.domains & Compiler.DOMAIN_OUTPUT) == 0)
+                        continue;
+                    if (field.isParentField)
+                    	continue;
+                    if (!first)
+                    	sb.append(",");
+                    first = false;                        
+                	sb.append(spfx).append(fieldName(field) + " : " + defaultValue(field));
+                }
+
+                sb.append(pfx).append("\t\t}");
+                sb.append(pfx).append("\t}");                    
+                sb.append(pfx).append("}");                    
+                if (struct.possibleChildren.size()>0 || struct.isTypeRoot)
+                {
+                	sb.append(pfx).append("impl_mixki_rtti!(" + struct.name + "Types, " + struct.name );
+                	for (int i=0;i<struct.possibleChildren.size();i++)
+                		sb.append(", " + structName(struct.possibleChildren.get(i)) + ", " + structName(struct.possibleChildren.get(i)));
+                	sb.append(");");
+                	sb.append(pfx);
+                }
+    		}        		
+        }           
+        
+        sb.append("\n}\n");
+        writer.addOutput(fn, sb.toString().getBytes());
+        
+        Path manifest = tree.genCodeRoot.resolve("rust");
+        Path mfn = manifest.resolve("Cargo.toml");
+        sb = new StringBuilder();
+        sb.append("[package]\n");
+        sb.append("name = \"putki_gen\"\n");
+        sb.append("version = \"0.1.0\"\n");
+        sb.append("[lib]\n");
+        sb.append("name = \"" + moduleName(tree.moduleName) + "\"\n");
+        sb.append("[dependencies]\r\nputki = { path = \"../../../../rust\" }");
+        writer.addOutput(mfn, sb.toString().getBytes());
     }
+}
     
+/*
     public static void generateParsers(Compiler comp, CodeWriter writer)
     {
         for (Compiler.ParsedTree tree : comp.allTrees())
@@ -335,19 +338,7 @@ public class RustGenerator
         	);
             
             sb.append("\n");
-
-            /*
-            for (Compiler.ParsedFile file : tree.parsedFiles)
-            {
-        		for (Compiler.ParsedStruct struct : file.structs)
-        		{
-                    if ((struct.domains & Compiler.DOMAIN_OUTPUT) == 0)
-                        continue;
-                	sb.append(", " + structName(struct));
-        		}
-            }
-            */
-                        
+          
             sb.append("pub struct ParseRc { }");
             
             sb.append("\nimpl<'a, 'b> parser::ParseGeneric<'a, 'b, ParseRc> for ParseRc {");
@@ -512,10 +503,8 @@ public class RustGenerator
                     sb.append(pfx).append("}");                    
         		}        		
             }           
-            */
             writer.addOutput(fn, sb.toString().getBytes());
         }
     }
+    */
     
-
-}

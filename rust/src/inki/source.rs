@@ -1,24 +1,27 @@
 use inki::lexer;
-use shared;
+use std::boxed::Box;
 use std::rc::Rc;
-use std::any::Any;
+use shared;
 
-pub enum ResolveStatus<T>
-{
+pub enum ResolveStatus<T> {
     Resolved(Rc<T>),
     Failed,
     Null
-}
-
-pub trait SourceLoader {
-    fn load(&self, path: &str) -> Option<Rc<Any>>;
 }
 
 pub trait ObjectLoader {
 	fn load(&self, path: &str) -> Option<(&str, &lexer::LexedKv)>;
 }
 
-pub type InkiResolver = shared::Resolver<InkiPtrContext>;
+pub trait ParseFromKV where Self:Sized + shared::InkiTypeDescriptor {
+	fn parse(kv : &lexer::LexedKv, pctx: &InkiPtrContext) -> Self;
+	fn parse_with_type(kv : &lexer::LexedKv, pctx: &InkiPtrContext, type_name:&str) -> Self {
+		if <Self as shared::InkiTypeDescriptor>::TAG != type_name {
+			println!("Mismatched type in parse_with_type {} vs {}", type_name, <Self as shared::InkiTypeDescriptor>::TAG);
+		}		
+		<Self as ParseFromKV>::parse(kv, pctx)
+	}
+}
 
 pub trait Tracker {
     fn follow(&self, path:&str);
@@ -31,24 +34,28 @@ pub struct InkiPtrContext
     pub source: Rc<InkiResolver>
 }
 
-pub trait ParseFromKV where Self:Sized {
-	fn parse(kv : &lexer::LexedKv, pctx: &InkiPtrContext, res:&InkiResolver) -> Self;
+pub struct InkiResolver {
+	loader: Box<ObjectLoader>
 }
 
-pub fn resolve_from<T>(src:&Rc<InkiResolver>, pctx: &InkiPtrContext, path:&str) -> ResolveStatus<T> where T : ParseFromKV + 'static
+impl InkiResolver {
+	pub fn new(loader:Box<ObjectLoader>) -> Self {
+		Self {
+			loader: loader
+		}
+	}
+}
+
+impl InkiResolver {
+	fn resolve<T>(ctx:&InkiPtrContext, path:&str) -> ResolveStatus<T> where T : ParseFromKV {
+		match ctx.source.loader.load(path)
+		{
+			Some((type_name, data)) => return ResolveStatus::Resolved(Rc::new(<T as ParseFromKV>::parse_with_type(data, ctx, type_name))),
+			_ => return ResolveStatus::Failed
+		}
+	}
+}
+pub fn resolve_from<T>(ctx: &InkiPtrContext, path:&str) -> ResolveStatus<T> where T : ParseFromKV + 'static
 {	
-	if path.is_empty() {
-		return ResolveStatus::Null;
-	}
-
-	// Here is where it will be necessary to deal with the subtypes mess.
-	let k = src.load(pctx, path).and_then(|rc| {
-		return rc.downcast::<T>().ok();
-	});
-
-	if let Some(r) = k {
-		return ResolveStatus::Resolved(r);
-	}
-
-	return ResolveStatus::Failed;
+	return InkiResolver::resolve(ctx, path);
 }

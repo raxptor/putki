@@ -2,6 +2,7 @@ use inki::*;
 use shared;
 use inki::source;
 use std::rc::Rc;
+use std::boxed::Box;
 use std::any::Any;
 
 #[cfg(test)]
@@ -30,8 +31,18 @@ struct PtrStruct1 {
     pub ptr: Ptr<PointedTo>
 }
 
+impl shared::InkiTypeDescriptor for PointedTo {
+	const TAG : &'static str = "PointedTo";
+	type OutkiType = ();
+}
+
+impl shared::InkiTypeDescriptor for PtrStruct1 {
+	const TAG : &'static str = "PtrStruct1";
+	type OutkiType = ();
+}
+
 impl ParseFromKV for PointedTo {
-	fn parse(kv : &lexer::LexedKv, _pctx: &InkiPtrContext, _res:&source::InkiResolver) -> Self {
+	fn parse(kv : &lexer::LexedKv, _pctx: &InkiPtrContext) -> Self {
 		return Self {
 			value : lexer::get_int(&kv, "Value", 0)
 		}
@@ -39,35 +50,16 @@ impl ParseFromKV for PointedTo {
 }
 
 impl ParseFromKV for PtrStruct1 {
-	fn parse(kv : &lexer::LexedKv, _pctx: &InkiPtrContext, _res:&InkiResolver) -> Self {
+	fn parse(kv : &lexer::LexedKv, _pctx: &InkiPtrContext) -> Self {
 		return Self {
 			ptr : Ptr::new(_pctx.clone(), lexer::get_string(&kv, "Ptr", "").as_str())
 		}
 	}
 }
 
-struct DumbResolver {
-	db : loadall::LoadAll 
-}
-
-impl shared::Resolver<InkiPtrContext> for DumbResolver
-{
-	fn load(&self, pctx: &InkiPtrContext, path:&str) -> Option<Rc<Any>>
-	{
-		return self.db.load(path).and_then(|res| {
-			match res.0
-			{
-				"PointedTo" => return Some(Rc::new(PointedTo::parse(res.1, pctx, self)) as Rc<Any>),
-				"PtrStruct1" => return Some(Rc::new(PtrStruct1::parse(res.1, pctx, self)) as Rc<Any>),
-				_ => return None
-			}
-		});
-	}
-}
-
 #[test]
 fn test_ptr_1() {
-	let la = loadall::LoadAll::from_txty_data(r#"
+	let la = Box::new(loadall::LoadAll::from_txty_data(r#"
 		@PointedTo main {
 			Value: 123
 		}
@@ -80,20 +72,19 @@ fn test_ptr_1() {
 		@PtrStruct1 ptr2 {
 			Ptr: ""
 		}	
-	"#);	
-	let dr = Rc::new(DumbResolver {
-		db: la
-	}) as Rc<shared::Resolver<InkiPtrContext>>;
+	"#));	
+
+	let resolver = Rc::new(InkiResolver::new(la));
 	let ctx = InkiPtrContext {
 		tracker: None,
-		source: dr.clone()
+		source: resolver.clone()
 	};
-	if let ResolveStatus::Resolved(pto) = resolve_from::<PointedTo>(&dr, &ctx, "main") {
+	if let ResolveStatus::Resolved(pto) = resolve_from::<PointedTo>(&ctx, "main") {
 		assert_eq!(pto.value, 123);
 	} else {
 		panic!("Could not resolve main");
 	}
-	if let ResolveStatus::Resolved(pto) = resolve_from::<PtrStruct1>(&dr, &ctx, "ptr1") {
+	if let ResolveStatus::Resolved(pto) = resolve_from::<PtrStruct1>(&ctx, "ptr1") {
 		if let Some(pto) = pto.ptr.resolve() {
 			assert_eq!(pto.value, 321);
 		} else {
@@ -102,7 +93,7 @@ fn test_ptr_1() {
 	} else {
 		panic!("Could not resolve main");
 	}	
-	if let ResolveStatus::Resolved(pto) = resolve_from::<PtrStruct1>(&dr, &ctx, "ptr2") {
+	if let ResolveStatus::Resolved(pto) = resolve_from::<PtrStruct1>(&ctx, "ptr2") {
 		println!("ptr2.ptr={:?}", pto.ptr);
 		assert!(pto.ptr.resolve().is_none());
 	} else {
