@@ -107,15 +107,30 @@ impl PipelineDesc {
     }
 }
 
+pub trait BuildCandidate where Self : 'static + Send + Sync + BuildFields {
+    fn as_any_ref(&mut self) -> &mut Any;
+    fn build(&mut self, p:&Pipeline);
+}
+
+impl<T> BuildCandidate for T where Self : source::ParseFromKV + Send + Sync + 'static + Sized + BuildFields {
+    fn as_any_ref(&mut self) -> &mut any::Any {
+		return self;
+	}    
+    fn build(&mut self, p:&Pipeline) {
+        p.build(self);
+    }
+}
+
 pub struct Pipeline
 {
     desc: PipelineDesc,
-    requests: RwLock<Vec<BuildRequest>>
+    to_build: RwLock<Vec<BuildItem>>
 }
 
-struct BuildRequest {
+struct BuildItem {
     path: String,
-    records: Vec<BuildRecord>
+    record: BuildRecord,
+    objs: Vec<Box<BuildCandidate>>
 }
 
 impl Pipeline
@@ -123,7 +138,7 @@ impl Pipeline
     pub fn new(desc:PipelineDesc) -> Self {
         Pipeline {
             desc: desc,
-            requests: RwLock::new(Vec::new())
+            to_build: RwLock::new(Vec::new())
         }
     }
 
@@ -139,22 +154,44 @@ impl Pipeline
         Ok(())
     }
 
-    pub fn build_as<T>(&self, path:&str) where T : 'static + source::ParseFromKV {
+    pub fn build_as<T>(&self, path:&str) where T : 'static + source::ParseFromKV + BuildCandidate {
         let context = source::InkiPtrContext {
             tracker: None,
             source: Rc::new(source::InkiResolver::new(self.desc.source.clone())),
         };                
         if let source::ResolveStatus::Resolved(ptr) = source::resolve_from::<T>(&context, path) {
-                let mut lk = self.requests.write().unwrap();
-                lk.push(BuildRequest {
+            let mut lk = self.to_build.write().unwrap();
+            lk.push(BuildItem {
                 path: String::from(path),
-                records: Vec::new()
+                record: BuildRecord {
+                    error: None,
+                    success: false,
+                    deps: HashSet::new()                      
+                },
+                objs: vec!(Box::new((*ptr).clone()))
             });
-            return;
-        } else {
-            return;
-        } 
+        }
     }
+
+    pub fn take(&self)
+    {
+        let mut next;
+        {
+            let mut lk = self.to_build.write().unwrap();        
+            if lk.len() > 0 {
+                if lk[0].objs.len() > 0 {
+                    next = lk[0].objs.remove(0);
+                } else {
+                    return;
+                }
+            } else {
+                return;
+            }
+        }
+        let r = &mut *next;
+        BuildCandidate::build(r, self);
+    }
+
 
     pub fn build<T>(&self, obj:&mut T) -> BuildRecord where T : 'static + BuildFields {        
         for x in self.builders_for_obj(obj) {

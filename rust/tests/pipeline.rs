@@ -92,6 +92,7 @@ fn test_pipeline() {
 	let pipeline = putki::Pipeline::new(desc);
 
 	pipeline.build_as::<Multi>("multi");
+	pipeline.take();
 
 	let ctx = putki::InkiPtrContext {
 		tracker: None,
