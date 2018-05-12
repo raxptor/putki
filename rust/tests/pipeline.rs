@@ -50,7 +50,7 @@ impl putki::Builder<TestValues> for TestValueBuilder {
 		println!("building input v1={} v2={}", input.value1, input.value2);
 		input.value1 = input.value1 + 1000;
 		input.value2 = input.value2 + 2000;
-		return Err(putki::PutkiError::Test);
+		return Ok(());
 	}
 }
 
@@ -91,6 +91,8 @@ fn test_pipeline() {
 
 	let pipeline = putki::Pipeline::new(desc);
 
+	pipeline.build_as::<Multi>("multi");
+
 	let ctx = putki::InkiPtrContext {
 		tracker: None,
 		source: Rc::new(putki::InkiResolver::new(la.clone())),
@@ -99,7 +101,7 @@ fn test_pipeline() {
 		let p : putki::Ptr<TestValues> = putki::Ptr::new(ctx.clone(), "tv0");
 		let mut o1:TestValues = (*p.unwrap()).clone();
 		let br = pipeline.build(&mut o1);
-		assert!(br.result.is_err());
+		assert!(br.is_ok());
 		assert_eq!(o1.value1, 1123);
 		assert_eq!(o1.value2, 2456);
 	}
@@ -107,7 +109,7 @@ fn test_pipeline() {
 		let p : putki::Ptr<Multi> = putki::Ptr::new(ctx, "multi");
 		let mut o1:Multi = (*p.unwrap()).clone();
 		let br = pipeline.build(&mut o1);
-		assert!(br.result.is_err());
+		assert!(br.is_ok());
 		assert_eq!(o1.contained.value1, 1321);
 		assert_eq!(o1.contained.value2, 2654);
 	}

@@ -8,6 +8,7 @@ use std::any::TypeId;
 use std::sync::Arc;
 use std::any::Any;
 use std::cell::Cell;
+use std::sync::RwLock;
 use std::thread;
 use std::ops;
 use std::cell::RefCell;
@@ -71,8 +72,16 @@ struct ObjEntry
 
 pub struct BuildRecord
 {
-   pub result: Result<(), shared::PutkiError>,
+    error: Option<String>,
+    success: bool,
     deps: HashSet<String>
+}
+
+impl BuildRecord
+{
+    pub fn is_ok(&self) -> bool {
+        return self.success;
+    }
 }
 
 pub struct PipelineDesc
@@ -100,14 +109,21 @@ impl PipelineDesc {
 
 pub struct Pipeline
 {
-    desc: PipelineDesc
+    desc: PipelineDesc,
+    requests: RwLock<Vec<BuildRequest>>
+}
+
+struct BuildRequest {
+    path: String,
+    records: Vec<BuildRecord>
 }
 
 impl Pipeline
 {    
     pub fn new(desc:PipelineDesc) -> Self {
         Pipeline {
-            desc: desc
+            desc: desc,
+            requests: RwLock::new(Vec::new())
         }
     }
 
@@ -123,22 +139,43 @@ impl Pipeline
         Ok(())
     }
 
+    pub fn build_as<T>(&self, path:&str) where T : 'static + source::ParseFromKV {
+        let context = source::InkiPtrContext {
+            tracker: None,
+            source: Rc::new(source::InkiResolver::new(self.desc.source.clone())),
+        };                
+        if let source::ResolveStatus::Resolved(ptr) = source::resolve_from::<T>(&context, path) {
+                let mut lk = self.requests.write().unwrap();
+                lk.push(BuildRequest {
+                path: String::from(path),
+                records: Vec::new()
+            });
+            return;
+        } else {
+            return;
+        } 
+    }
+
     pub fn build<T>(&self, obj:&mut T) -> BuildRecord where T : 'static + BuildFields {        
         for x in self.builders_for_obj(obj) {
             let res = x.build(obj);
             if let Err(_) = res {
                 return BuildRecord {
-                    result: res,
+                    error: Some(String::from("An error occured in the pipeline")),
+                    success: false,
                     deps: HashSet::new()
                 }
             }
         }
         let mut br = BuildRecord {
-            result: Ok(()),
+            error: None,
+            success: true,
             deps: HashSet::new()
         };
-        br.result = (obj as &mut BuildFields).build(self, &mut br);        
-        br
+        if let Err(_) = (obj as &mut BuildFields).build(self, &mut br) {
+            br.success = false
+        }
+        return br;
     }
 }
 
