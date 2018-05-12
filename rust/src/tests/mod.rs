@@ -4,6 +4,7 @@ use inki::source;
 use std::rc::Rc;
 use std::boxed::Box;
 use std::any::Any;
+use std::sync::Arc;
 
 #[cfg(test)]
 mod outki;
@@ -21,12 +22,12 @@ fn test_txty_1() {
 	"#);
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct PointedTo {
 	value: i32
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct PtrStruct1 {
     pub ptr: Ptr<PointedTo>
 }
@@ -59,7 +60,7 @@ impl ParseFromKV for PtrStruct1 {
 
 #[test]
 fn test_ptr_1() {
-	let la = Box::new(loadall::LoadAll::from_txty_data(r#"
+	let la = Arc::new(loadall::LoadAll::from_txty_data(r#"
 		@PointedTo main {
 			Value: 123
 		}

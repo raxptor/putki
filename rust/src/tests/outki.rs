@@ -1,7 +1,6 @@
 use shared;
 use outki;
 use std::rc::Rc;
-use std::any::Any;
 use shared::tag_of;
 
 #[derive(Debug)]

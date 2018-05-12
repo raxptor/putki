@@ -5,6 +5,7 @@ use std::rc::Rc;
 use std::fmt;
 use std::result;
 
+#[derive(Clone)]
 enum PtrTarget
 {
     Null,
@@ -70,10 +71,18 @@ impl<Target> Ptr<Target> where Target : source::ParseFromKV
     }    
 }
 
-impl<T> Default for Ptr<T> where T : source::ParseFromKV
-{
+impl<T> Default for Ptr<T> where T : source::ParseFromKV {
     fn default() -> Self {
         return Ptr::null();
+    }
+}
+
+impl<T> Clone for Ptr<T> where T : source::ParseFromKV {
+    fn clone(&self) -> Self {
+        Self {
+            target : self.target.clone(),
+            _m : PhantomData
+        }        
     }
 }
 
@@ -99,6 +108,9 @@ impl<T> Ptr<T> where T : source::ParseFromKV + 'static
     }
     pub fn unwrap(&self) -> Rc<T> {
         return self.resolve().unwrap();
+    }
+    pub fn unwrap_unique(&self) -> Box<T> {
+        return Box::new((*self.resolve().unwrap()).clone());
     }
 }
 

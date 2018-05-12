@@ -1,6 +1,7 @@
 use inki::lexer;
 use std::boxed::Box;
 use std::rc::Rc;
+use std::sync::Arc;
 
 pub enum ResolveStatus<T> {
     Resolved(Rc<T>),
@@ -13,11 +14,11 @@ pub trait InkiTypeDescriptor {
     type OutkiType;
 }
 
-pub trait ObjectLoader {
+pub trait ObjectLoader where Self : Sync + Send {
 	fn load(&self, path: &str) -> Option<(&str, &lexer::LexedKv)>;
 }
 
-pub trait ParseFromKV where Self:Sized + InkiTypeDescriptor {
+pub trait ParseFromKV where Self:Sized + InkiTypeDescriptor + Clone {
 	fn parse(kv : &lexer::LexedKv, pctx: &InkiPtrContext) -> Self;
 	fn parse_with_type(kv : &lexer::LexedKv, pctx: &InkiPtrContext, type_name:&str) -> Self {
 		if <Self as InkiTypeDescriptor>::TAG != type_name {
@@ -39,11 +40,11 @@ pub struct InkiPtrContext
 }
 
 pub struct InkiResolver {
-	loader: Box<ObjectLoader>
+	loader: Arc<ObjectLoader>
 }
 
 impl InkiResolver {
-	pub fn new(loader:Box<ObjectLoader>) -> Self {
+	pub fn new(loader:Arc<ObjectLoader>) -> Self {
 		Self {
 			loader: loader
 		}
