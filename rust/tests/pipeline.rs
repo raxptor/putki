@@ -7,6 +7,7 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::any;
 use std::any::TypeId;
+use std::thread;
 
 #[derive(Debug, Clone, Default)]
 struct TestValues {
@@ -19,6 +20,12 @@ struct Multi {
 	contained: TestValues
 }
 
+#[derive(Debug, Clone)]
+struct Pointer {	
+	contained: TestValues,
+	next: putki::Ptr<Pointer>
+}
+
 impl putki::InkiTypeDescriptor for TestValues {
 	const TAG : &'static str = "TestValues";
 	type OutkiType = ();
@@ -28,17 +35,24 @@ impl putki::InkiTypeDescriptor for Multi {
 	const TAG : &'static str = "Multi";
 	type OutkiType = ();
 }
- 
+
+impl putki::InkiTypeDescriptor for Pointer {
+	const TAG : &'static str = "Pointer";
+	type OutkiType = ();
+}
+  
 impl putki::BuildFields for TestValues { }
+impl putki::BuildFields for Pointer { }
 
 impl putki::BuildFields for Multi {
-	fn build(&mut self, pipeline:&putki::Pipeline, br:&mut putki::BuildRecord) -> Result<(), putki::PutkiError> {
-		pipeline.build_field(br, &mut self.contained)?;
+	fn build_fields(&mut self, pipeline:&putki::Pipeline, br:&mut putki::BuildRecord) -> Result<(), putki::PutkiError> {
+		pipeline.build(br, &mut self.contained);
 		Ok(())
 	}
 }
 
 struct TestValueBuilder { }
+struct PointerBuilder { }
 
 impl putki::Builder<TestValues> for TestValueBuilder {
 	fn desc(&self) -> putki::BuilderDesc {
@@ -54,8 +68,24 @@ impl putki::Builder<TestValues> for TestValueBuilder {
 	}
 }
 
+impl putki::Builder<Pointer> for PointerBuilder {
+	fn desc(&self) -> putki::BuilderDesc {
+		putki::BuilderDesc {
+			description: "pointer"
+		}
+	}
+	fn build2(&self, br:&mut putki::BuildRecord, input:&mut Pointer) -> Result<(), putki::PutkiError> {		
+		println!("building pointer!");
+		let ptr = br.create_object("neue1", TestValues {
+			value1 : 222,
+			value2 : 333
+		});
+		return Ok(());
+	}
+}
+
 impl putki::ParseFromKV for TestValues {
-	fn parse(kv : &putki::lexer::LexedKv, _pctx: &putki::InkiPtrContext) -> Self {
+	fn parse(kv : &putki::lexer::LexedKv, _pctx: &Arc<putki::InkiPtrContext>) -> Self {
 		return Self {
 			value1 : putki::lexer::get_int(kv.get("Value1"), 0),
 			value2 : putki::lexer::get_int(kv.get("Value2"), 0)
@@ -64,9 +94,18 @@ impl putki::ParseFromKV for TestValues {
 }
 
 impl putki::ParseFromKV for Multi {
-	fn parse(kv : &putki::lexer::LexedKv, _pctx: &putki::InkiPtrContext) -> Self {
+	fn parse(kv : &putki::lexer::LexedKv, _pctx: &Arc<putki::InkiPtrContext>) -> Self {
 		return Self {
 			contained : putki::lexer::get_object(kv.get("Contained")).map(|v| { putki::ParseFromKV::parse(v.0, &_pctx) }).unwrap_or_default()
+		}
+	}
+}
+
+impl putki::ParseFromKV for Pointer {
+	fn parse(kv : &putki::lexer::LexedKv, _pctx: &Arc<putki::InkiPtrContext>) -> Self {
+		return Self {
+			contained : putki::lexer::get_object(kv.get("Contained")).map(|v| { putki::ParseFromKV::parse(v.0, &_pctx) }).unwrap_or_default(),
+			next: kv.get("Next").map(|v| { putki::ptr_from_data(_pctx, v) }).unwrap_or_default()
 		}
 	}
 }
@@ -84,16 +123,38 @@ fn test_pipeline() {
 				Value2: 654
 			}
 		}
+		@Pointer ptr {
+			Contained: {
+				Value1: 1
+				Value2: 2
+			}
+		}		
 	"#));	
 
 	let desc = putki::PipelineDesc::new(la.clone())
-	          .add_builder(TestValueBuilder{ });
+	          .add_builder(TestValueBuilder{ })
+			  .add_builder(PointerBuilder{ });
 
-	let pipeline = putki::Pipeline::new(desc);
+	let pipeline = Arc::new(putki::Pipeline::new(desc));
 
 	pipeline.build_as::<Multi>("multi");
-	pipeline.take();
+	pipeline.build_as::<Multi>("multi");
+	pipeline.build_as::<Pointer>("ptr");
 
+	let mut thr = Vec::new();
+	for _i in 0..3 {
+		let pl = pipeline.clone();		
+		thr.push(thread::spawn(move || {
+			let mut k = 0;
+			while pl.take() { k = k + 1; if k > 100 { panic!("Pipeline never finished!") } }
+			println!("thread took {} items.", k);
+		}));
+	}
+	for x in thr {
+		x.join().ok();
+	}
+
+/*
 	let ctx = putki::InkiPtrContext {
 		tracker: None,
 		source: Rc::new(putki::InkiResolver::new(la.clone())),
@@ -101,6 +162,7 @@ fn test_pipeline() {
 	{
 		let p : putki::Ptr<TestValues> = putki::Ptr::new(ctx.clone(), "tv0");
 		let mut o1:TestValues = (*p.unwrap()).clone();
+		pipeline.build_as::<TestValues>("multi");
 		let br = pipeline.build(&mut o1);
 		assert!(br.is_ok());
 		assert_eq!(o1.value1, 1123);
@@ -114,4 +176,5 @@ fn test_pipeline() {
 		assert_eq!(o1.contained.value1, 1321);
 		assert_eq!(o1.contained.value2, 2654);
 	}
+	*/
 }

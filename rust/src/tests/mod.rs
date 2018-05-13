@@ -43,7 +43,7 @@ impl source::InkiTypeDescriptor for PtrStruct1 {
 }
 
 impl ParseFromKV for PointedTo {
-	fn parse(kv : &lexer::LexedKv, _pctx: &InkiPtrContext) -> Self {
+	fn parse(kv : &lexer::LexedKv, _pctx: &Arc<InkiPtrContext>) -> Self {
 		return Self {
 			value : lexer::get_int(kv.get("Value"), 0)
 		}
@@ -51,7 +51,7 @@ impl ParseFromKV for PointedTo {
 }
 
 impl ParseFromKV for PtrStruct1 {
-	fn parse(kv : &lexer::LexedKv, _pctx: &InkiPtrContext) -> Self {
+	fn parse(kv : &lexer::LexedKv, _pctx: &Arc<InkiPtrContext>) -> Self {
 		return Self {
 			ptr : Ptr::new(_pctx.clone(), lexer::get_string(kv.get("Ptr"), "").as_str())
 		}
@@ -75,11 +75,11 @@ fn test_ptr_1() {
 		}	
 	"#));	
 
-	let resolver = Rc::new(InkiResolver::new(la));
-	let ctx = InkiPtrContext {
+	let resolver = Arc::new(InkiResolver::new(la));
+	let ctx = Arc::new(InkiPtrContext {
 		tracker: None,
 		source: resolver.clone()
-	};
+	});
 	if let ResolveStatus::Resolved(pto) = resolve_from::<PointedTo>(&ctx, "main") {
 		assert_eq!(pto.value, 123);
 	} else {

@@ -4,19 +4,20 @@ use std::marker::PhantomData;
 use std::rc::Rc;
 use std::fmt;
 use std::result;
+use std::sync::Arc;
 
 #[derive(Clone)]
 enum PtrTarget
 {
     Null,
     ObjPath {
-        context : source::InkiPtrContext,
+        context : Arc<source::InkiPtrContext>,
         path : String
     },
     InlineObject {
         path : String,
         type_name : String,
-        context : source::InkiPtrContext,
+        context : Arc<source::InkiPtrContext>,
         data: lexer::LexedKv
     }
 }
@@ -24,7 +25,7 @@ enum PtrTarget
 pub struct Ptr<Target> where Target : source::ParseFromKV
 {
     target: PtrTarget,
-    _m : PhantomData<Rc<Target>>
+    _m : PhantomData<Box<Target>>
 }
 
 impl<Target> fmt::Debug for Ptr<Target> where Target : source::ParseFromKV {
@@ -40,7 +41,7 @@ impl<Target> fmt::Debug for Ptr<Target> where Target : source::ParseFromKV {
 
 impl<Target> Ptr<Target> where Target : source::ParseFromKV
 {
-    pub fn new(context : source::InkiPtrContext, path: &str) -> Ptr<Target>
+    pub fn new(context : Arc<source::InkiPtrContext>, path: &str) -> Ptr<Target>
     {
         return Ptr {
             target: PtrTarget::ObjPath {
@@ -50,7 +51,7 @@ impl<Target> Ptr<Target> where Target : source::ParseFromKV
             _m: PhantomData { }
         }
     }
-    pub fn new_inline(context : source::InkiPtrContext, kv: &lexer::LexedKv, type_name: &str, path: &str) -> Ptr<Target>
+    pub fn new_inline(context : Arc<source::InkiPtrContext>, kv: &lexer::LexedKv, type_name: &str, path: &str) -> Ptr<Target>
     {
         return Ptr {
             target: PtrTarget::InlineObject {
@@ -114,7 +115,7 @@ impl<T> Ptr<T> where T : source::ParseFromKV + 'static
     }
 }
 
-pub fn ptr_from_data<T>(context : &source::InkiPtrContext, ld:&lexer::LexedData) -> Ptr<T> where T : source::ParseFromKV {
+pub fn ptr_from_data<T>(context : &Arc<source::InkiPtrContext>, ld:&lexer::LexedData) -> Ptr<T> where T : source::ParseFromKV {
     match ld {
         &lexer::LexedData::Value(ref path) => Ptr::new(context.clone(), path),
         &lexer::LexedData::StringLiteral(ref path) => Ptr::new(context.clone(), path),

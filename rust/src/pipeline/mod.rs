@@ -1,6 +1,7 @@
 #![allow(unused_imports)]
 #![allow(dead_code)]
 
+use std::borrow::BorrowMut;
 use std::intrinsics;
 use std::rc::Rc;
 use std::any;
@@ -21,7 +22,10 @@ use std::collections::HashSet;
 use shared;
 use inki;
 use source;
+use ptr;
+
 mod writer;
+
 
 pub struct BuilderDesc {
     pub description: &'static str    
@@ -31,11 +35,12 @@ pub struct InputDeps {
 }
 
 pub trait BuildFields {
-    fn build(&mut self, pl:&Pipeline, br:&mut BuildRecord) -> Result<(), shared::PutkiError> { return Ok(())}
+    fn build_fields(&mut self, pl:&Pipeline, br:&mut BuildRecord) -> Result<(), shared::PutkiError> { return Ok(())}
 }
 
 pub trait Builder<T> where Self : Send + Sync {
-    fn build(&self, input:&mut T) -> Result<(), shared::PutkiError> { return Ok(()) }
+    fn build(&self, _input:&mut T) -> Result<(), shared::PutkiError> { return Ok(()) }
+    fn build2(&self, _br:&mut BuildRecord, input:&mut T) -> Result<(), shared::PutkiError> { return self.build(input); }
     fn desc(&self) -> BuilderDesc;
 }
 
@@ -46,7 +51,7 @@ struct BuilderBox <T> {
 
 trait BuilderAny where Self : Send + Sync {
     fn object_type(&self) -> any::TypeId;
-    fn build(&self, input:&mut any::Any) -> Result<(), shared::PutkiError>;
+    fn build(&self, br:&mut BuildRecord, input:&mut any::Any) -> Result<(), shared::PutkiError>;
     fn accept(&self, b:&Any) -> bool;
 }
 
@@ -54,8 +59,8 @@ impl<T> BuilderAny for BuilderBox<T> where T : Send + Sync + 'static {
     fn object_type(&self) -> any::TypeId {
         self.object_type
     }
-    fn build(&self, input:&mut any::Any) -> Result<(), shared::PutkiError> {
-        match self.builder.build(input.downcast_mut().unwrap()) {
+    fn build(&self, br:&mut BuildRecord, input:&mut any::Any) -> Result<(), shared::PutkiError> {
+        match self.builder.build2(br, input.downcast_mut().unwrap()) {
             Ok(x) => return Ok(x),
             Err(x) => return Err(x)
         }
@@ -70,17 +75,29 @@ struct ObjEntry
     object: Arc<Any>    
 }
 
+// One per object and per builder.
 pub struct BuildRecord
 {
+    path: String,
     error: Option<String>,
     success: bool,
-    deps: HashSet<String>
+    deps: HashSet<String>,
+
+    // helper
+    context: Arc<source::InkiPtrContext>,
+    created: Vec<(String, Box<BuildCandidate>)>
 }
 
 impl BuildRecord
 {
     pub fn is_ok(&self) -> bool {
         return self.success;
+    }
+    pub fn create_object<T>(&mut self, tag:&str, obj:T) -> ptr::Ptr<T> where T:BuildCandidate + source::ParseFromKV + Send + Sync + Default {                
+        let tmp_path = format!("{}!{}", &self.path, tag);
+        println!("Created object with path [{}]!", tmp_path);
+        self.created.push((tmp_path.clone(), Box::new(obj)));
+        ptr::Ptr::new(self.context.clone(), tmp_path.as_str())
     }
 }
 
@@ -109,28 +126,28 @@ impl PipelineDesc {
 
 pub trait BuildCandidate where Self : 'static + Send + Sync + BuildFields {
     fn as_any_ref(&mut self) -> &mut Any;
-    fn build(&mut self, p:&Pipeline);
+    fn build(&mut self, p:&Pipeline, br: &mut BuildRecord);
 }
 
 impl<T> BuildCandidate for T where Self : source::ParseFromKV + Send + Sync + 'static + Sized + BuildFields {
     fn as_any_ref(&mut self) -> &mut any::Any {
 		return self;
 	}    
-    fn build(&mut self, p:&Pipeline) {
-        p.build(self);
+    fn build(&mut self, p:&Pipeline, br: &mut BuildRecord) {
+        p.build(br, self);
     }
 }
 
 pub struct Pipeline
 {
     desc: PipelineDesc,
-    to_build: RwLock<Vec<BuildItem>>
+    to_build: RwLock<Vec<BuildRequest>>
 }
 
-struct BuildItem {
+struct BuildRequest {
     path: String,
-    record: BuildRecord,
-    objs: Vec<Box<BuildCandidate>>
+    obj: Box<BuildCandidate>,
+    context: Arc<source::InkiPtrContext>
 }
 
 impl Pipeline
@@ -146,73 +163,78 @@ impl Pipeline
         self.desc.builders.iter().filter(|x| { x.accept(obj) }).map(|x| { x.clone() } ).collect()
     }
 
-    pub fn build_field<T>(&self, _br:&mut BuildRecord, obj:&mut T) -> Result<(), shared::PutkiError> where T : 'static
+    pub fn build_field<T>(&self, br:&mut BuildRecord, obj:&mut T) -> Result<(), shared::PutkiError> where T : 'static
     {
         for x in self.builders_for_obj(obj) {
-            x.build(obj)?;
+            x.build(br, obj)?;
         }
         Ok(())
     }
 
     pub fn build_as<T>(&self, path:&str) where T : 'static + source::ParseFromKV + BuildCandidate {
-        let context = source::InkiPtrContext {
+        let context = Arc::new(source::InkiPtrContext {
             tracker: None,
-            source: Rc::new(source::InkiResolver::new(self.desc.source.clone())),
-        };                
+            source: Arc::new(source::InkiResolver::new(self.desc.source.clone())),
+        });
         if let source::ResolveStatus::Resolved(ptr) = source::resolve_from::<T>(&context, path) {
             let mut lk = self.to_build.write().unwrap();
-            lk.push(BuildItem {
+            lk.push(BuildRequest {
                 path: String::from(path),
-                record: BuildRecord {
-                    error: None,
-                    success: false,
-                    deps: HashSet::new()                      
-                },
-                objs: vec!(Box::new((*ptr).clone()))
+                obj: Box::new((*ptr).clone()),
+                context: context                
             });
         }
     }
 
-    pub fn take(&self)
+    pub fn take(&self) -> bool
     {
-        let mut next;
-        {
+        let mut request = {        
             let mut lk = self.to_build.write().unwrap();        
-            if lk.len() > 0 {
-                if lk[0].objs.len() > 0 {
-                    next = lk[0].objs.remove(0);
-                } else {
-                    return;
-                }
-            } else {
-                return;
+            if lk.len() == 0 {
+                return false;
             }
-        }
-        let r = &mut *next;
-        BuildCandidate::build(r, self);
-    }
-
-
-    pub fn build<T>(&self, obj:&mut T) -> BuildRecord where T : 'static + BuildFields {        
-        for x in self.builders_for_obj(obj) {
-            let res = x.build(obj);
-            if let Err(_) = res {
-                return BuildRecord {
-                    error: Some(String::from("An error occured in the pipeline")),
-                    success: false,
-                    deps: HashSet::new()
-                }
-            }
-        }
+            lk.remove(0)
+        };
         let mut br = BuildRecord {
             error: None,
             success: true,
-            deps: HashSet::new()
+            path: request.path,
+            context: request.context.clone(),
+            deps: HashSet::new(),
+            created: Vec::new()
         };
-        if let Err(_) = (obj as &mut BuildFields).build(self, &mut br) {
-            br.success = false
+        request.obj.build(self, &mut br);
+        if br.created.len() > 0 {
+            println!("Build of {} created {} items", br.path, br.created.len());
+            let mut lk = self.to_build.write().unwrap();
+            for x in br.created.drain(..) {
+                lk.push(BuildRequest {
+                    path : x.0,
+                    obj: x.1,
+                    context: br.context.clone()
+                });
+            }
         }
-        return br;
+        return true;
+    }
+
+    // This function is re-entrant when building fields.
+    pub fn build<T>(&self, br:&mut BuildRecord, obj:&mut T) where T : 'static + BuildFields {
+        if !br.success {
+            return;
+        }
+        for x in self.builders_for_obj(obj) {
+            let res = x.build(br, obj);
+            if let Err(_) = res {
+                br.error = Some(String::from("An error occured in the pipeline"));
+                br.success = false;
+                return;
+            }
+        }
+        if let Err(_) = (obj as &mut BuildFields).build_fields(&self, br) {
+            br.error = Some(String::from("An error occured in the pipeline"));
+            br.success = false;
+        }
     }
 }
 
