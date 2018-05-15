@@ -69,7 +69,21 @@ impl<Target> Ptr<Target> where Target : source::ParseFromKV
             target: PtrTarget::Null,
             _m: PhantomData { }
         }
-    }    
+    }
+
+    pub fn get_target_path<'a>(&'a self) -> Option<&'a str>
+    {
+        match &self.target {
+            &PtrTarget::Null => { println!("i am nul"); }
+            &PtrTarget::ObjPath { ref path, .. } => { println!("i am {}", path); }
+            _ => { println!("i am something else!"); }
+        } ;
+        match &self.target {
+            &PtrTarget::Null => None,
+            &PtrTarget::ObjPath { ref path, .. } => Some(path.as_str()),
+            _ => None
+        }
+    }
 }
 
 impl<T> Default for Ptr<T> where T : source::ParseFromKV {

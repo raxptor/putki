@@ -93,6 +93,9 @@ impl BuildRecord
     pub fn is_ok(&self) -> bool {
         return self.success;
     }
+    pub fn get_path<'a>(&'a self) -> &'a str {
+        return self.path.as_str();
+    }
     pub fn create_object<T>(&mut self, tag:&str, obj:T) -> ptr::Ptr<T> where T:BuildCandidate + source::ParseFromKV + Send + Sync + Default {                
         let tmp_path = format!("{}!{}", &self.path, tag);
         println!("Created object with path [{}]!", tmp_path);
@@ -127,15 +130,7 @@ impl PipelineDesc {
 pub trait BuildCandidate where Self : 'static + Send + Sync + BuildFields {
     fn as_any_ref(&mut self) -> &mut Any;
     fn build(&mut self, p:&Pipeline, br: &mut BuildRecord);
-}
-
-impl<T> BuildCandidate for T where Self : source::ParseFromKV + Send + Sync + 'static + Sized + BuildFields {
-    fn as_any_ref(&mut self) -> &mut any::Any {
-		return self;
-	}    
-    fn build(&mut self, p:&Pipeline, br: &mut BuildRecord) {
-        p.build(br, self);
-    }
+    fn scan_deps(&self, p:&Pipeline, br: &mut BuildRecord) { }
 }
 
 pub struct Pipeline
@@ -171,6 +166,14 @@ impl Pipeline
         Ok(())
     }
 
+    pub fn add_output_dependency<T>(&self, br:&mut BuildRecord, ptr: &ptr::Ptr<T>) where T : 'static + source::ParseFromKV + BuildCandidate {
+        if let Some(path) = ptr.get_target_path() {
+            println!("adding output dependency {}", path);
+            self.build_as::<T>(path);
+            br.deps.insert(String::from(path));
+        }
+    }
+
     pub fn build_as<T>(&self, path:&str) where T : 'static + source::ParseFromKV + BuildCandidate {
         let context = Arc::new(source::InkiPtrContext {
             tracker: None,
@@ -183,6 +186,8 @@ impl Pipeline
                 obj: Box::new((*ptr).clone()),
                 context: context                
             });
+        } else {
+            panic!("FAILED TO RESOLVE [{}]", path);
         }
     }
 
@@ -204,16 +209,23 @@ impl Pipeline
             created: Vec::new()
         };
         request.obj.build(self, &mut br);
+        if br.success {
+            request.obj.scan_deps(self, &mut br);
+        }
         if br.created.len() > 0 {
+            // TODO: Unsure what to do with created exactly, output deps will be tracked in
+            // scan_deps if they are used anyway...
             println!("Build of {} created {} items", br.path, br.created.len());
             let mut lk = self.to_build.write().unwrap();
             for x in br.created.drain(..) {
+                /*
                 lk.push(BuildRequest {
                     path : x.0,
                     obj: x.1,
                     context: br.context.clone()
                 });
-            }
+                */
+            }            
         }
         return true;
     }

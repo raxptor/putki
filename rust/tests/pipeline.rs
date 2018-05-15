@@ -20,7 +20,7 @@ struct Multi {
 	contained: TestValues
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 struct Pointer {	
 	contained: TestValues,
 	next: putki::Ptr<Pointer>
@@ -42,12 +42,39 @@ impl putki::InkiTypeDescriptor for Pointer {
 }
   
 impl putki::BuildFields for TestValues { }
-impl putki::BuildFields for Pointer { }
 
 impl putki::BuildFields for Multi {
 	fn build_fields(&mut self, pipeline:&putki::Pipeline, br:&mut putki::BuildRecord) -> Result<(), putki::PutkiError> {
 		pipeline.build(br, &mut self.contained);
 		Ok(())
+	}
+}
+
+impl putki::BuildFields for Pointer {
+	fn build_fields(&mut self, pipeline:&putki::Pipeline, br:&mut putki::BuildRecord) -> Result<(), putki::PutkiError> {
+		pipeline.build(br, &mut self.contained);
+		Ok(())
+	}
+}
+
+impl putki::BuildCandidate for TestValues {
+    fn as_any_ref(&mut self) -> &mut any::Any { return self; }    
+    fn build(&mut self, p:&putki::Pipeline, br: &mut putki::BuildRecord) { p.build(br, self); }
+	fn scan_deps(&self, p:&putki::Pipeline, br: &mut putki::BuildRecord) { }
+}
+
+impl putki::BuildCandidate for Multi {
+    fn as_any_ref(&mut self) -> &mut any::Any { return self; }    
+    fn build(&mut self, p:&putki::Pipeline, br: &mut putki::BuildRecord) { p.build(br, self); }
+	fn scan_deps(&self, p:&putki::Pipeline, br: &mut putki::BuildRecord) { }
+}
+
+impl putki::BuildCandidate for Pointer {
+    fn as_any_ref(&mut self) -> &mut any::Any { return self; }    
+    fn build(&mut self, p:&putki::Pipeline, br: &mut putki::BuildRecord) { p.build(br, self); }
+	fn scan_deps(&self, p:&putki::Pipeline, br: &mut putki::BuildRecord) { 
+		println!("Adding output dependencies...");
+		p.add_output_dependency(br, &self.next);
 	}
 }
 
@@ -75,11 +102,17 @@ impl putki::Builder<Pointer> for PointerBuilder {
 		}
 	}
 	fn build2(&self, br:&mut putki::BuildRecord, input:&mut Pointer) -> Result<(), putki::PutkiError> {		
-		println!("building pointer!");
-		let ptr = br.create_object("neue1", TestValues {
-			value1 : 222,
-			value2 : 333
+		println!("building pointer!");		
+		let ptr = br.create_object("neue1", Pointer {
+			next: putki::Ptr::null(),
+			contained: TestValues {
+				value1 : 222,
+				value2 : 333
+			}
 		});
+		if /*ptr.get_target_path().is_none() && */br.get_path().len() < 30 {
+			input.next = ptr;
+		}
 		return Ok(());
 	}
 }
@@ -128,6 +161,13 @@ fn test_pipeline() {
 				Value1: 1
 				Value2: 2
 			}
+			Next: ptr2
+		}
+		@Pointer ptr2 {
+			Contained: {
+				Value1: 2
+				Value2: 3
+			}			
 		}		
 	"#));	
 
