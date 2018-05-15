@@ -1,6 +1,7 @@
 use inki::lexer;
 use std::rc::Rc;
 use std::sync::Arc;
+use shared::TypeDescriptor;
 
 pub enum ResolveStatus<T> {
     Resolved(Rc<T>),
@@ -8,20 +9,15 @@ pub enum ResolveStatus<T> {
     Null
 }
 
-pub trait InkiTypeDescriptor {
-    const TAG : &'static str;
-    type OutkiType;
-}
-
 pub trait ObjectLoader where Self : Sync + Send {
 	fn load(&self, path: &str) -> Option<(&str, &lexer::LexedKv)>;
 }
 
-pub trait ParseFromKV where Self:Sized + InkiTypeDescriptor + Clone {
+pub trait ParseFromKV where Self:Sized + TypeDescriptor + Clone {
 	fn parse(kv : &lexer::LexedKv, pctx: &Arc<InkiPtrContext>) -> Self;
 	fn parse_with_type(kv : &lexer::LexedKv, pctx: &Arc<InkiPtrContext>, type_name:&str) -> Self {
-		if <Self as InkiTypeDescriptor>::TAG != type_name {
-			println!("Mismatched type in parse_with_type {} vs {}", type_name, <Self as InkiTypeDescriptor>::TAG);
+		if <Self as TypeDescriptor>::TAG != type_name {
+			println!("Mismatched type in parse_with_type {} vs {}", type_name, <Self as TypeDescriptor>::TAG);
 		}		
 		<Self as ParseFromKV>::parse(kv, pctx)
 	}

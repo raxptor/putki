@@ -31,14 +31,12 @@ impl outki::UnpackWithRefs<shared::BinLayout> for PtrStruct {
     }
 }
 
-impl shared::OutkiTypeDescriptor for PointedTo {
+impl shared::TypeDescriptor for PointedTo {
     const TAG : &'static str = "PointedTo";
-    const SIZE : usize = 4;
 }
 
-impl shared::OutkiTypeDescriptor for PtrStruct {
+impl shared::TypeDescriptor for PtrStruct {
     const TAG : &'static str = "PtrStruct";
-    const SIZE : usize = 4;
 }
 
 #[test]

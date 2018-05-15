@@ -8,20 +8,19 @@ pub enum PutkiError {
     BuilderError(Box<Error>)
 }
 
+pub trait TypeDescriptor {
+    const TAG : &'static str;
+}
+
 pub trait Resolver<ResolveContext> {
 	fn load(&self, pctx: &ResolveContext, path:&str) -> Option<Rc<Any>>;
 }
 
-pub trait Layout where Self : 'static { 
+pub trait Layout where Self : 'static {
 }
 
 pub trait LayoutDescriptor {
     const TAG : &'static str;
-}
-
-pub trait OutkiTypeDescriptor {
-    const TAG : &'static str;
-    const SIZE : usize;
 }
 
 pub struct BinLayout { }
@@ -34,27 +33,7 @@ impl LayoutDescriptor for BinLayout {
     const TAG : &'static str = "BinLayout";
 }
 
-impl OutkiTypeDescriptor for i32 {
-    const TAG : &'static str = "i32";
-    const SIZE : usize = 4;
-}
-
-impl OutkiTypeDescriptor for u32 {
-    const TAG : &'static str = "i32";
-    const SIZE : usize = 4;
-}
-
-impl OutkiTypeDescriptor for usize {
-    const TAG : &'static str = "usize";
-    const SIZE : usize = 4;
-}
-
-pub fn tag_of<T>() -> &'static str where T : OutkiTypeDescriptor
+pub fn tag_of<T>() -> &'static str where T : TypeDescriptor
 {
-    return <T as OutkiTypeDescriptor>::TAG;    
-}
-
-pub fn size_of<T>() -> usize where T : OutkiTypeDescriptor
-{
-    return <T as OutkiTypeDescriptor>::SIZE;
+    return <T as TypeDescriptor>::TAG;    
 }

@@ -19,6 +19,7 @@ use std::vec;
 use std::marker::PhantomData;
 use std::collections::HashMap;
 use std::collections::HashSet;
+use inki::ptr::PtrInkiResolver;
 use shared;
 use inki;
 use source;
@@ -91,7 +92,7 @@ impl BuildRecord
     pub fn get_path<'a>(&'a self) -> &'a str {
         return self.path.as_str();
     }
-    pub fn create_object<T>(&mut self, tag:&str, obj:T) -> ptr::Ptr<T> where T:BuildCandidate + source::ParseFromKV + Send + Sync + Default {                        
+    pub fn create_object<T>(&mut self, tag:&str, obj:T) -> ptr::Ptr<T> where T:BuildCandidate + Send + Sync + Default + source::ParseFromKV {
         let tmp_path = format!("{}!{}", &self.path, tag);
         println!("Created object with path [{}]!", tmp_path);
         ptr::Ptr::new_temp_object(tmp_path.as_str(), Arc::new(obj))
@@ -130,10 +131,11 @@ pub trait BuildCandidate where Self : 'static + Send + Sync + BuildFields {
 pub struct Pipeline
 {
     desc: PipelineDesc,
-    to_build: RwLock<Vec<BuildRequest>>
+    to_build: RwLock<Vec<BuildRequest>>,
+    built: RwLock<HashMap<String, BuildRecord>>
 }
 
-struct PtrBox<T> where T : 'static + Send + Sync + source::ParseFromKV
+struct PtrBox<T> where T : 'static + Send + Sync
 {
     pub ptr: ptr::Ptr<T>
 }
@@ -146,21 +148,21 @@ trait BuildInvoke where Self : Send + Sync
 pub trait BuildResultObj where Self : Send + Sync { }
 trait ObjDepRef where Self : 'static + Send + Sync { }
 
-impl<T> BuildResultObj for PtrBox<T> where T : 'static + source::ParseFromKV + BuildCandidate
+impl<T> BuildResultObj for PtrBox<T> where T : 'static + BuildCandidate
 {
 
 }
 
-impl<T> ObjDepRef for PtrBox<T> where T : 'static + source::ParseFromKV + BuildCandidate
+impl<T> ObjDepRef for PtrBox<T> where T : 'static + Sync + Send + BuildCandidate + shared::TypeDescriptor
 {
 
 }
 
-impl<T> BuildInvoke for PtrBox<T> where T : 'static + source::ParseFromKV + BuildCandidate
+impl<T> BuildInvoke for PtrBox<T> where T : 'static + BuildCandidate + source::ParseFromKV
 {
     fn build(&self, p:&Pipeline, br:&BuildRequest)
     {
-        if let Some(obj) = self.ptr.resolve() {
+        if let Some(obj) = inki::ptr::PtrInkiResolver::resolve(&self.ptr) {
             let mut br = BuildRecord {
                 error: None,
                 success: true,
@@ -178,6 +180,7 @@ impl<T> BuildInvoke for PtrBox<T> where T : 'static + source::ParseFromKV + Buil
                 println!("--- Finished build of {}", br.path);
             }
             br.built_obj = Some(Box::new(PtrBox { ptr: ptr::Ptr::new_temp_object(&br.path, Arc::new(clone))}));
+            p.on_build_done(br);
         } else {
             panic!("Unable to resolve ptr {:?}", self.ptr);
         }
@@ -194,8 +197,14 @@ impl Pipeline
     pub fn new(desc:PipelineDesc) -> Self {
         Pipeline {
             desc: desc,
-            to_build: RwLock::new(Vec::new())
+            to_build: RwLock::new(Vec::new()),
+            built: RwLock::new(HashMap::new())
         }
+    }
+
+    fn on_build_done(&self, br:BuildRecord) {
+        println!("Adding output object [{}]", &br.path);
+        self.built.write().unwrap().insert(br.path.clone(), br);
     }
 
     fn builders_for_obj(&self, obj: &any::Any) -> Vec<Arc<BuilderAny>> {
@@ -210,7 +219,7 @@ impl Pipeline
         Ok(())
     }
 
-    pub fn add_output_dependency<T>(&self, br:&mut BuildRecord, ptr: &ptr::Ptr<T>) where T : 'static + source::ParseFromKV + BuildCandidate {
+    pub fn add_output_dependency<T>(&self, br:&mut BuildRecord, ptr: &ptr::Ptr<T>) where T : 'static + source::ParseFromKV + BuildCandidate + shared::TypeDescriptor {
         if let Some(path) = ptr.get_target_path() {
             println!("adding output dependency {}", path);
             self.build_ptr(ptr);

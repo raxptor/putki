@@ -24,10 +24,47 @@ enum PtrTarget<Target>
     }
 }
 
-pub struct Ptr<Target> where Target : source::ParseFromKV
+pub struct Ptr<Target> where Target : 'static + Sized
 {
     target: PtrTarget<Target>
 }
+
+pub trait PtrInkiResolver<T>
+{
+    fn resolve(&self) -> Option<Arc<T>>;
+    fn unwrap(&self) -> Arc<T>;
+    fn unwrap_unique(&self) -> Box<T>;
+}
+
+impl<T> PtrInkiResolver<T> for Ptr<T> where T : 'static + source::ParseFromKV
+{
+    fn resolve(&self) -> Option<Arc<T>> {
+        match &self.target {
+            &PtrTarget::Null => return None,
+            &PtrTarget::ObjPath { ref context, ref path } => {
+                if let &Some(ref trk) = &context.tracker {
+                    trk.follow(path);
+                }
+                if let source::ResolveStatus::Resolved(ptr) = source::resolve_from::<T>(context, path) {
+                    return Some(Arc::new( (*ptr).clone() ));
+                } else {
+                    return None;
+                } 
+            }
+            &PtrTarget::InlineObject { ref data, ref context, ref type_name, .. } => {
+                return Some(Arc::new(<T as source::ParseFromKV>::parse_with_type(data, context, type_name)));
+            }
+            &PtrTarget::TempObject { ref object, .. } => Some(object.clone())
+        }
+    }
+    fn unwrap(&self) -> Arc<T> {
+        return self.resolve().unwrap();
+    }
+    fn unwrap_unique(&self) -> Box<T> {
+        return Box::new((*self.resolve().unwrap()).clone());
+    }    
+}
+
 
 impl<Target> fmt::Debug for Ptr<Target> where Target : source::ParseFromKV {
     fn fmt(&self, f: &mut fmt::Formatter) -> result::Result<(), fmt::Error> {
@@ -103,33 +140,9 @@ impl<T> Clone for Ptr<T> where T : source::ParseFromKV {
     }
 }
 
-impl<T> Ptr<T> where T : source::ParseFromKV + 'static
+impl<T> Ptr<T> where T : 'static
 {
-    pub fn resolve(&self) -> Option<Arc<T>> {
-        match &self.target {
-            &PtrTarget::Null => return None,
-            &PtrTarget::ObjPath { ref context, ref path } => {
-                if let &Some(ref trk) = &context.tracker {
-                    trk.follow(path);
-                }
-                if let source::ResolveStatus::Resolved(ptr) = source::resolve_from::<T>(context, path) {
-                    return Some(Arc::new( (*ptr).clone() ));
-                } else {
-                    return None;
-                } 
-            }
-            &PtrTarget::InlineObject { ref data, ref context, ref type_name, .. } => {
-                return Some(Arc::new(<T as source::ParseFromKV>::parse_with_type(data, context, type_name)));
-            }
-            &PtrTarget::TempObject { ref object, .. } => Some(object.clone())
-        }
-    }
-    pub fn unwrap(&self) -> Arc<T> {
-        return self.resolve().unwrap();
-    }
-    pub fn unwrap_unique(&self) -> Box<T> {
-        return Box::new((*self.resolve().unwrap()).clone());
-    }
+
 }
 
 pub fn ptr_from_data<T>(context : &Arc<source::InkiPtrContext>, ld:&lexer::LexedData) -> Ptr<T> where T : source::ParseFromKV {

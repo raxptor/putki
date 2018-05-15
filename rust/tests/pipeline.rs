@@ -26,19 +26,16 @@ struct Pointer {
 	next: putki::Ptr<Pointer>
 }
 
-impl putki::InkiTypeDescriptor for TestValues {
+impl putki::TypeDescriptor for TestValues {
 	const TAG : &'static str = "TestValues";
-	type OutkiType = ();
 }
 
-impl putki::InkiTypeDescriptor for Multi {
+impl putki::TypeDescriptor for Multi {
 	const TAG : &'static str = "Multi";
-	type OutkiType = ();
 }
 
-impl putki::InkiTypeDescriptor for Pointer {
+impl putki::TypeDescriptor for Pointer {
 	const TAG : &'static str = "Pointer";
-	type OutkiType = ();
 }
   
 impl putki::BuildFields for TestValues { }

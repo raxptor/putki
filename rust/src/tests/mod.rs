@@ -1,6 +1,7 @@
 use inki::*;
 use inki::source;
 use std::sync::Arc;
+use shared;
 
 #[cfg(test)]
 mod outki;
@@ -28,14 +29,12 @@ struct PtrStruct1 {
     pub ptr: Ptr<PointedTo>
 }
 
-impl source::InkiTypeDescriptor for PointedTo {
+impl shared::TypeDescriptor for PointedTo {
 	const TAG : &'static str = "PointedTo";
-	type OutkiType = ();
 }
 
-impl source::InkiTypeDescriptor for PtrStruct1 {
+impl shared::TypeDescriptor for PtrStruct1 {
 	const TAG : &'static str = "PtrStruct1";
-	type OutkiType = ();
 }
 
 impl ParseFromKV for PointedTo {

@@ -7,11 +7,11 @@ pub struct RefsSource<'a, Layout> where Layout : shared::Layout {
     package: u32
 }
 
-pub trait UnpackWithRefs<Layout> where Layout : shared::Layout, Self : Sized + shared::OutkiTypeDescriptor {
+pub trait UnpackWithRefs<Layout> where Layout : shared::Layout, Self : Sized + shared::TypeDescriptor {
     fn unpack(pkg:&RefsSource<Layout>, data:&[u8]) -> Self;
     fn unpack_with_type(pkg:&RefsSource<Layout>, data:&[u8], type_name:&str) -> Self {
-        if type_name != <Self as shared::OutkiTypeDescriptor>::TAG {
-            println!("unpack_with_type: Saw type {}, but i impl for {}", type_name, <Self as shared::OutkiTypeDescriptor>::TAG);
+        if type_name != <Self as shared::TypeDescriptor>::TAG {
+            println!("unpack_with_type: Saw type {}, but i impl for {}", type_name, <Self as shared::TypeDescriptor>::TAG);
         }                    
         return <Self as UnpackWithRefs<Layout>>::unpack(pkg, data);
     }
@@ -29,13 +29,12 @@ impl UnpackStatic<shared::BinLayout> for i32 {
     fn unpack(data:&[u8]) -> Self { return <u32 as UnpackStatic<shared::BinLayout>>::unpack(data) as i32; }
 }
 
-impl<T> shared::OutkiTypeDescriptor for Option<Rc<T>>
+impl<T> shared::TypeDescriptor for Option<Rc<T>>
 {
     const TAG : &'static str = "Option<Rc<T>> placeholder";
-    const SIZE : usize = 0;
 }
 
-impl<Layout, T> UnpackWithRefs<Layout> for Option<Rc<T>> where Layout : shared::Layout, u32: UnpackStatic<Layout>, T : shared::OutkiTypeDescriptor + UnpackWithRefs<Layout> + 'static {
+impl<Layout, T> UnpackWithRefs<Layout> for Option<Rc<T>> where Layout : shared::Layout, u32: UnpackStatic<Layout>, T : shared::TypeDescriptor + UnpackWithRefs<Layout> + 'static {
     fn unpack(pkg:&RefsSource<Layout>, data:&[u8]) -> Self {
         return PackageManager::obj_from_slot(pkg, <u32 as UnpackStatic<Layout>>::unpack(data));
     }
@@ -95,7 +94,7 @@ impl<Layout> PackageManager<Layout> where Layout : shared::Layout
     }}
 
     pub fn insert(&mut self, p:Package) { self.packages.push(p); }
-    pub fn resolve<T>(&self, path:&str) -> Option<Rc<T>> where T : 'static, T : shared::OutkiTypeDescriptor, T : UnpackWithRefs<Layout> { 
+    pub fn resolve<T>(&self, path:&str) -> Option<Rc<T>> where T : 'static, T : shared::TypeDescriptor, T : UnpackWithRefs<Layout> { 
         for ref p in &self.packages {
             for idx in 0 .. p.slots.len() {
                 let s = &p.slots[idx];
@@ -113,7 +112,7 @@ impl<Layout> PackageManager<Layout> where Layout : shared::Layout
         return None;
     }
 
-    fn obj_from_slot<'a, T>(refs:&RefsSource<'a, Layout>, slot:u32) -> Option<Rc<T>> where Layout : shared::Layout, T : UnpackWithRefs<Layout>, T : shared::OutkiTypeDescriptor {
+    fn obj_from_slot<'a, T>(refs:&RefsSource<'a, Layout>, slot:u32) -> Option<Rc<T>> where Layout : shared::Layout, T : UnpackWithRefs<Layout>, T : shared::TypeDescriptor {
         let pkg = &refs.mgr.packages[refs.package as usize];
         let slotidx = slot as usize;
         if slotidx >= pkg.slots.len() {

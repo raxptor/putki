@@ -1,3 +1,4 @@
+/*
 use shared;
 use shared::tag_of;
 use shared::size_of;
@@ -39,17 +40,17 @@ struct Sub2 {
     value: i32
 }
 
-impl shared::OutkiTypeDescriptor for IRootData { const TAG : &'static str = "IRootData"; const SIZE : usize = 0; }
-impl shared::OutkiTypeDescriptor for SubRootData { const TAG : &'static str = "IRootData"; const SIZE : usize = <IRootData as shared::OutkiTypeDescriptor>::SIZE; }
-impl shared::OutkiTypeDescriptor for SubRoot { const TAG : &'static str = "SubRoot"; const SIZE : usize = <SubRootData as shared::OutkiTypeDescriptor>::SIZE; }
-impl shared::OutkiTypeDescriptor for SubSub1 {  const TAG : &'static str = "SubSub1"; const SIZE : usize = 4; }
-impl shared::OutkiTypeDescriptor for IRoot { const TAG : &'static str = "IRoot"; const SIZE : usize = 0; }
-impl shared::OutkiTypeDescriptor for Sub1 { const TAG : &'static str = "Sub1"; const SIZE : usize = 4; }
-impl shared::OutkiTypeDescriptor for Sub2 { const TAG : &'static str = "Sub2"; const SIZE : usize = 4; }
+impl shared::TypeDescriptor for IRootData { const TAG : &'static str = "IRootData"; }
+impl shared::TypeDescriptor for SubRootData { const TAG : &'static str = "IRootData"; }
+impl shared::TypeDescriptor for SubRoot { const TAG : &'static str = "SubRoot"; }
+impl shared::TypeDescriptor for SubSub1 {  const TAG : &'static str = "SubSub1"; }
+impl shared::TypeDescriptor for IRoot { const TAG : &'static str = "IRoot"; }
+impl shared::TypeDescriptor for Sub1 { const TAG : &'static str = "Sub1"; }
+impl shared::TypeDescriptor for Sub2 { const TAG : &'static str = "Sub2"; }
 
 impl outki::UnpackWithRefs<shared::BinLayout> for Sub1 {
     fn unpack(_refs:&outki::RefsSource<shared::BinLayout>, data:&[u8]) -> Self {        
-        let s1 = size_of::<IRootData>();
+        let s1 = 0;
         let s2 = s1 + 4;
         return Self {
             root: IRootData::unpack(_refs, &data[0..s1]),
@@ -60,7 +61,7 @@ impl outki::UnpackWithRefs<shared::BinLayout> for Sub1 {
 
 impl outki::UnpackWithRefs<shared::BinLayout> for Sub2 {
     fn unpack(_refs:&outki::RefsSource<shared::BinLayout>, data:&[u8]) -> Self {        
-        let s1 = size_of::<IRootData>();
+        let s1 = 0;
         let s2 = s1 + 4;
         return Self {
             root: IRootData::unpack(_refs, &data[0..s1]),
@@ -81,11 +82,11 @@ impl outki::UnpackWithRefs<shared::BinLayout> for IRoot {
     }
     fn unpack_with_type(pkg:&outki::RefsSource<shared::BinLayout>, data:&[u8], type_name:&str) -> Self {
         match type_name {
-            <IRoot as shared::OutkiTypeDescriptor>::TAG => return IRoot::Pure(<IRootData as outki::UnpackWithRefs<shared::BinLayout>>::unpack(pkg, data)),
-            <Sub1 as shared::OutkiTypeDescriptor>::TAG => return IRoot::Sub1(<Sub1 as outki::UnpackWithRefs<shared::BinLayout>>::unpack(pkg, data)),
-            <Sub2 as shared::OutkiTypeDescriptor>::TAG => return IRoot::Sub2(<Sub2 as outki::UnpackWithRefs<shared::BinLayout>>::unpack(pkg, data)),            
-            <SubRoot as shared::OutkiTypeDescriptor>::TAG => return IRoot::SubRoot(SubRoot::Pure(<SubRootData as outki::UnpackWithRefs<shared::BinLayout>>::unpack(pkg, data))),
-            <SubSub1 as shared::OutkiTypeDescriptor>::TAG => return IRoot::SubRoot(SubRoot::SubSub1(<SubSub1 as outki::UnpackWithRefs<shared::BinLayout>>::unpack(pkg, data))),
+            <IRoot as shared::TypeDescriptor>::TAG => return IRoot::Pure(<IRootData as outki::UnpackWithRefs<shared::BinLayout>>::unpack(pkg, data)),
+            <Sub1 as shared::TypeDescriptor>::TAG => return IRoot::Sub1(<Sub1 as outki::UnpackWithRefs<shared::BinLayout>>::unpack(pkg, data)),
+            <Sub2 as shared::TypeDescriptor>::TAG => return IRoot::Sub2(<Sub2 as outki::UnpackWithRefs<shared::BinLayout>>::unpack(pkg, data)),            
+            <SubRoot as shared::TypeDescriptor>::TAG => return IRoot::SubRoot(SubRoot::Pure(<SubRootData as outki::UnpackWithRefs<shared::BinLayout>>::unpack(pkg, data))),
+            <SubSub1 as shared::TypeDescriptor>::TAG => return IRoot::SubRoot(SubRoot::SubSub1(<SubSub1 as outki::UnpackWithRefs<shared::BinLayout>>::unpack(pkg, data))),
             _ => return IRoot::Pure(IRootData { })
         }
     }    
@@ -135,3 +136,4 @@ pub fn unpack_enum()
         panic!("sub1 wasn't sub1");
     }
 }
+*/
