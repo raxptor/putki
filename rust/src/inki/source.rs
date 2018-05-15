@@ -1,5 +1,4 @@
 use inki::lexer;
-use std::boxed::Box;
 use std::rc::Rc;
 use std::sync::Arc;
 

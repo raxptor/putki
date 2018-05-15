@@ -3,7 +3,6 @@ use shared::tag_of;
 use shared::size_of;
 use outki;
 use std::rc::Rc;
-use std::any::Any;
 
 use outki::UnpackStatic;
 
@@ -71,13 +70,13 @@ impl outki::UnpackWithRefs<shared::BinLayout> for Sub2 {
 }
 
 impl outki::UnpackWithRefs<shared::BinLayout> for IRootData {
-    fn unpack(_refs:&outki::RefsSource<shared::BinLayout>, data:&[u8]) -> Self {
+    fn unpack(_refs:&outki::RefsSource<shared::BinLayout>, _data:&[u8]) -> Self {
         IRootData { }
     }
 }
 
 impl outki::UnpackWithRefs<shared::BinLayout> for IRoot {
-    fn unpack(pkg:&outki::RefsSource<shared::BinLayout>, data:&[u8]) -> Self {
+    fn unpack(_pkg:&outki::RefsSource<shared::BinLayout>, _data:&[u8]) -> Self {
         unimplemented!();
     }
     fn unpack_with_type(pkg:&outki::RefsSource<shared::BinLayout>, data:&[u8], type_name:&str) -> Self {
@@ -110,22 +109,6 @@ impl outki::UnpackWithRefs<shared::BinLayout> for SubSub1 {
         }
     }
 }
-/*
-impl outki::TypeResolver<shared::BinLayout> for TypeResolver
-{
-    fn unpack_with_type(pkg:&outki::RefsSource<Self, shared::BinLayout>, data:&[u8], type_name:&str) -> Option<Rc<Any>> where Self : Sized {
-        match type_name {
-            <IRoot as shared::OutkiTypeDescriptor>::TAG => return IRoot::Pure(<IRootData as outki::UnpackWithRefs<Self, shared::BinLayout>>::unpack(pkg, data)),
-            <Sub1 as shared::OutkiTypeDescriptor>::TAG => return IRoot::Sub1(<Sub1 as outki::UnpackWithRefs<Self, shared::BinLayout>>::unpack(pkg, data)),
-            /*
-            <Sub2 as shared::OutkiTypeDescriptor>::TAG => return IRoot::Sub2(<Sub2 as outki::UnpackWithRefs<Self, shared::BinLayout>>::unpack(pkg, data))) as Rc<Any>),            
-            <SubRoot as shared::OutkiTypeDescriptor>::TAG => return IRoot::SubRoot(SubRoot::Pure(<SubRootData as outki::UnpackWithRefs<Self, shared::BinLayout>>::unpack(pkg, data)))) as Rc<Any>),            
-            <SubSub1 as shared::OutkiTypeDescriptor>::TAG => return IRoot::SubRoot(SubRoot::SubSub1(<SubSub1 as outki::UnpackWithRefs<Self, shared::BinLayout>>::unpack(pkg, data)))) as Rc<Any>),
-            */
-            _ => return None            
-        }
-    }
-*/
 
 #[test]
 pub fn unpack_enum()

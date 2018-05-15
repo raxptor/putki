@@ -35,7 +35,7 @@ pub struct InputDeps {
 }
 
 pub trait BuildFields {
-    fn build_fields(&mut self, pl:&Pipeline, br:&mut BuildRecord) -> Result<(), shared::PutkiError> { return Ok(())}
+    fn build_fields(&mut self, _pl:&Pipeline, _br:&mut BuildRecord) -> Result<(), shared::PutkiError> { return Ok(())}
 }
 
 pub trait Builder<T> where Self : Send + Sync {
@@ -130,7 +130,7 @@ impl PipelineDesc {
 pub trait BuildCandidate where Self : 'static + Send + Sync + BuildFields {
     fn as_any_ref(&mut self) -> &mut Any;
     fn build(&mut self, p:&Pipeline, br: &mut BuildRecord);
-    fn scan_deps(&self, p:&Pipeline, br: &mut BuildRecord) { }
+    fn scan_deps(&self, _p:&Pipeline, _br: &mut BuildRecord) { }
 }
 
 pub struct Pipeline
@@ -216,16 +216,15 @@ impl Pipeline
             // TODO: Unsure what to do with created exactly, output deps will be tracked in
             // scan_deps if they are used anyway...
             println!("Build of {} created {} items", br.path, br.created.len());
-            let mut lk = self.to_build.write().unwrap();
+            /* let mut lk = self.to_build.write().unwrap();
             for x in br.created.drain(..) {
-                /*
                 lk.push(BuildRequest {
                     path : x.0,
                     obj: x.1,
                     context: br.context.clone()
                 });
-                */
-            }            
+            }      
+            */      
         }
         return true;
     }

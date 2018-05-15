@@ -1,9 +1,5 @@
 use inki::*;
-use shared;
 use inki::source;
-use std::rc::Rc;
-use std::boxed::Box;
-use std::any::Any;
 use std::sync::Arc;
 
 #[cfg(test)]
