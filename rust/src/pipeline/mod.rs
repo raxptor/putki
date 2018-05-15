@@ -23,9 +23,7 @@ use shared;
 use inki;
 use source;
 use ptr;
-
 mod writer;
-
 
 pub struct BuilderDesc {
     pub description: &'static str    
@@ -82,9 +80,6 @@ pub struct BuildRecord
     error: Option<String>,
     success: bool,
     deps: HashSet<String>,
-
-    // helper
-    context: Arc<source::InkiPtrContext>,
     created: Vec<(String, Box<BuildCandidate>)>
 }
 
@@ -96,11 +91,10 @@ impl BuildRecord
     pub fn get_path<'a>(&'a self) -> &'a str {
         return self.path.as_str();
     }
-    pub fn create_object<T>(&mut self, tag:&str, obj:T) -> ptr::Ptr<T> where T:BuildCandidate + source::ParseFromKV + Send + Sync + Default {                
+    pub fn create_object<T>(&mut self, tag:&str, obj:T) -> ptr::Ptr<T> where T:BuildCandidate + source::ParseFromKV + Send + Sync + Default {                        
         let tmp_path = format!("{}!{}", &self.path, tag);
         println!("Created object with path [{}]!", tmp_path);
-        self.created.push((tmp_path.clone(), Box::new(obj)));
-        ptr::Ptr::new(self.context.clone(), tmp_path.as_str())
+        ptr::Ptr::new_temp_object(tmp_path.as_str(), Arc::new(obj))
     }
 }
 
@@ -139,10 +133,44 @@ pub struct Pipeline
     to_build: RwLock<Vec<BuildRequest>>
 }
 
+struct BuildInvokeBox<T> where T : 'static + source::ParseFromKV + Send + Sync
+{
+    pub ptr: ptr::Ptr<T>
+}
+
+trait BuildInvoke where Self : Send + Sync
+{
+    fn build(&self, p:&Pipeline, br:&BuildRequest);
+}
+
+impl<T> BuildInvoke for BuildInvokeBox<T> where T : 'static + source::ParseFromKV + BuildCandidate
+{
+    fn build(&self, p:&Pipeline, br:&BuildRequest)
+    {
+        if let Some(obj) = self.ptr.resolve() {
+            let mut clone = (*obj).clone();
+            let bc : &mut BuildCandidate = &mut clone;
+            let mut br = BuildRecord {
+                error: None,
+                success: true,
+                path: br.path.clone(),
+                deps: HashSet::new(),
+                created: Vec::new()
+            };
+            println!("--- Starting build of {}", br.path);
+            bc.build(p, &mut br);
+            println!(" * Finished builders; doing depscan {} ", br.path);
+            bc.scan_deps(p, &mut br);
+            println!("--- Finished build of {}", br.path);
+        } else {
+            panic!("Unable to resolve ptr {:?}", self.ptr);
+        }
+    }
+}
+
 struct BuildRequest {
     path: String,
-    obj: Box<BuildCandidate>,
-    context: Arc<source::InkiPtrContext>
+    invoker: Box<BuildInvoke>
 }
 
 impl Pipeline
@@ -169,63 +197,41 @@ impl Pipeline
     pub fn add_output_dependency<T>(&self, br:&mut BuildRecord, ptr: &ptr::Ptr<T>) where T : 'static + source::ParseFromKV + BuildCandidate {
         if let Some(path) = ptr.get_target_path() {
             println!("adding output dependency {}", path);
-            self.build_as::<T>(path);
+            self.build_ptr(ptr);
             br.deps.insert(String::from(path));
         }
     }
 
-    pub fn build_as<T>(&self, path:&str) where T : 'static + source::ParseFromKV + BuildCandidate {
-        let context = Arc::new(source::InkiPtrContext {
-            tracker: None,
-            source: Arc::new(source::InkiResolver::new(self.desc.source.clone())),
+    pub fn build_ptr<T>(&self, ptr : &ptr::Ptr<T>) where T : 'static + source::ParseFromKV + BuildCandidate {        
+        let mut lk = self.to_build.write().unwrap();
+        lk.push(BuildRequest {
+            path: String::from(ptr.get_target_path().unwrap()),
+            invoker: Box::new(BuildInvokeBox::<T> { ptr: ptr.clone() })
         });
-        if let source::ResolveStatus::Resolved(ptr) = source::resolve_from::<T>(&context, path) {
-            let mut lk = self.to_build.write().unwrap();
-            lk.push(BuildRequest {
-                path: String::from(path),
-                obj: Box::new((*ptr).clone()),
-                context: context                
-            });
-        } else {
-            panic!("FAILED TO RESOLVE [{}]", path);
-        }
+    }    
+
+    pub fn build_as<T>(&self, path:&str) where T : 'static + source::ParseFromKV + BuildCandidate {        
+        let mut lk = self.to_build.write().unwrap();        
+        let ctx = source::InkiPtrContext {
+            tracker: None,
+            source: Arc::new(source::InkiResolver::new(self.desc.source.clone()))
+        };       
+        lk.push(BuildRequest {
+            path: String::from(path),
+            invoker: Box::new(BuildInvokeBox::<T> { ptr: ptr::Ptr::new(Arc::new(ctx), path) })
+        });
     }
 
     pub fn take(&self) -> bool
     {
-        let mut request = {        
+        let request = {        
             let mut lk = self.to_build.write().unwrap();        
             if lk.len() == 0 {
                 return false;
             }
             lk.remove(0)
         };
-        let mut br = BuildRecord {
-            error: None,
-            success: true,
-            path: request.path,
-            context: request.context.clone(),
-            deps: HashSet::new(),
-            created: Vec::new()
-        };
-        request.obj.build(self, &mut br);
-        if br.success {
-            request.obj.scan_deps(self, &mut br);
-        }
-        if br.created.len() > 0 {
-            // TODO: Unsure what to do with created exactly, output deps will be tracked in
-            // scan_deps if they are used anyway...
-            println!("Build of {} created {} items", br.path, br.created.len());
-            /* let mut lk = self.to_build.write().unwrap();
-            for x in br.created.drain(..) {
-                lk.push(BuildRequest {
-                    path : x.0,
-                    obj: x.1,
-                    context: br.context.clone()
-                });
-            }      
-            */      
-        }
+        request.invoker.build(self, &request);
         return true;
     }
 

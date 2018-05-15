@@ -1,13 +1,11 @@
 use inki::source;
 use inki::lexer;
-use std::marker::PhantomData;
-use std::rc::Rc;
 use std::fmt;
 use std::result;
 use std::sync::Arc;
 
 #[derive(Clone)]
-enum PtrTarget
+enum PtrTarget<Target>
 {
     Null,
     ObjPath {
@@ -19,13 +17,16 @@ enum PtrTarget
         type_name : String,
         context : Arc<source::InkiPtrContext>,
         data: lexer::LexedKv
+    },
+    TempObject {
+        path: String,
+        object: Arc<Target>
     }
 }
 
 pub struct Ptr<Target> where Target : source::ParseFromKV
 {
-    target: PtrTarget,
-    _m : PhantomData<Box<Target>>
+    target: PtrTarget<Target>
 }
 
 impl<Target> fmt::Debug for Ptr<Target> where Target : source::ParseFromKV {
@@ -34,6 +35,7 @@ impl<Target> fmt::Debug for Ptr<Target> where Target : source::ParseFromKV {
             &PtrTarget::Null  => { write!(f, "Null pointer").ok(); },
             &PtrTarget::ObjPath { ref path, .. } => { write!(f, "Ptr path[{}]", &path).ok(); },
             &PtrTarget::InlineObject { ref type_name, ref path, .. } => { write!(f, "Ptr inline object type[{}] path={}", type_name, path).ok(); }
+            &PtrTarget::TempObject { ref path, .. } => { write!(f, "Temp object path={}", path).ok(); }
         }
         return Ok(());
     }
@@ -41,46 +43,47 @@ impl<Target> fmt::Debug for Ptr<Target> where Target : source::ParseFromKV {
 
 impl<Target> Ptr<Target> where Target : source::ParseFromKV
 {
-    pub fn new(context : Arc<source::InkiPtrContext>, path: &str) -> Ptr<Target>
-    {
+    pub fn new(context : Arc<source::InkiPtrContext>, path: &str) -> Ptr<Target> {
         return Ptr {
             target: PtrTarget::ObjPath {
                 context: context,
                 path: String::from(path)
-            },
-            _m: PhantomData { }
+            }
         }
     }
-    pub fn new_inline(context : Arc<source::InkiPtrContext>, kv: &lexer::LexedKv, type_name: &str, path: &str) -> Ptr<Target>
-    {
+
+    pub fn new_inline(context : Arc<source::InkiPtrContext>, kv: &lexer::LexedKv, type_name: &str, path: &str) -> Ptr<Target> {
         return Ptr {
             target: PtrTarget::InlineObject {
                 context: context,
                 path: String::from(path),
                 type_name: String::from(type_name),
                 data: kv.clone()
-            },
-            _m: PhantomData { }
+            }
         }
     }    
-    pub fn null() -> Ptr<Target>
-    {
+
+    pub fn new_temp_object(path: &str, obj: Arc<Target>) -> Ptr<Target> where Target : source::ParseFromKV {
         return Ptr {
-            target: PtrTarget::Null,
-            _m: PhantomData { }
+            target: PtrTarget::TempObject {
+                path: String::from(path),
+                object: obj
+            }
+        }
+    }
+
+    pub fn null() -> Ptr<Target> {
+        return Ptr {
+            target: PtrTarget::Null
         }
     }
 
     pub fn get_target_path<'a>(&'a self) -> Option<&'a str>
     {
         match &self.target {
-            &PtrTarget::Null => { println!("i am nul"); }
-            &PtrTarget::ObjPath { ref path, .. } => { println!("i am {}", path); }
-            _ => { println!("i am something else!"); }
-        } ;
-        match &self.target {
             &PtrTarget::Null => None,
             &PtrTarget::ObjPath { ref path, .. } => Some(path.as_str()),
+            &PtrTarget::TempObject { ref path, .. } => Some(path.as_str()),
             _ => None
         }
     }
@@ -96,14 +99,13 @@ impl<T> Clone for Ptr<T> where T : source::ParseFromKV {
     fn clone(&self) -> Self {
         Self {
             target : self.target.clone(),
-            _m : PhantomData
         }        
     }
 }
 
 impl<T> Ptr<T> where T : source::ParseFromKV + 'static
 {
-    pub fn resolve(&self) -> Option<Rc<T>> {
+    pub fn resolve(&self) -> Option<Arc<T>> {
         match &self.target {
             &PtrTarget::Null => return None,
             &PtrTarget::ObjPath { ref context, ref path } => {
@@ -111,17 +113,18 @@ impl<T> Ptr<T> where T : source::ParseFromKV + 'static
                     trk.follow(path);
                 }
                 if let source::ResolveStatus::Resolved(ptr) = source::resolve_from::<T>(context, path) {
-                    return Some(ptr);
+                    return Some(Arc::new( (*ptr).clone() ));
                 } else {
                     return None;
                 } 
             }
             &PtrTarget::InlineObject { ref data, ref context, ref type_name, .. } => {
-                return Some(Rc::new(<T as source::ParseFromKV>::parse_with_type(data, context, type_name)));
+                return Some(Arc::new(<T as source::ParseFromKV>::parse_with_type(data, context, type_name)));
             }
+            &PtrTarget::TempObject { ref object, .. } => Some(object.clone())
         }
     }
-    pub fn unwrap(&self) -> Rc<T> {
+    pub fn unwrap(&self) -> Arc<T> {
         return self.resolve().unwrap();
     }
     pub fn unwrap_unique(&self) -> Box<T> {

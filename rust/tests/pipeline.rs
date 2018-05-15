@@ -178,7 +178,6 @@ fn test_pipeline() {
 	let pipeline = Arc::new(putki::Pipeline::new(desc));
 
 	pipeline.build_as::<Multi>("multi");
-	pipeline.build_as::<Multi>("multi");
 	pipeline.build_as::<Pointer>("ptr");
 
 	let mut thr = Vec::new();
@@ -193,28 +192,4 @@ fn test_pipeline() {
 	for x in thr {
 		x.join().ok();
 	}
-
-/*
-	let ctx = putki::InkiPtrContext {
-		tracker: None,
-		source: Rc::new(putki::InkiResolver::new(la.clone())),
-	};
-	{
-		let p : putki::Ptr<TestValues> = putki::Ptr::new(ctx.clone(), "tv0");
-		let mut o1:TestValues = (*p.unwrap()).clone();
-		pipeline.build_as::<TestValues>("multi");
-		let br = pipeline.build(&mut o1);
-		assert!(br.is_ok());
-		assert_eq!(o1.value1, 1123);
-		assert_eq!(o1.value2, 2456);
-	}
-	{
-		let p : putki::Ptr<Multi> = putki::Ptr::new(ctx, "multi");
-		let mut o1:Multi = (*p.unwrap()).clone();
-		let br = pipeline.build(&mut o1);
-		assert!(br.is_ok());
-		assert_eq!(o1.contained.value1, 1321);
-		assert_eq!(o1.contained.value2, 2654);
-	}
-	*/
 }
