@@ -79,8 +79,8 @@ pub struct BuildRecord
     path: String,
     error: Option<String>,
     success: bool,
-    deps: HashSet<String>,
-    created: Vec<(String, Box<BuildCandidate>)>
+    deps: HashMap<String, Box<ObjDepRef>>,
+    built_obj: Option<Box<BuildResultObj>>
 }
 
 impl BuildRecord
@@ -133,7 +133,7 @@ pub struct Pipeline
     to_build: RwLock<Vec<BuildRequest>>
 }
 
-struct BuildInvokeBox<T> where T : 'static + source::ParseFromKV + Send + Sync
+struct PtrBox<T> where T : 'static + Send + Sync + source::ParseFromKV
 {
     pub ptr: ptr::Ptr<T>
 }
@@ -143,25 +143,41 @@ trait BuildInvoke where Self : Send + Sync
     fn build(&self, p:&Pipeline, br:&BuildRequest);
 }
 
-impl<T> BuildInvoke for BuildInvokeBox<T> where T : 'static + source::ParseFromKV + BuildCandidate
+pub trait BuildResultObj where Self : Send + Sync { }
+trait ObjDepRef where Self : 'static + Send + Sync { }
+
+impl<T> BuildResultObj for PtrBox<T> where T : 'static + source::ParseFromKV + BuildCandidate
+{
+
+}
+
+impl<T> ObjDepRef for PtrBox<T> where T : 'static + source::ParseFromKV + BuildCandidate
+{
+
+}
+
+impl<T> BuildInvoke for PtrBox<T> where T : 'static + source::ParseFromKV + BuildCandidate
 {
     fn build(&self, p:&Pipeline, br:&BuildRequest)
     {
         if let Some(obj) = self.ptr.resolve() {
-            let mut clone = (*obj).clone();
-            let bc : &mut BuildCandidate = &mut clone;
             let mut br = BuildRecord {
                 error: None,
                 success: true,
                 path: br.path.clone(),
-                deps: HashSet::new(),
-                created: Vec::new()
-            };
-            println!("--- Starting build of {}", br.path);
-            bc.build(p, &mut br);
-            println!(" * Finished builders; doing depscan {} ", br.path);
-            bc.scan_deps(p, &mut br);
-            println!("--- Finished build of {}", br.path);
+                deps: HashMap::new(),
+                built_obj: None
+            };            
+            let mut clone = (*obj).clone();
+            {
+                let bc : &mut BuildCandidate = &mut clone;
+                println!("--- Starting build of {}", br.path);
+                bc.build(p, &mut br);
+                println!(" * Finished builders; doing depscan {} ", br.path);
+                bc.scan_deps(p, &mut br);
+                println!("--- Finished build of {}", br.path);
+            }
+            br.built_obj = Some(Box::new(PtrBox { ptr: ptr::Ptr::new_temp_object(&br.path, Arc::new(clone))}));
         } else {
             panic!("Unable to resolve ptr {:?}", self.ptr);
         }
@@ -198,7 +214,7 @@ impl Pipeline
         if let Some(path) = ptr.get_target_path() {
             println!("adding output dependency {}", path);
             self.build_ptr(ptr);
-            br.deps.insert(String::from(path));
+            br.deps.insert(String::from(path), Box::new(PtrBox { ptr: (*ptr).clone() }));
         }
     }
 
@@ -206,7 +222,7 @@ impl Pipeline
         let mut lk = self.to_build.write().unwrap();
         lk.push(BuildRequest {
             path: String::from(ptr.get_target_path().unwrap()),
-            invoker: Box::new(BuildInvokeBox::<T> { ptr: ptr.clone() })
+            invoker: Box::new(PtrBox::<T> { ptr: ptr.clone() })
         });
     }    
 
@@ -218,7 +234,7 @@ impl Pipeline
         };       
         lk.push(BuildRequest {
             path: String::from(path),
-            invoker: Box::new(BuildInvokeBox::<T> { ptr: ptr::Ptr::new(Arc::new(ctx), path) })
+            invoker: Box::new(PtrBox::<T> { ptr: ptr::Ptr::new(Arc::new(ctx), path) })
         });
     }
 
