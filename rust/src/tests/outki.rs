@@ -13,20 +13,20 @@ struct PtrStruct {
     pub ptr: Option<Rc<PointedTo>>
 }
 
-use outki::UnpackStatic;
+use outki::BinReader;
 
-impl outki::UnpackWithRefs<shared::BinLayout> for PointedTo {
-    fn unpack(_refs:&outki::RefsSource<shared::BinLayout>, data:&[u8]) -> Self {
-        return Self {
-            value: i32::unpack(&data[0..4])
+impl outki::BinReader for PointedTo {
+    fn read(stream:&mut outki::BinDataStream) -> Self {
+        Self {
+            value: i32::read(stream)
         }
     }
 }
 
-impl outki::UnpackWithRefs<shared::BinLayout> for PtrStruct {
-    fn unpack(refs:&outki::RefsSource<shared::BinLayout>, data:&[u8]) -> Self {
-        return Self {
-            ptr: <Option<Rc<PointedTo>> as outki::UnpackWithRefs<shared::BinLayout>>::unpack(refs, &data[0..4])
+impl outki::BinReader for PtrStruct {
+    fn read(stream:&mut outki::BinDataStream) -> Self {
+        Self {
+            ptr: <Option<Rc<PointedTo>> as outki::BinReader>::read(stream)
         }
     }
 }
@@ -42,7 +42,7 @@ impl shared::TypeDescriptor for PtrStruct {
 #[test]
 pub fn unpack_simple()
 {
-    let mut pm : outki::PackageManager<shared::BinLayout> = outki::PackageManager::new();
+    let mut pm = outki::BinPackageManager::new();
     let mut pkg = outki::Package::new();
     let data:[u8;4] = [100, 2, 0, 0];
     pkg.insert(Some("pto1"), tag_of::<PointedTo>(), &data);
@@ -55,7 +55,7 @@ pub fn unpack_simple()
 #[test]
 pub fn unpack_complex()
 {
-    let mut pm : outki::PackageManager<shared::BinLayout> = outki::PackageManager::new();
+    let mut pm = outki::BinPackageManager::new();
     let mut pkg = outki::Package::new();
     {
         let data:[u8;4] = [2, 0, 0, 0];

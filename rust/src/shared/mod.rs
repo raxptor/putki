@@ -16,23 +16,6 @@ pub trait Resolver<ResolveContext> {
 	fn load(&self, pctx: &ResolveContext, path:&str) -> Option<Rc<Any>>;
 }
 
-pub trait Layout where Self : 'static {
-}
-
-pub trait LayoutDescriptor {
-    const TAG : &'static str;
-}
-
-pub struct BinLayout { }
-pub struct JsonLayout { }
-
-impl Layout for BinLayout {
-}
-
-impl LayoutDescriptor for BinLayout {
-    const TAG : &'static str = "BinLayout";
-}
-
 pub fn tag_of<T>() -> &'static str where T : TypeDescriptor
 {
     return <T as TypeDescriptor>::TAG;    
