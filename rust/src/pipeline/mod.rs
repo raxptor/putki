@@ -17,8 +17,7 @@ use std::sync::*;
 use std::default::Default;
 use std::vec;
 use std::marker::PhantomData;
-use std::collections::HashMap;
-use std::collections::HashSet;
+use std::collections::*;
 use inki::ptr::PtrInkiResolver;
 use shared;
 use inki;
@@ -76,11 +75,11 @@ struct ObjEntry
 // One per object and per builder.
 pub struct BuildRecord
 {
-    path: String,
+    pub path: String,
+    pub deps: HashMap<String, Box<ObjDepRef>>,
+    pub built_obj: Option<Box<BuildResultObj>>,
     error: Option<String>,
-    success: bool,
-    deps: HashMap<String, Box<ObjDepRef>>,
-    built_obj: Option<Box<BuildResultObj>>
+    success: bool,        
 }
 
 impl BuildRecord
@@ -201,6 +200,8 @@ impl Pipeline
         }
     }
 
+
+
     fn on_build_done(&self, br:BuildRecord) {
         println!("Adding output object [{}]", &br.path);
         self.built.write().unwrap().insert(br.path.clone(), br);
@@ -257,6 +258,11 @@ impl Pipeline
         };
         request.invoker.build(self, &request);
         return true;
+    }
+
+    pub fn peek_build_records(&self) -> LockResult<RwLockReadGuard<HashMap<String, BuildRecord>>>
+    {
+        return self.built.read();
     }
 
     // This function is re-entrant when building fields.

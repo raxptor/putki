@@ -5,7 +5,8 @@ use std::error::Error;
 
 pub enum PutkiError {
     Test,
-    BuilderError(Box<Error>)
+    BuilderError(Box<Error>),
+    ObjectNotFound,
 }
 
 pub trait TypeDescriptor {

@@ -1,6 +1,8 @@
 use shared;
+use pipeline;
 use std::rc::Rc;
 use std::collections::HashMap;
+use std::collections::HashSet;
 use std::any::Any;
 use ptr;
 
@@ -67,8 +69,30 @@ impl<T> BinWriter for Option<ptr::Ptr<T>> {
 }
 
 pub struct PackageRecipe { 
-    objects: HashMap<Rc<Any>, Entry>,
-    resources: Vec<Vec<u8>>
+    paths: HashSet<String>    
+}
+
+impl PackageRecipe {
+    pub fn new() -> PackageRecipe {
+        PackageRecipe {
+            paths: HashSet::new()
+        }
+    }
+    pub fn add_object(&mut self, p:&pipeline::Pipeline, path:&str, recurse_deps:bool) -> Result<(), shared::PutkiError> {
+        let k = p.peek_build_records().unwrap();
+        if let Some(br) = k.get(path) {
+            println!("adding path {}", path);
+            self.paths.insert(String::from(path));
+            if (recurse_deps) {
+                for x in br.deps.keys() {
+                    self.add_object(p, x.as_str(), true)?
+                }
+            }
+            Ok(())
+        } else {
+            Err(shared::PutkiError::ObjectNotFound)
+        }
+    }
 }
 
 pub fn write_package(_recipe:&PackageRecipe)

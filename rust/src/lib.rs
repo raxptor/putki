@@ -11,6 +11,7 @@ pub use inki::*;
 pub use outki::*;
 pub use shared::*;
 pub use pipeline::*;
+pub use writer::*;
 
 #[cfg(test)]
 mod tests;

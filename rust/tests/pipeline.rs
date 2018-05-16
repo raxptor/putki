@@ -142,51 +142,60 @@ impl putki::ParseFromKV for Pointer {
 
 #[test]
 fn test_pipeline() {
-	let la = Arc::new(putki::LoadAll::from_txty_data(r#"
-		@TestValues tv0 {
-			Value1: 123,
-			Value2: 456,
-		}
-		@Multi multi {
-			Contained: {
-				Value1: 321
-				Value2: 654
+	thread::spawn(|| {
+		let la = Arc::new(putki::LoadAll::from_txty_data(r#"
+			@TestValues tv0 {
+				Value1: 123,
+				Value2: 456,
 			}
-		}
-		@Pointer ptr {
-			Contained: {
-				Value1: 1
-				Value2: 2
+			@Multi multi {
+				Contained: {
+					Value1: 321
+					Value2: 654
+				}
 			}
-			Next: ptr2
+			@Pointer ptr {
+				Contained: {
+					Value1: 1
+					Value2: 2
+				}
+				Next: ptr2
+			}
+			@Pointer ptr2 {
+				Contained: {
+					Value1: 2
+					Value2: 3
+				}			
+			}		
+		"#));	
+
+		let desc = putki::PipelineDesc::new(la.clone())
+				.add_builder(TestValueBuilder{ })
+				.add_builder(PointerBuilder{ });
+
+		let pipeline = Arc::new(putki::Pipeline::new(desc));
+
+		pipeline.build_as::<Multi>("multi");
+		pipeline.build_as::<Pointer>("ptr");
+
+		let mut thr = Vec::new();
+		for _i in 0..4  {
+			let pl = pipeline.clone();		
+			thr.push(thread::spawn(move || {
+				let mut k = 0;
+				while pl.take() { k = k + 1; if k > 100 { panic!("Pipeline never finished!") } }
+			}));
 		}
-		@Pointer ptr2 {
-			Contained: {
-				Value1: 2
-				Value2: 3
-			}			
-		}		
-	"#));	
 
-	let desc = putki::PipelineDesc::new(la.clone())
-	          .add_builder(TestValueBuilder{ })
-			  .add_builder(PointerBuilder{ });
+	//	panic!("aaah");
 
-	let pipeline = Arc::new(putki::Pipeline::new(desc));
-
-	pipeline.build_as::<Multi>("multi");
-	pipeline.build_as::<Pointer>("ptr");
-
-	let mut thr = Vec::new();
-	for _i in 0..3 {
-		let pl = pipeline.clone();		
-		thr.push(thread::spawn(move || {
-			let mut k = 0;
-			while pl.take() { k = k + 1; if k > 100 { panic!("Pipeline never finished!") } }
-			println!("thread took {} items.", k);
-		}));
-	}
-	for x in thr {
-		x.join().ok();
-	}
+		println!("HMMMMMMMMMM");
+		for x in thr {
+			println!("joining therad");
+			x.join().ok();
+		}
+		println!("Building package");
+		let mut rcp = putki::PackageRecipe::new();
+		rcp.add_object(&(*pipeline), "ptr", true);
+	}).join();
 }
