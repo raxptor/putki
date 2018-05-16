@@ -24,7 +24,7 @@ use shared;
 use inki;
 use source;
 use ptr;
-mod writer;
+pub mod writer;
 
 pub struct BuilderDesc {
     pub description: &'static str    
@@ -38,8 +38,7 @@ pub trait BuildFields {
 }
 
 pub trait Builder<T> where Self : Send + Sync {
-    fn build(&self, _input:&mut T) -> Result<(), shared::PutkiError> { return Ok(()) }
-    fn build2(&self, _br:&mut BuildRecord, input:&mut T) -> Result<(), shared::PutkiError> { return self.build(input); }
+    fn build(&self, _br:&mut BuildRecord, input:&mut T) -> Result<(), shared::PutkiError>;
     fn desc(&self) -> BuilderDesc;
 }
 
@@ -59,7 +58,7 @@ impl<T> BuilderAny for BuilderBox<T> where T : Send + Sync + 'static {
         self.object_type
     }
     fn build(&self, br:&mut BuildRecord, input:&mut any::Any) -> Result<(), shared::PutkiError> {
-        match self.builder.build2(br, input.downcast_mut().unwrap()) {
+        match self.builder.build(br, input.downcast_mut().unwrap()) {
             Ok(x) => return Ok(x),
             Err(x) => return Err(x)
         }

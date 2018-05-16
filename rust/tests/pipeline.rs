@@ -84,7 +84,7 @@ impl putki::Builder<TestValues> for TestValueBuilder {
 			description: "testit"
 		}
 	}
-	fn build(&self, input:&mut TestValues) -> Result<(), putki::PutkiError> {		
+	fn build(&self, _br:&mut putki::BuildRecord, input:&mut TestValues) -> Result<(), putki::PutkiError> {		
 		println!("building input v1={} v2={}", input.value1, input.value2);
 		input.value1 = input.value1 + 1000;
 		input.value2 = input.value2 + 2000;
@@ -98,7 +98,7 @@ impl putki::Builder<Pointer> for PointerBuilder {
 			description: "pointer"
 		}
 	}
-	fn build2(&self, br:&mut putki::BuildRecord, input:&mut Pointer) -> Result<(), putki::PutkiError> {		
+	fn build(&self, br:&mut putki::BuildRecord, input:&mut Pointer) -> Result<(), putki::PutkiError> {		
 		println!("building pointer!");		
 		let ptr = br.create_object("neue1", Pointer {
 			next: putki::Ptr::null(),

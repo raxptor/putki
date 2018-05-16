@@ -78,8 +78,18 @@ impl<Target> fmt::Debug for Ptr<Target> where Target : source::ParseFromKV {
     }
 }
 
-impl<Target> Ptr<Target> where Target : source::ParseFromKV
+impl<Target> Ptr<Target>
 {
+    pub fn get_target_path<'a>(&'a self) -> Option<&'a str>
+    {
+        match &self.target {
+            &PtrTarget::Null => None,
+            &PtrTarget::ObjPath { ref path, .. } => Some(path.as_str()),
+            &PtrTarget::TempObject { ref path, .. } => Some(path.as_str()),
+            _ => None
+        }
+    }
+
     pub fn new(context : Arc<source::InkiPtrContext>, path: &str) -> Ptr<Target> {
         return Ptr {
             target: PtrTarget::ObjPath {
@@ -112,16 +122,6 @@ impl<Target> Ptr<Target> where Target : source::ParseFromKV
     pub fn null() -> Ptr<Target> {
         return Ptr {
             target: PtrTarget::Null
-        }
-    }
-
-    pub fn get_target_path<'a>(&'a self) -> Option<&'a str>
-    {
-        match &self.target {
-            &PtrTarget::Null => None,
-            &PtrTarget::ObjPath { ref path, .. } => Some(path.as_str()),
-            &PtrTarget::TempObject { ref path, .. } => Some(path.as_str()),
-            _ => None
         }
     }
 }

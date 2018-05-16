@@ -40,6 +40,13 @@ impl BinReader for u32 {
     }
 }
 
+impl BinReader for u8 {
+    fn read(stream:&mut BinDataStream) -> Self {
+        stream.pos = stream.pos + 1;
+        stream.data[stream.pos-1]
+    }
+}
+
 impl<'a> BinReader for i32 {
     fn read(ctx: &mut BinDataStream) -> i32 {
         u32::read(ctx) as i32
