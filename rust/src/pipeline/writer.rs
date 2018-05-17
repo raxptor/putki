@@ -80,12 +80,13 @@ impl PackageRecipe {
     }
     pub fn add_object(&mut self, p:&pipeline::Pipeline, path:&str, recurse_deps:bool) -> Result<(), shared::PutkiError> {
         let k = p.peek_build_records().unwrap();
-        if let Some(br) = k.get(path) {
-            println!("adding path {}", path);
-            self.paths.insert(String::from(path));
-            if (recurse_deps) {
-                for x in br.deps.keys() {
-                    self.add_object(p, x.as_str(), true)?
+        if let Some(br) = k.get(path) {            
+            if self.paths.insert(String::from(path)) {
+                println!("adding path {}", path);
+                if recurse_deps {
+                    for x in br.deps.keys() {
+                        self.add_object(p, x.as_str(), true)?
+                    }
                 }
             }
             Ok(())

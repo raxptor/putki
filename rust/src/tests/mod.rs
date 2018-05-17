@@ -1,5 +1,4 @@
 use inki::*;
-use inki::source;
 use std::sync::Arc;
 use shared;
 

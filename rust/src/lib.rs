@@ -2,6 +2,8 @@
 #![feature(core_intrinsics)]
 #![feature(rc_downcast)] 
 
+extern crate seahash;
+
 mod inki;
 mod outki;
 mod pipeline;

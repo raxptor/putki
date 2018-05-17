@@ -75,9 +75,10 @@ struct ObjEntry
 // One per object and per builder.
 pub struct BuildRecord
 {
-    pub path: String,
-    pub deps: HashMap<String, Box<ObjDepRef>>,
-    pub built_obj: Option<Box<BuildResultObj>>,
+    path: String,
+    built_obj: Option<Box<BuildResultObj>>,
+    visited: HashSet<String>,
+    deps: HashMap<String, Box<ObjDepRef>>,
     error: Option<String>,
     success: bool,        
 }
@@ -94,6 +95,13 @@ impl BuildRecord
         let tmp_path = format!("{}!{}", &self.path, tag);
         println!("Created object with path [{}]!", tmp_path);
         ptr::Ptr::new_temp_object(tmp_path.as_str(), Arc::new(obj))
+    }
+}
+
+impl ptr::Tracker for BuildRecord {
+    fn follow(&mut self, path:&str) {
+        println!("Builder visited [{}]", path);
+        self.visited.insert(String::from(path));
     }
 }
 
@@ -122,7 +130,7 @@ impl PipelineDesc {
 
 pub trait BuildCandidate where Self : 'static + Send + Sync + BuildFields {
     fn as_any_ref(&mut self) -> &mut Any;
-    fn build(&mut self, p:&Pipeline, br: &mut BuildRecord);
+    fn build(&mut self, p:&Pipeline, br: &mut BuildRecord) -> Result<(), shared::PutkiError>;
     fn scan_deps(&self, _p:&Pipeline, _br: &mut BuildRecord) { }
 }
 
@@ -130,6 +138,7 @@ pub struct Pipeline
 {
     desc: PipelineDesc,
     to_build: RwLock<Vec<BuildRequest>>,
+    inserted: RwLock<HashSet<String>>,
     built: RwLock<HashMap<String, BuildRecord>>
 }
 
@@ -166,16 +175,17 @@ impl<T> BuildInvoke for PtrBox<T> where T : 'static + BuildCandidate + source::P
                 success: true,
                 path: br.path.clone(),
                 deps: HashMap::new(),
+                visited: HashSet::new(),
                 built_obj: None
             };            
             let mut clone = (*obj).clone();
             {
-                let bc : &mut BuildCandidate = &mut clone;
-                println!("--- Starting build of {}", br.path);
-                bc.build(p, &mut br);
-                println!(" * Finished builders; doing depscan {} ", br.path);
+                let bc : &mut BuildCandidate = &mut clone;                
+                if let Err(_res) = bc.build(p, &mut br) {
+                    br.success = false;
+                    println!("ERROR in build of {}", br.path);
+                }
                 bc.scan_deps(p, &mut br);
-                println!("--- Finished build of {}", br.path);
             }
             br.built_obj = Some(Box::new(PtrBox { ptr: ptr::Ptr::new_temp_object(&br.path, Arc::new(clone))}));
             p.on_build_done(br);
@@ -196,14 +206,12 @@ impl Pipeline
         Pipeline {
             desc: desc,
             to_build: RwLock::new(Vec::new()),
-            built: RwLock::new(HashMap::new())
+            built: RwLock::new(HashMap::new()),
+            inserted: RwLock::new(HashSet::new())
         }
     }
 
-
-
     fn on_build_done(&self, br:BuildRecord) {
-        println!("Adding output object [{}]", &br.path);
         self.built.write().unwrap().insert(br.path.clone(), br);
     }
 
@@ -221,30 +229,39 @@ impl Pipeline
 
     pub fn add_output_dependency<T>(&self, br:&mut BuildRecord, ptr: &ptr::Ptr<T>) where T : 'static + source::ParseFromKV + BuildCandidate + shared::TypeDescriptor {
         if let Some(path) = ptr.get_target_path() {
-            println!("adding output dependency {}", path);
             self.build_ptr(ptr);
             br.deps.insert(String::from(path), Box::new(PtrBox { ptr: (*ptr).clone() }));
         }
     }
 
-    pub fn build_ptr<T>(&self, ptr : &ptr::Ptr<T>) where T : 'static + source::ParseFromKV + BuildCandidate {        
-        let mut lk = self.to_build.write().unwrap();
-        lk.push(BuildRequest {
-            path: String::from(ptr.get_target_path().unwrap()),
-            invoker: Box::new(PtrBox::<T> { ptr: ptr.clone() })
-        });
+    pub fn build_ptr<T>(&self, ptr : &ptr::Ptr<T>) where T : 'static + source::ParseFromKV + BuildCandidate {
+        let path = String::from(ptr.get_target_path().unwrap());
+        if self.insert_path_to_build(path.as_ref()) {
+            let mut lk = self.to_build.write().unwrap();        
+            lk.push(BuildRequest {
+                path: path,
+                invoker: Box::new(PtrBox::<T> { ptr: ptr.clone() })
+            });
+        }
     }    
 
-    pub fn build_as<T>(&self, path:&str) where T : 'static + source::ParseFromKV + BuildCandidate {        
-        let mut lk = self.to_build.write().unwrap();        
-        let ctx = source::InkiPtrContext {
-            tracker: None,
-            source: Arc::new(source::InkiResolver::new(self.desc.source.clone()))
-        };       
-        lk.push(BuildRequest {
-            path: String::from(path),
-            invoker: Box::new(PtrBox::<T> { ptr: ptr::Ptr::new(Arc::new(ctx), path) })
-        });
+    pub fn build_as<T>(&self, path:&str) where T : 'static + source::ParseFromKV + BuildCandidate {                
+        if self.insert_path_to_build(path) {        
+            let mut lk = self.to_build.write().unwrap();        
+            let ctx = source::InkiPtrContext {
+                source: Arc::new(source::InkiResolver::new(self.desc.source.clone()))
+            };       
+            lk.push(BuildRequest {
+                path: String::from(path),
+                invoker: Box::new(PtrBox::<T> { ptr: ptr::Ptr::new(Arc::new(ctx), path) })
+            });
+        }
+    }    
+
+    pub fn insert_path_to_build(&self, path:&str) -> bool
+    {
+        let mut lk = self.inserted.write().unwrap();
+        lk.insert(String::from(path))
     }
 
     pub fn take(&self) -> bool
@@ -266,22 +283,12 @@ impl Pipeline
     }
 
     // This function is re-entrant when building fields.
-    pub fn build<T>(&self, br:&mut BuildRecord, obj:&mut T) where T : 'static + BuildFields {
-        if !br.success {
-            return;
-        }
+    pub fn build<T>(&self, br:&mut BuildRecord, obj:&mut T) -> Result<(), shared::PutkiError> where T : 'static + BuildFields {
         for x in self.builders_for_obj(obj) {
-            let res = x.build(br, obj);
-            if let Err(_) = res {
-                br.error = Some(String::from("An error occured in the pipeline"));
-                br.success = false;
-                return;
-            }
+            x.build(br, obj)?;
         }
-        if let Err(_) = (obj as &mut BuildFields).build_fields(&self, br) {
-            br.error = Some(String::from("An error occured in the pipeline"));
-            br.success = false;
-        }
+        (obj as &mut BuildFields).build_fields(&self, br)?;
+        Ok(())
     }
 }
 

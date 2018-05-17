@@ -1,4 +1,14 @@
 [[package]]
 name = "putki"
 version = "0.1.1"
+dependencies = [
+ "seahash 3.0.5 (registry+https://github.com/rust-lang/crates.io-index)",
+]
 
+[[package]]
+name = "seahash"
+version = "3.0.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+
+[metadata]
+"checksum seahash 3.0.5 (registry+https://github.com/rust-lang/crates.io-index)" = "e048636bed25842fcdc36e5ad1ec6295b72d4b5b8a4b759b64915a4ce2b9d09d"

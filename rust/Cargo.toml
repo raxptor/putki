@@ -5,3 +5,6 @@ authors = ["Dan Nilsson <raxptor@gmail.com>"]
 
 [lib]
 name = "putki"
+
+[dependencies]
+seahash = "3.0.5"

@@ -2,7 +2,6 @@ use shared;
 use outki;
 use std::rc::Rc;
 use shared::tag_of;
-use pipeline::writer;
 use pipeline::writer::BinWriter;
 
 #[derive(Debug)]

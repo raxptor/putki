@@ -3,6 +3,7 @@ use inki::lexer;
 use std::fmt;
 use std::result;
 use std::sync::Arc;
+use seahash;
 
 #[derive(Clone)]
 enum PtrTarget<Target>
@@ -36,15 +37,34 @@ pub trait PtrInkiResolver<T>
     fn unwrap_unique(&self) -> Box<T>;
 }
 
+pub trait Resolver<T>
+{
+    fn resolve(&self, trk: &mut Tracker) -> Option<Arc<T>>;
+}
+
+pub trait Tracker where Self : Send + Sync {
+    fn follow(&mut self, path:&str);
+}
+
+impl<T> Resolver<T> for Ptr<T> where T : 'static + source::ParseFromKV
+{
+    fn resolve(&self, trk: &mut Tracker) -> Option<Arc<T>> {
+        match &self.target {
+            &PtrTarget::ObjPath { ref path, .. } => {
+                trk.follow(path);
+                (self as &PtrInkiResolver<T>).resolve()
+            },
+            _ => (self as &PtrInkiResolver<T>).resolve()
+        }
+    }    
+}
+
 impl<T> PtrInkiResolver<T> for Ptr<T> where T : 'static + source::ParseFromKV
 {
     fn resolve(&self) -> Option<Arc<T>> {
         match &self.target {
             &PtrTarget::Null => return None,
             &PtrTarget::ObjPath { ref context, ref path } => {
-                if let &Some(ref trk) = &context.tracker {
-                    trk.follow(path);
-                }
                 if let source::ResolveStatus::Resolved(ptr) = source::resolve_from::<T>(context, path) {
                     return Some(Arc::new( (*ptr).clone() ));
                 } else {
@@ -58,10 +78,10 @@ impl<T> PtrInkiResolver<T> for Ptr<T> where T : 'static + source::ParseFromKV
         }
     }
     fn unwrap(&self) -> Arc<T> {
-        return self.resolve().unwrap();
+        return (self as &PtrInkiResolver<T>).resolve().unwrap();
     }
     fn unwrap_unique(&self) -> Box<T> {
-        return Box::new((*self.resolve().unwrap()).clone());
+        return Box::new((*(self as &PtrInkiResolver<T>).resolve().unwrap()).clone());
     }    
 }
 
@@ -86,7 +106,7 @@ impl<Target> Ptr<Target>
             &PtrTarget::Null => None,
             &PtrTarget::ObjPath { ref path, .. } => Some(path.as_str()),
             &PtrTarget::TempObject { ref path, .. } => Some(path.as_str()),
-            _ => None
+            &PtrTarget::InlineObject { ref path, .. } => Some(path.as_str()),
         }
     }
 
@@ -149,7 +169,20 @@ pub fn ptr_from_data<T>(context : &Arc<source::InkiPtrContext>, ld:&lexer::Lexed
     match ld {
         &lexer::LexedData::Value(ref path) => Ptr::new(context.clone(), path),
         &lexer::LexedData::StringLiteral(ref path) => Ptr::new(context.clone(), path),
-        &lexer::LexedData::Object { ref type_name, ref kv, ref id } => Ptr::new_inline(context.clone(), kv, type_name, id),
+        &lexer::LexedData::Object { ref type_name, ref kv, ref id } => {
+            if id.len() == 0 {
+                let mut n_id = String::from(":anon:");
+                let hash = seahash::hash(lexer::kv_to_string(kv).as_bytes());
+                n_id.push_str(type_name);
+                n_id.push(':');
+                n_id.push_str(id);
+                n_id.push(':');
+                n_id.push_str(hash.to_string().as_str());
+                Ptr::new_inline(context.clone(), kv, type_name, n_id.as_str())
+            } else {
+                Ptr::new_inline(context.clone(), kv, type_name, id)
+            }
+        },
         _ => Ptr::null()
     }
 }

@@ -1,10 +1,12 @@
 use std::collections::HashMap;
 use std::vec::Vec;
 use std::str::FromStr;
+use std::string::ToString;
 use std::default;
 use std::slice;
 
-#[derive(Clone)]
+
+#[derive(Clone, PartialEq)]
 pub enum LexedData
 {
 	Empty,
@@ -15,7 +17,8 @@ pub enum LexedData
 	},
 	Array (Vec<LexedData>),
 	Value (String),
-	StringLiteral(String)
+	StringLiteral(String),
+	Comment
 }
 
 pub type LexedKv = HashMap<String, LexedData>;
@@ -29,6 +32,58 @@ pub struct ScanResult<'a>
 {
 	pub cont: &'a str,
 	pub data: LexedData
+}
+
+pub fn kv_to_string(kv: &HashMap<String, LexedData>) -> String
+{
+	let mut tmp = String::new();
+	tmp.push('{');
+	for (key, value) in kv {
+		tmp.push_str(key);
+		tmp.push_str(":");
+		tmp.push_str(value.to_string().as_str());
+		tmp.push_str(",");
+	}
+	tmp.push('}');
+	tmp
+}
+
+impl ToString for LexedData
+{
+	fn to_string(&self) -> String {
+		let mut tmp = String::new();
+		match self {
+			&LexedData::Object { ref kv, ref id, ref type_name } => {
+				if type_name.len() > 0 {
+					tmp.push('@');
+					tmp.push_str(type_name);
+					tmp.push(' ');
+					if id.len() > 0 {
+						tmp.push_str(id);
+						tmp.push(' ');
+					}					
+				}
+				tmp.push_str(kv_to_string(kv).as_str());
+			},
+			&LexedData::Value(ref val) => tmp.push_str(val),
+			&LexedData::StringLiteral(ref val) => {
+				tmp.push_str("\"");
+				tmp.push_str(val);
+				tmp.push_str("\"");
+			}
+			&LexedData::Array(ref vec) => {
+				tmp.push('[');
+				for val in vec {				
+					tmp.push_str(val.to_string().as_str());
+					tmp.push(',');
+				}
+				tmp.push(']');
+			}
+			&LexedData::Comment => { },
+			&LexedData::Empty => { }
+		}
+		return tmp;
+	}
 }
 
 fn parse_val<T : FromStr + Default>(val: &LexedData) -> T
@@ -213,8 +268,10 @@ pub fn parse_array<'a>(data: &'a str) -> ScanResult<'a>
 						cont: &cur[(value.0+1) ..]						
 					}
 				} else {
-					let result = parse_auto_detect(&cur[value.0 ..]);
-					arr.push(result.data);					
+					let result = parse_auto_detect(&cur[value.0 ..], false);
+					if result.data != LexedData::Comment {
+						arr.push(result.data);					
+					}
 					cur = result.cont;
 					it = cur.char_indices().enumerate();
 				}
@@ -223,7 +280,7 @@ pub fn parse_array<'a>(data: &'a str) -> ScanResult<'a>
 	}
 }
 
-fn parse_auto_detect<'a>(data: &'a str) -> ScanResult<'a>
+fn parse_auto_detect<'a>(data: &'a str, require_value:bool) -> ScanResult<'a>
 {
 	// first should be {
 	let mut it = data.char_indices().enumerate();
@@ -236,6 +293,12 @@ fn parse_auto_detect<'a>(data: &'a str) -> ScanResult<'a>
 				if is_comment {
 					if value.1 == '\n' {
 						is_comment = false;
+						if !require_value {
+							return ScanResult {
+								data: LexedData::Comment,
+								cont: &data[value.0..]
+							}
+						}
 					} else {
 						continue;
 					}
@@ -294,22 +357,22 @@ pub fn parse_object_data<'a>(data: &'a str) -> ScanResult<'a>
 						}
 					};
 				} else if field_name.is_empty() {
-					let res = parse_auto_detect(&cur[value.0 ..]);					
+					let res = parse_auto_detect(&cur[value.0 ..], true);
 					let d = res.data;
 					match d {
 						LexedData::Value(v) => {
 							field_name = v;
 							cur = res.cont;
-							it = cur.char_indices().enumerate();
+							it = cur.char_indices().enumerate();							
 						},
 						LexedData::StringLiteral(v) => {
 							field_name = v;
 							cur = res.cont;
-							it = cur.char_indices().enumerate();
+							it = cur.char_indices().enumerate();							
 						}                        
 						_ => {
 							println!("Parse error. Could not parse field name at {}", &cur[value.0 ..]);
-							println!("Full: {}", cur);
+							println!("Full: {}", cur);							
 							return ScanResult {
 								cont: "",
 								data: LexedData::Empty
@@ -317,7 +380,7 @@ pub fn parse_object_data<'a>(data: &'a str) -> ScanResult<'a>
 						}
 					}
 				} else {
-					let res = parse_auto_detect(&cur[value.0 ..]);
+					let res = parse_auto_detect(&cur[value.0 ..], true);
 					cur = res.cont;
 					it = cur.char_indices().enumerate();
 					kv.insert(String::from(field_name), res.data);

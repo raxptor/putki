@@ -100,7 +100,7 @@ impl putki::Builder<Pointer> for PointerBuilder {
 	}
 	fn build(&self, br:&mut putki::BuildRecord, input:&mut Pointer) -> Result<(), putki::PutkiError> {		
 		println!("building pointer!");		
-		let ptr = br.create_object("neue1", Pointer {
+		let ptr = br.create_object("n", Pointer {
 			next: putki::Ptr::null(),
 			contained: TestValues {
 				value1 : 222,
@@ -142,60 +142,55 @@ impl putki::ParseFromKV for Pointer {
 
 #[test]
 fn test_pipeline() {
-	thread::spawn(|| {
-		let la = Arc::new(putki::LoadAll::from_txty_data(r#"
-			@TestValues tv0 {
-				Value1: 123,
-				Value2: 456,
-			}
-			@Multi multi {
-				Contained: {
-					Value1: 321
-					Value2: 654
-				}
-			}
-			@Pointer ptr {
-				Contained: {
-					Value1: 1
-					Value2: 2
-				}
-				Next: ptr2
-			}
-			@Pointer ptr2 {
-				Contained: {
-					Value1: 2
-					Value2: 3
-				}			
-			}		
-		"#));	
-
-		let desc = putki::PipelineDesc::new(la.clone())
-				.add_builder(TestValueBuilder{ })
-				.add_builder(PointerBuilder{ });
-
-		let pipeline = Arc::new(putki::Pipeline::new(desc));
-
-		pipeline.build_as::<Multi>("multi");
-		pipeline.build_as::<Pointer>("ptr");
-
-		let mut thr = Vec::new();
-		for _i in 0..4  {
-			let pl = pipeline.clone();		
-			thr.push(thread::spawn(move || {
-				let mut k = 0;
-				while pl.take() { k = k + 1; if k > 100 { panic!("Pipeline never finished!") } }
-			}));
+	let la = Arc::new(putki::LoadAll::from_txty_data(r#"
+		@TestValues tv0 {
+			Value1: 123,
+			Value2: 456,
 		}
-
-	//	panic!("aaah");
-
-		println!("HMMMMMMMMMM");
-		for x in thr {
-			println!("joining therad");
-			x.join().ok();
+		@Multi multi {
+			Contained: {
+				Value1: 321
+				Value2: 654
+			}
 		}
-		println!("Building package");
-		let mut rcp = putki::PackageRecipe::new();
-		rcp.add_object(&(*pipeline), "ptr", true);
-	}).join();
+		@Pointer ptr {
+			Contained: {
+				Value1: 1
+				Value2: 2
+			}
+			Next: ptr2
+		}
+		@Pointer ptr2 {
+			Contained: {
+				Value1: 2
+				Value2: 3
+			}			
+		}		
+	"#));	
+
+	let desc = putki::PipelineDesc::new(la.clone())
+			.add_builder(TestValueBuilder{ })
+			.add_builder(PointerBuilder{ });
+
+	let pipeline = Arc::new(putki::Pipeline::new(desc));
+
+	pipeline.build_as::<Multi>("multi");
+	pipeline.build_as::<Pointer>("ptr");
+
+	let mut thr = Vec::new();
+	for _i in 0..4  {
+		let pl = pipeline.clone();		
+		thr.push(thread::spawn(move || {
+			let mut k = 0;
+			while pl.take() { k = k + 1; if k > 100 { panic!("Pipeline never finished!") } }
+		}));
+	}
+
+	for x in thr {
+		x.join().ok();
+	}
+
+	println!("Building package");
+	let mut rcp = putki::PackageRecipe::new();
+	rcp.add_object(&(*pipeline), "ptr", true);
 }

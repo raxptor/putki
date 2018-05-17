@@ -240,6 +240,7 @@ public class RustGenerator
 	        Path lib = tree.genCodeRoot.resolve("rust").resolve("src");
 	        Path fn = lib.resolve("lib.rs");
 	        StringBuilder sb = new StringBuilder();
+	        sb.append("#![recursion_limit=\"128\"]");
 	        sb.append("\nextern crate putki;"); 	        
 	        sb.append("\npub mod inki;");
 	        writer.addOutput(fn, sb.toString().getBytes());	        
@@ -392,7 +393,7 @@ public class RustGenerator
 	                {	                	
 	                    if ((field.domains & Compiler.DOMAIN_OUTPUT) == 0)
 	                        continue;
-                    	if (field.resolvedRefStruct != null && structNameWrap(field.resolvedRefStruct).length() == 0)
+                    	if (field.isParentField && field.resolvedRefStruct != null && structNameWrap(field.resolvedRefStruct).length() == 0)
                     		continue;
 	                    
 	                    if (!first)
@@ -445,8 +446,8 @@ public class RustGenerator
 	                {
 	                    if ((field.domains & Compiler.DOMAIN_OUTPUT) == 0)
 	                        continue;
-                    	if (field.resolvedRefStruct != null && structNameWrap(field.resolvedRefStruct).length() == 0)
-                    		continue;	                    
+                    	if (field.isParentField && field.resolvedRefStruct != null && structNameWrap(field.resolvedRefStruct).length() == 0)
+                    		continue;
 	                    if (!first)
 	                    	sb.append(",");
 	                    first = false;                        
@@ -460,6 +461,102 @@ public class RustGenerator
 	                sb.append(pfx).append("\t}");                    
 	                sb.append(pfx).append("}");
                 }
+                
+                
+                if (struct.isTypeRoot || struct.possibleChildren.size() > 0)
+                {          
+	            	sb.append(pfx).append("impl putki::BuildCandidate for " + structName(struct) + " {");
+	                sb.append(pfx).append("\tfn as_any_ref(&mut self) -> &mut any::Any { return self; }");
+	                sb.append(pfx).append("\tfn build(&mut self, p:&putki::Pipeline, br: &mut putki::BuildRecord) -> Result<(), putki::PutkiError> { p.build(br, self) }");
+	                sb.append(pfx).append("\tfn scan_deps(&self, _p:&putki::Pipeline, _br: &mut putki::BuildRecord) {");
+	                sb.append(pfx).append("\t\tmatch self {");
+                	if (structNameWrap(struct).length() == 0)
+                    	sb.append(pfx).append("\t\t\t&" + structName(struct) + "::" + structName(struct) + " => { }");
+                	else
+                		sb.append(pfx).append("\t\t\t&" + structName(struct) + "::" + structName(struct) + "(ref c) => { c.scan_deps(_p, _br); }");                			                
+	                for (Compiler.ParsedStruct s : struct.possibleChildren) {
+	                	sb.append(pfx).append("\t\t\t&" + structName(struct) + "::" + structName(s) + "(ref c) => { c.scan_deps(_p, _br); },");	
+	                }	                
+	                sb.append(pfx).append("\t\t}");
+	                sb.append(pfx).append("\t}");
+	                sb.append(pfx).append("}");
+                }
+                
+                if (struct.isTypeRoot || struct.possibleChildren.size() > 0)
+                {          
+	            	sb.append(pfx).append("impl putki::BuildFields for " + structName(struct) + " {");
+	            	sb.append(pfx).append("\tfn build_fields(&mut self, _p:&putki::Pipeline, _br:&mut putki::BuildRecord) -> Result<(), putki::PutkiError> {");
+	                sb.append(pfx).append("\t\tmatch self {");
+                	if (structNameWrap(struct).length() == 0)
+                    	sb.append(pfx).append("\t\t\t" + structName(struct) + "::" + structName(struct) + " => Ok(()),");
+                	else
+                		sb.append(pfx).append("\t\t\t" + structName(struct) + "::" + structName(struct) + "(ref mut c) => c.build_fields(_p, _br),");                			                
+	                for (Compiler.ParsedStruct s : struct.possibleChildren) {
+	                	sb.append(pfx).append("\t\t\t" + structName(struct) + "::" + structName(s) + "(ref mut c) => c.build_fields(_p, _br),");	
+	                }	                
+	                sb.append(pfx).append("\t\t}");
+	                sb.append(pfx).append("\t}");
+	                sb.append(pfx).append("}");
+                }                
+                
+                if (structNameWrap(struct).length() > 0)
+                {
+                    sb.append("\n");                                  
+	            	sb.append(pfx).append("impl putki::BuildCandidate for " + structNameWrap(struct) + " {");
+	                sb.append(pfx).append("\tfn as_any_ref(&mut self) -> &mut any::Any { return self; }");
+	                sb.append(pfx).append("\tfn build(&mut self, p:&putki::Pipeline, br: &mut putki::BuildRecord) -> Result<(), putki::PutkiError> { p.build(br, self) }");
+	                sb.append(pfx).append("\tfn scan_deps(&self, _p:&putki::Pipeline, _br: &mut putki::BuildRecord) {");
+	            	                
+	                boolean	any = false;
+	                for (Compiler.ParsedField field : struct.fields)
+	                {
+	                    if ((field.domains & Compiler.DOMAIN_OUTPUT) == 0)
+	                        continue;
+                    	if (field.type == FieldType.POINTER)
+                    	{                    		
+                    		if (field.isArray)
+                    			sb.append(pfx).append("\t\tfor ptr in &self." + fieldName(field) + " { _p.add_output_dependency(_br, ptr); }");
+                    		else
+                    			sb.append(pfx).append("\t\t_p.add_output_dependency(_br, &self." + fieldName(field) + ");");
+                    		any = true;
+                    	} 
+                     	if (field.type == FieldType.STRUCT_INSTANCE)
+                    	{
+    	                    if (field.isParentField && field.resolvedRefStruct != null && structNameWrap(field.resolvedRefStruct).length() == 0)
+    	                    	continue;
+                    		if (field.isArray)
+                    			sb.append(pfx).append("\t\tfor obj in &self." + fieldName(field) + " { obj.scan_deps(_p, _br); }");
+                    		else
+                    			sb.append(pfx).append("\t\tself." + fieldName(field) + ".scan_deps(_p, _br);");
+                    		any = true;
+                    	}                        	
+	                }
+	                if (!any) sb.append("}"); else sb.append(pfx).append("\t}");
+	                sb.append(pfx).append("}");
+	                
+	                sb.append("\n");
+	            	sb.append(pfx).append("impl putki::BuildFields for " + structNameWrap(struct) + " {");
+	                sb.append(pfx).append("\tfn build_fields(&mut self, _pipeline:&putki::Pipeline, _br:&mut putki::BuildRecord) -> Result<(), putki::PutkiError> {");
+	                
+	                for (Compiler.ParsedField field : struct.fields)
+	                {
+	                    if ((field.domains & Compiler.DOMAIN_OUTPUT) == 0)
+	                        continue;
+	                    if (field.isParentField && field.resolvedRefStruct != null && structNameWrap(field.resolvedRefStruct).length() == 0)
+	                    	continue;
+                    	if (field.type == FieldType.STRUCT_INSTANCE)
+                    	{                    		
+                    		if (field.isArray)
+                    			sb.append(pfx).append("\t\tfor cont in &mut self." + fieldName(field) + " { _pipeline.build(_br, cont)?; }");
+                    		else
+                    			sb.append(pfx).append("\t\t_pipeline.build(_br, &mut self." + fieldName(field) + ")?;");
+                    	}                    			                    
+	                }
+	                sb.append(pfx).append("\t\tOk(())");
+	                sb.append(pfx).append("\t}");	 
+	                sb.append(pfx).append("}");
+                }     
+
     		}
         }           
         
@@ -537,8 +634,8 @@ public class RustGenerator
                     {                    	
                         if ((field.domains & Compiler.DOMAIN_OUTPUT) == 0)
                             continue;
-                        if (field.resolvedRefStruct != null && structNameWrap(field.resolvedRefStruct).length() == 0)
-                        	continue;
+                    	if (field.isParentField && field.resolvedRefStruct != null && structNameWrap(field.resolvedRefStruct).length() == 0)
+                    		continue;
                         if (!first)
                         	sb.append(",");                                                
                         first = false;                                               
