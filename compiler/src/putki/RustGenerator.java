@@ -598,24 +598,24 @@ public class RustGenerator
                 {
                     sb.append("\n");                 	
                 	sb.append(pfx).append("impl putki::ParseFromKV for inki::" + structName(struct) + " {");
-                	sb.append(pfx).append("\tfn parse_with_type(_kv : &putki::LexedKv, _pctx: &Arc<putki::InkiPtrContext>, type_name:&str) -> Self {");
+                	sb.append(pfx).append("\tfn parse_with_type(_kv : &putki::LexedKv, _resolver: &Arc<putki::InkiResolver>, type_name:&str) -> Self {");
                 	sb.append(pfx).append("\t\tmatch type_name {");
                 	
                 	if (structNameWrap(struct).length() > 0)
-                		sb.append(pfx).append("\t\t\t<inki::" + structName(struct) + " as putki::TypeDescriptor>::TAG => inki::" + structName(struct) + "::" + structName(struct) + "(<inki::" + structNameWrap(struct) + " as putki::ParseFromKV>::parse(_kv, _pctx)),");
+                		sb.append(pfx).append("\t\t\t<inki::" + structName(struct) + " as putki::TypeDescriptor>::TAG => inki::" + structName(struct) + "::" + structName(struct) + "(<inki::" + structNameWrap(struct) + " as putki::ParseFromKV>::parse(_kv, _resolver)),");
                 	else
                 		sb.append(pfx).append("\t\t\t<inki::" + structName(struct) + " as putki::TypeDescriptor>::TAG => inki::" + structName(struct) + "::" + structName(struct) + ",");
                 	
                 	for (Compiler.ParsedStruct child : struct.possibleChildren)
                 	{                		
-                    	sb.append(pfx).append("\t\t\t<inki::" + structName(child) + " as putki::TypeDescriptor>::TAG => inki::" + structName(struct) + "::" + structName(child) + "(<inki::" + structName(child) + " as putki::ParseFromKV>::parse(_kv, _pctx)),");                		
+                    	sb.append(pfx).append("\t\t\t<inki::" + structName(child) + " as putki::TypeDescriptor>::TAG => inki::" + structName(struct) + "::" + structName(child) + "(<inki::" + structName(child) + " as putki::ParseFromKV>::parse(_kv, _resolver)),");                		
                 	}                	
                 	sb.append(pfx).append("\t\t\t_ => Default::default()");
                 	sb.append(pfx).append("\t\t}");
                 	sb.append(pfx).append("\t}");
-                	sb.append(pfx).append("\tfn parse(_kv : &putki::LexedKv, _pctx: &Arc<putki::InkiPtrContext>) -> Self {");
+                	sb.append(pfx).append("\tfn parse(_kv : &putki::LexedKv, _resolver: &Arc<putki::InkiResolver>) -> Self {");
                 	if (structNameWrap(struct).length() > 0)
-                		sb.append(pfx).append("\t\tinki::" + structName(struct) + "::" + structName(struct) + "(<inki::" + structNameWrap(struct) + " as putki::ParseFromKV>::parse(_kv, _pctx))");
+                		sb.append(pfx).append("\t\tinki::" + structName(struct) + "::" + structName(struct) + "(<inki::" + structNameWrap(struct) + " as putki::ParseFromKV>::parse(_kv, _resolver))");
                 	else
                 		sb.append(pfx).append("\t\tinki::" + structName(struct) + "::" + structName(struct));
                 	sb.append(pfx).append("\t}");                	
@@ -626,7 +626,7 @@ public class RustGenerator
                 {          
                     sb.append("\n");                 	
                 	sb.append(pfx).append("impl putki::ParseFromKV for inki::" + structNameWrap(struct) + " {");
-                	sb.append(pfx).append("\tfn parse(_src : &putki::LexedKv, _pctx: &Arc<putki::InkiPtrContext>) -> Self {");
+                	sb.append(pfx).append("\tfn parse(_src : &putki::LexedKv, _resolver: &Arc<putki::InkiResolver>) -> Self {");
                 	sb.append(pfx).append("\t\tSelf {");
                     String spfx = pfx + "\t\t\t";
                     boolean first = true;
@@ -665,14 +665,14 @@ public class RustGenerator
                         		break;
                         	case STRUCT_INSTANCE:
                         		if (!field.isParentField && (field.resolvedRefStruct.isTypeRoot || field.resolvedRefStruct.possibleChildren.size() > 0))
-                            		sb.append("<inki::" + structName(field.resolvedRefStruct) + " as putki::ParseFromKV>::parse(_pctx, data)");
+                            		sb.append("<inki::" + structName(field.resolvedRefStruct) + " as putki::ParseFromKV>::parse(_resolver, data)");
                         		else if (field.isParentField)
-                        			sb.append("<inki::" + structNameWrap(field.resolvedRefStruct) + " as putki::ParseFromKV>::parse(putki::get_kv(data).unwrap_or(_src), _pctx)");
+                        			sb.append("<inki::" + structNameWrap(field.resolvedRefStruct) + " as putki::ParseFromKV>::parse(putki::get_kv(data).unwrap_or(_src), _resolver)");
                        			else
-                        			sb.append("putki::get_object(data).and_then(|v| { Some(<inki::" + structNameWrap(field.resolvedRefStruct) + " as putki::ParseFromKV>::parse(v.0, _pctx)) }).unwrap_or_default()");
+                        			sb.append("putki::get_object(data).and_then(|v| { Some(<inki::" + structNameWrap(field.resolvedRefStruct) + " as putki::ParseFromKV>::parse(v.0, _resolver)) }).unwrap_or_default()");
                         		break;
                         	case POINTER:
-                    			sb.append("data.and_then(|v| { Some(putki::ptr_from_data(_pctx, v)) }).unwrap_or_default()");
+                    			sb.append("data.and_then(|v| { Some(putki::ptr_from_data(_resolver, v)) }).unwrap_or_default()");
                         		break;
                         	case ENUM:
                         		sb.append("inki::" + field.resolvedEnum.name + "::from(putki::get_string(data, \"");
