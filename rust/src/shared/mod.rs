@@ -2,11 +2,19 @@
 use std::rc::Rc;
 use std::any::Any;
 use std::error::Error;
+use std::io;
 
 pub enum PutkiError {
     Test,
     BuilderError(Box<Error>),
+    IOError(io::Error),
     ObjectNotFound,
+}
+
+impl From<io::Error> for PutkiError {
+    fn from(err:io::Error) -> Self {
+        PutkiError::IOError(err)
+    }
 }
 
 pub trait TypeDescriptor {

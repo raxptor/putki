@@ -10,13 +10,13 @@ enum PtrTarget<Target>
 {
     Null,
     ObjPath {
-        context : Arc<source::InkiPtrContext>,
+        resolver : Arc<source::InkiResolver>,
         path : String
     },
     InlineObject {
         path : String,
         type_name : String,
-        context : Arc<source::InkiPtrContext>,
+        resolver : Arc<source::InkiResolver>,
         data: lexer::LexedKv
     },
     TempObject {
@@ -64,15 +64,15 @@ impl<T> PtrInkiResolver<T> for Ptr<T> where T : 'static + source::ParseFromKV
     fn resolve(&self) -> Option<Arc<T>> {
         match &self.target {
             &PtrTarget::Null => return None,
-            &PtrTarget::ObjPath { ref context, ref path } => {
-                if let source::ResolveStatus::Resolved(ptr) = source::resolve_from::<T>(context, path) {
+            &PtrTarget::ObjPath { ref resolver, ref path } => {
+                if let source::ResolveStatus::Resolved(ptr) = source::resolve_from::<T>(resolver, path) {
                     return Some(Arc::new( (*ptr).clone() ));
                 } else {
                     return None;
                 } 
             }
-            &PtrTarget::InlineObject { ref data, ref context, ref type_name, .. } => {
-                return Some(Arc::new(<T as source::ParseFromKV>::parse_with_type(data, context, type_name)));
+            &PtrTarget::InlineObject { ref data, ref resolver, ref type_name, .. } => {
+                return Some(Arc::new(<T as source::ParseFromKV>::parse_with_type(data, resolver, type_name)));
             }
             &PtrTarget::TempObject { ref object, .. } => Some(object.clone())
         }
@@ -110,19 +110,19 @@ impl<Target> Ptr<Target>
         }
     }
 
-    pub fn new(context : Arc<source::InkiPtrContext>, path: &str) -> Ptr<Target> {
+    pub fn new(resolver : Arc<source::InkiResolver>, path: &str) -> Ptr<Target> {
         return Ptr {
             target: PtrTarget::ObjPath {
-                context: context,
+                resolver: resolver,
                 path: String::from(path)
             }
         }
     }
 
-    pub fn new_inline(context : Arc<source::InkiPtrContext>, kv: &lexer::LexedKv, type_name: &str, path: &str) -> Ptr<Target> {
+    pub fn new_inline(resolver : Arc<source::InkiResolver>, kv: &lexer::LexedKv, type_name: &str, path: &str) -> Ptr<Target> {
         return Ptr {
             target: PtrTarget::InlineObject {
-                context: context,
+                resolver: resolver,
                 path: String::from(path),
                 type_name: String::from(type_name),
                 data: kv.clone()
@@ -165,10 +165,10 @@ impl<T> Ptr<T> where T : 'static
 
 }
 
-pub fn ptr_from_data<T>(context : &Arc<source::InkiPtrContext>, ld:&lexer::LexedData) -> Ptr<T> where T : source::ParseFromKV {
+pub fn ptr_from_data<T>(resolver : &Arc<source::InkiResolver>, ld:&lexer::LexedData) -> Ptr<T> where T : source::ParseFromKV {
     match ld {
-        &lexer::LexedData::Value(ref path) => Ptr::new(context.clone(), path),
-        &lexer::LexedData::StringLiteral(ref path) => Ptr::new(context.clone(), path),
+        &lexer::LexedData::Value(ref path) => Ptr::new(resolver.clone(), path),
+        &lexer::LexedData::StringLiteral(ref path) => Ptr::new(resolver.clone(), path),
         &lexer::LexedData::Object { ref type_name, ref kv, ref id } => {
             if id.len() == 0 {
                 let mut n_id = String::from(":anon:");
@@ -178,9 +178,9 @@ pub fn ptr_from_data<T>(context : &Arc<source::InkiPtrContext>, ld:&lexer::Lexed
                 n_id.push_str(id);
                 n_id.push(':');
                 n_id.push_str(hash.to_string().as_str());
-                Ptr::new_inline(context.clone(), kv, type_name, n_id.as_str())
+                Ptr::new_inline(resolver.clone(), kv, type_name, n_id.as_str())
             } else {
-                Ptr::new_inline(context.clone(), kv, type_name, id)
+                Ptr::new_inline(resolver.clone(), kv, type_name, id)
             }
         },
         _ => Ptr::null()

@@ -20,9 +20,14 @@ use std::marker::PhantomData;
 use std::collections::*;
 use inki::ptr::PtrInkiResolver;
 use shared;
+use std::io;
+use std::io::prelude::*;
+use std::fs::File;
+use std::path;
 use inki;
 use source;
 use ptr;
+
 pub mod writer;
 
 pub struct BuilderDesc {
@@ -76,6 +81,7 @@ struct ObjEntry
 pub struct BuildRecord
 {
     path: String,
+    res_base: path::PathBuf,
     built_obj: Option<Box<BuildResultObj>>,
     visited: HashSet<String>,
     deps: HashMap<String, Box<ObjDepRef>>,
@@ -96,6 +102,14 @@ impl BuildRecord
         println!("Created object with path [{}]!", tmp_path);
         ptr::Ptr::new_temp_object(tmp_path.as_str(), Arc::new(obj))
     }
+    pub fn load_file(&mut self, res_path:&str) -> Result<Vec<u8>, shared::PutkiError> {
+        let np = self.res_base.join(res_path);
+        println!("mapping file {:?} + {:?} => {:?}", self.res_base, res_path, np);
+        let mut f = File::open(np)?;
+        let mut buffer = Vec::new();
+        f.read_to_end(&mut buffer)?;
+        Ok(buffer)
+    }    
 }
 
 impl ptr::Tracker for BuildRecord {
@@ -108,14 +122,16 @@ impl ptr::Tracker for BuildRecord {
 pub struct PipelineDesc
 {
     source: Arc<source::ObjectLoader>,
-    builders: Vec<Arc<BuilderAny>>    
+    builders: Vec<Arc<BuilderAny>>,
+    res_base: path::PathBuf
 }
 
 impl PipelineDesc {
-    pub fn new(source:Arc<source::ObjectLoader>) -> PipelineDesc {
+    pub fn new(source:Arc<source::ObjectLoader>, res_base: &path::Path) -> PipelineDesc {
         PipelineDesc {
             source: source,
-            builders: Vec::new()
+            builders: Vec::new(),
+            res_base: path::PathBuf::from(res_base)                
         }
     }
     pub fn add_builder<T, K>(mut self, bld: T) -> Self where T : Builder<K> + 'static, K : Send + Sync + 'static {
@@ -176,7 +192,8 @@ impl<T> BuildInvoke for PtrBox<T> where T : 'static + BuildCandidate + source::P
                 path: br.path.clone(),
                 deps: HashMap::new(),
                 visited: HashSet::new(),
-                built_obj: None
+                built_obj: None,
+                res_base: p.desc.res_base.clone()
             };            
             let mut clone = (*obj).clone();
             {
@@ -243,20 +260,21 @@ impl Pipeline
                 invoker: Box::new(PtrBox::<T> { ptr: ptr.clone() })
             });
         }
-    }    
+    }
+
+    pub fn make_src_ptr<T>(&self, path:&str) -> ptr::Ptr<T> {
+        ptr::Ptr::new(Arc::new(source::InkiResolver::new(self.desc.source.clone())), path)
+    }
 
     pub fn build_as<T>(&self, path:&str) where T : 'static + source::ParseFromKV + BuildCandidate {                
         if self.insert_path_to_build(path) {        
-            let mut lk = self.to_build.write().unwrap();        
-            let ctx = source::InkiPtrContext {
-                source: Arc::new(source::InkiResolver::new(self.desc.source.clone()))
-            };       
+            let mut lk = self.to_build.write().unwrap();       
             lk.push(BuildRequest {
                 path: String::from(path),
-                invoker: Box::new(PtrBox::<T> { ptr: ptr::Ptr::new(Arc::new(ctx), path) })
+                invoker: Box::new(PtrBox::<T> { ptr: self.make_src_ptr(path) })
             });
         }
-    }    
+    }
 
     pub fn insert_path_to_build(&self, path:&str) -> bool
     {
