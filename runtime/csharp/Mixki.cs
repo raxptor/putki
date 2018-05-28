@@ -20,6 +20,10 @@ namespace Mixki
                 return int.Parse(tmp.ToString());
             return def;
         }
+        public static int Int(object value, int def)
+        {
+            return int.Parse(value.ToString());
+        }
         public static bool Bool(Dictionary<string, object> dict, string name, bool def)
         {
             object tmp;
