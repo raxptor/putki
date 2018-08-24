@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Text;
 using System.Collections.Generic;
 
 namespace Putki
@@ -66,6 +67,11 @@ namespace Putki
 						tmp[len++] = (byte)'\n';
 						i++;
 					}
+					else if (buf[i + 1] == '\\')
+					{
+						tmp[len++] = (byte)'\\';
+						i++;
+					}
 				}
 			}
 			return System.Text.Encoding.UTF8.GetString(tmp, 0, len);
@@ -127,6 +133,30 @@ namespace Putki
 						{
 							String v = DecodeString(status.data, status.pos, i);
 							status.pos = i + 1;
+							if (v.StartsWith("$FIX-WS:"))
+							{
+								StringBuilder sb = new StringBuilder();
+								bool ws = true;
+								for (int j=8;j<v.Length;j++)
+								{
+									char vc = v[j];
+									if (vc == ' ' || vc == '\t' || vc == '\r' || vc == '\n')
+									{
+										if (!ws)
+										{
+											ws = true;
+											sb.Append(' ');
+										}
+									}
+									else
+									{
+										ws = false;
+										sb.Append(vc);
+									}
+								}
+								v = sb.ToString().Replace("\\n", "\n");
+							}
+
 							return v;
 						}
 						break;
