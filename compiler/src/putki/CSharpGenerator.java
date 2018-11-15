@@ -70,6 +70,7 @@ public class CSharpGenerator
                 case BOOL: return "bool";
                 case UINT32: return "uint";
                 case INT32: return "int";
+                case HASH: return "Putki.Hash";
                 case BYTE: return "byte";
                 case STRING: return "string";
                 case POINTER: return namespace + "." + field.refType;
@@ -102,6 +103,9 @@ public class CSharpGenerator
             case STRING:
                 sb.append(src + ".ToString()");
                 break;
+            case HASH:
+                sb.append("Putki.Hash.Construct(" + src + ".ToString())");
+                break;                
             case POINTER:
                 sb.append("loader.Resolve<Outki." + field.refType + ">(path, " + src + ", " + field.resolvedRefStruct.name + "Fn)");
                 break;
@@ -194,7 +198,7 @@ public class CSharpGenerator
                     		sb.append(npfx).append(ref + " = Mixki.Parse.String(source, \"" + sourceName(fld.name) + "\", ");
                     		if (fld.defValue != null) sb.append(fld.defValue); else sb.append("null");
                     		sb.append(");");
-                    	}
+                    	}                  	
                     	else if (fld.type == FieldType.FLOAT) 
                     	{
                     		sb.append(npfx).append(ref + " = Mixki.Parse.Float(source, \"" + sourceName(fld.name) + "\", ");
