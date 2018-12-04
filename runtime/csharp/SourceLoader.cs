@@ -7,7 +7,7 @@ namespace Mixki
 {
 	public class SourceLoader
 	{
-		public delegate object ParseFn(SourceLoader loader, string path, Dictionary<string, object> obj);
+		public delegate object ParseFn(SourceLoader loader, string path, Dictionary<string, object> obj, object parseInto);
 		public delegate void LogFn(string txt);
 
 		public struct Parser
@@ -76,7 +76,7 @@ namespace Mixki
 			if (value is Dictionary<string, object>)
 			{
 				string ipath = "##inline" + ((m_inlineCounter++).ToString());
-				object parsed = inlineFn(this, ipath, value as Dictionary<string, object>);
+				object parsed = inlineFn(this, ipath, value as Dictionary<string, object>, inlineFn(this, null, null, null));
 				m_parsed.Add(ipath, parsed);
 				Putki.PackageManager.RegisterLoaded(ipath, parsed);
 				return (Type) parsed;
@@ -143,10 +143,11 @@ namespace Mixki
 				ParseFn p;
 				if (m_parsers.TryGetValue(Normalize(type), out p))
 				{
-					object parsed = p(this, assetPath, datas);
-					m_parsed.Add(path, parsed);
-					Putki.PackageManager.RegisterLoaded(path, parsed);
-					return (Type) parsed;
+					object prep = p(null, null, null, null);
+					m_parsed.Add(path, prep);
+					p(this, assetPath, datas, prep);
+					Putki.PackageManager.RegisterLoaded(path, prep);
+					return (Type) prep;
 				}
 				else
 				{

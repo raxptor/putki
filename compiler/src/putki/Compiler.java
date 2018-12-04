@@ -26,6 +26,7 @@ public class Compiler
         BOOL,
         STRING,
         POINTER,
+        HASH,
         PATH,
         STRUCT_INSTANCE,
         ENUM,
@@ -210,6 +211,7 @@ public class Compiler
 			new TypeMap("bool", FieldType.BOOL),
 			new TypeMap("byte", FieldType.BYTE),
 			new TypeMap("string", FieldType.STRING),
+			new TypeMap("hash", FieldType.HASH),
 			new TypeMap("float", FieldType.FLOAT),
 			new TypeMap("file", FieldType.FILE),
 			new TypeMap("path", FieldType.PATH)
