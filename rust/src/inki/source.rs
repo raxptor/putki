@@ -2,6 +2,7 @@ use inki::lexer;
 use std::rc::Rc;
 use std::sync::Arc;
 use shared::TypeDescriptor;
+use shared::PutkiError;
 
 pub enum ResolveStatus<T> {
     Resolved(Rc<T>),
@@ -11,6 +12,50 @@ pub enum ResolveStatus<T> {
 
 pub trait ObjectLoader where Self : Sync + Send {
 	fn load(&self, path: &str) -> Option<(&str, &lexer::LexedKv)>;
+}
+
+pub trait WriteAsText where Self : Sync + Send {
+	fn write_text(&self, output: &mut String) -> Result<(), PutkiError>;
+}
+
+impl<'a> WriteAsText for &'a str {
+	fn write_text(&self, output: &mut String) -> Result<(), PutkiError> {
+		output.push('\"');
+		output.push_str(self);
+		output.push('\"');
+		Ok(())
+	}
+}
+
+impl<'a> WriteAsText for String {
+	fn write_text(&self, output: &mut String) -> Result<(), PutkiError> {
+		output.push('\"');
+		output.push_str(self);
+		output.push('\"');
+		Ok(())
+	}
+}
+
+impl<'a> WriteAsText for i32 {
+	fn write_text(&self, output: &mut String) -> Result<(), PutkiError> {
+		output.push_str(&self.to_string());
+		Ok(())
+	}
+}
+
+pub trait FieldWriter<Target> {
+	fn write_field(&mut self, name:&str, tgt:&Target, sep:bool) -> Result<(), PutkiError>;
+}
+
+impl<Target> FieldWriter<Target> for String where Target : WriteAsText {
+	fn write_field(&mut self, name:&str, tgt:&Target, sep:bool) -> Result<(), PutkiError> {
+		if sep {
+			self.push(',');
+		}
+		self.push_str(name);
+		self.push(':');
+		tgt.write_text(self)
+	}
 }
 
 pub trait ParseFromKV where Self:Sized + TypeDescriptor + Clone {

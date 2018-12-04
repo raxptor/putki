@@ -27,6 +27,8 @@ use std::path;
 use inki;
 use source;
 use ptr;
+use source::WriteAsText;
+use shared::PutkiError;
 
 pub mod writer;
 
@@ -109,7 +111,14 @@ impl BuildRecord
         let mut buffer = Vec::new();
         f.read_to_end(&mut buffer)?;
         Ok(buffer)
-    }    
+    }
+    pub fn built_object<'a>(&'a self) -> Option<&'a BuildResultObj> {
+        if let &Some(ref b) = &self.built_obj {
+            Some(&(**b))
+        } else {
+            None
+        }
+    }
 }
 
 impl ptr::Tracker for BuildRecord {
@@ -158,6 +167,10 @@ pub struct Pipeline
     built: RwLock<HashMap<String, BuildRecord>>
 }
 
+pub trait InkiObj : source::WriteAsText + Send + Sync + BuildCandidate + shared::TypeDescriptor + source::ParseFromKV + Default
+{
+}
+
 struct PtrBox<T> where T : 'static + Send + Sync
 {
     pub ptr: ptr::Ptr<T>
@@ -168,24 +181,33 @@ trait BuildInvoke where Self : Send + Sync
     fn build(&self, p:&Pipeline, br:&BuildRequest);
 }
 
-pub trait BuildResultObj where Self : Send + Sync { }
+pub trait BuildResultObj where Self : Send + Sync {
+    fn write_object(&self, output:&mut String) -> Result<(), PutkiError>;
+}
+
 trait ObjDepRef where Self : 'static + Send + Sync { }
 
-impl<T> BuildResultObj for PtrBox<T> where T : 'static + BuildCandidate
+impl<T> BuildResultObj for PtrBox<T> where T : 'static + InkiObj
+{
+    fn write_object(&self, output:&mut String) -> Result<(), PutkiError> {
+        if let Some(x) = self.ptr.get_owned_object() {
+            <T as WriteAsText>::write_text(&x, output)
+        } else {
+            Err(PutkiError::ObjectNotFound)
+        }
+    }
+}
+
+impl<T> ObjDepRef for PtrBox<T> where T : 'static + Sync + Send + InkiObj
 {
 
 }
 
-impl<T> ObjDepRef for PtrBox<T> where T : 'static + Sync + Send + BuildCandidate + shared::TypeDescriptor
-{
-
-}
-
-impl<T> BuildInvoke for PtrBox<T> where T : 'static + BuildCandidate + source::ParseFromKV
+impl<T> BuildInvoke for PtrBox<T> where T : 'static + InkiObj
 {
     fn build(&self, p:&Pipeline, br:&BuildRequest)
     {
-        if let Some(obj) = inki::ptr::PtrInkiResolver::resolve(&self.ptr) {
+        if let Some(obj) = inki::ptr::PtrInkiResolver::resolve_notrack(&self.ptr) {
             let mut br = BuildRecord {
                 error: None,
                 success: true,
@@ -244,14 +266,14 @@ impl Pipeline
         Ok(())
     }
 
-    pub fn add_output_dependency<T>(&self, br:&mut BuildRecord, ptr: &ptr::Ptr<T>) where T : 'static + source::ParseFromKV + BuildCandidate + shared::TypeDescriptor {
+    pub fn add_output_dependency<T>(&self, br:&mut BuildRecord, ptr: &ptr::Ptr<T>) where T : 'static + InkiObj {
         if let Some(path) = ptr.get_target_path() {
             self.build_ptr(ptr);
             br.deps.insert(String::from(path), Box::new(PtrBox { ptr: (*ptr).clone() }));
         }
     }
 
-    pub fn build_ptr<T>(&self, ptr : &ptr::Ptr<T>) where T : 'static + source::ParseFromKV + BuildCandidate {
+    pub fn build_ptr<T>(&self, ptr : &ptr::Ptr<T>) where T : 'static + InkiObj {
         let path = String::from(ptr.get_target_path().unwrap());
         if self.insert_path_to_build(path.as_ref()) {
             let mut lk = self.to_build.write().unwrap();        
@@ -266,7 +288,7 @@ impl Pipeline
         ptr::Ptr::new(Arc::new(source::InkiResolver::new(self.desc.source.clone())), path)
     }
 
-    pub fn build_as<T>(&self, path:&str) where T : 'static + source::ParseFromKV + BuildCandidate {                
+    pub fn build_as<T>(&self, path:&str) where T : 'static + InkiObj {
         if self.insert_path_to_build(path) {        
             let mut lk = self.to_build.write().unwrap();       
             lk.push(BuildRequest {

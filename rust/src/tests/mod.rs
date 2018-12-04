@@ -1,6 +1,10 @@
 use inki::*;
 use std::sync::Arc;
 use shared;
+use shared::PutkiError;
+use inki::source::FieldWriter;
+use inki::source::WriteAsText;
+use pipeline;
 
 #[cfg(test)]
 mod outki;
@@ -36,8 +40,20 @@ impl shared::TypeDescriptor for PtrStruct1 {
 	const TAG : &'static str = "PtrStruct1";
 }
 
+impl WriteAsText for PointedTo {
+	fn write_text(&self, output: &mut String) -> Result<(), PutkiError> {
+		output.write_field("Ptr", &self.value, false)
+	}
+}
+
+impl WriteAsText for PtrStruct1 {
+	fn write_text(&self, output: &mut String) -> Result<(), PutkiError> {
+		output.write_field("Ptr", &self.ptr, false)
+	}
+}
+
 impl ParseFromKV for PointedTo {
-	fn parse(kv : &lexer::LexedKv, _pctx: &Arc<InkiPtrContext>) -> Self {
+	fn parse(kv : &lexer::LexedKv, _pctx: &Arc<InkiResolver>) -> Self {
 		return Self {
 			value : lexer::get_int(kv.get("Value"), 0)
 		}
@@ -45,7 +61,7 @@ impl ParseFromKV for PointedTo {
 }
 
 impl ParseFromKV for PtrStruct1 {
-	fn parse(kv : &lexer::LexedKv, _pctx: &Arc<InkiPtrContext>) -> Self {
+	fn parse(kv : &lexer::LexedKv, _pctx: &Arc<InkiResolver>) -> Self {
 		return Self {
 			ptr : Ptr::new(_pctx.clone(), lexer::get_string(kv.get("Ptr"), "").as_str())
 		}
@@ -70,27 +86,19 @@ fn test_ptr_1() {
 	"#));	
 
 	let resolver = Arc::new(InkiResolver::new(la));
-	let ctx = Arc::new(InkiPtrContext {
-		tracker: None,
-		source: resolver.clone()
-	});
-	if let ResolveStatus::Resolved(pto) = resolve_from::<PointedTo>(&ctx, "main") {
+	if let ResolveStatus::Resolved(pto) = resolve_from::<PointedTo>(&resolver, "main") {
 		assert_eq!(pto.value, 123);
 	} else {
 		panic!("Could not resolve main");
 	}
-	if let ResolveStatus::Resolved(pto) = resolve_from::<PtrStruct1>(&ctx, "ptr1") {
-		if let Some(pto) = pto.ptr.resolve() {
-			assert_eq!(pto.value, 321);
-		} else {
-			panic!("Could not resolve pointer in ptr1.")
-		}
+	if let ResolveStatus::Resolved(pto) = resolve_from::<PtrStruct1>(&resolver, "ptr1") {
+		assert_eq!(pto.ptr.unwrap().value, 321);
 	} else {
 		panic!("Could not resolve main");
 	}	
-	if let ResolveStatus::Resolved(pto) = resolve_from::<PtrStruct1>(&ctx, "ptr2") {
+	if let ResolveStatus::Resolved(pto) = resolve_from::<PtrStruct1>(&resolver, "ptr2") {
 		println!("ptr2.ptr={:?}", pto.ptr);
-		assert!(pto.ptr.resolve().is_none());
+		assert!(pto.ptr.resolve_notrack().is_none());
 	} else {
 		panic!("Could not resolve ptr2");
 	}	
