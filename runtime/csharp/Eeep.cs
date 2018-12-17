@@ -12,6 +12,7 @@ namespace Putki
 			public byte[] data;
 			public int pos;
 			public bool error;
+			public List<string> pathStack;
 			public Dictionary<string, Object> result;
 		}
 
@@ -80,11 +81,6 @@ namespace Putki
 		public static bool IsWhitespace(char c)
 		{
 			return c == ' ' || c == '\t' || c == 0xD || c == 0xA;
-		}
-
-		static string MakeAnonymousPath()
-		{
-			return "anonymous";
 		}
 
 		static string Normalize(string s)
@@ -172,9 +168,20 @@ namespace Putki
 									status.error = true;
 									return null;
 								}
+								
+								if (pcs.Length > 1)
+								{
+									status.pathStack.Add(pcs[1].Trim());
+								}
 
 								status.pos = i;
 								Dictionary<string, object> data = Parse(ref status) as Dictionary<string, object>;
+
+								if (pcs.Length > 1)
+								{
+									status.pathStack.RemoveAt(status.pathStack.Count - 1);
+								}
+
 								if (status.error || data == null)
 									return null;
 								i = status.pos - 1;
@@ -195,7 +202,11 @@ namespace Putki
 								else
 								{
 									// anonymous object, add with path and return.
-									string path = "%" + (m_anonCount++);
+									string path;
+									if (status.pathStack.Count > 0)
+										path = "!" + status.pathStack[status.pathStack.Count - 1] + "/%" + (m_anonCount++);
+									else
+										path = "%" + (m_anonCount++);
 									status.result.Add(path, no);
 									status.pos = i + 1;
 									if (!rootlevel)
@@ -339,6 +350,7 @@ namespace Putki
 			ParseStatus status = new ParseStatus();
 			status.data = stripped;
 			status.pos = 0;
+			status.pathStack = new List<string>();
 			status.result = new Dictionary<string, Object>();
 			Parse(ref status, true);
 			if (status.error)
