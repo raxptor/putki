@@ -1,5 +1,6 @@
 use inki::source;
 use inki::lexer;
+use shared;
 use std::fmt;
 use std::result;
 use std::sync::Arc;
@@ -32,7 +33,7 @@ pub struct Ptr<Target> where Target : 'static + Sized
 
 pub trait PtrInkiResolver<T>
 {
-    fn resolve(&self) -> Option<Arc<T>>;
+    fn resolve_notrack(&self) -> Option<Arc<T>>;
     fn unwrap(&self) -> Arc<T>;
     fn unwrap_unique(&self) -> Box<T>;
 }
@@ -52,16 +53,16 @@ impl<T> Resolver<T> for Ptr<T> where T : 'static + source::ParseFromKV
         match &self.target {
             &PtrTarget::ObjPath { ref path, .. } => {
                 trk.follow(path);
-                (self as &PtrInkiResolver<T>).resolve()
+                (self as &PtrInkiResolver<T>).resolve_notrack()
             },
-            _ => (self as &PtrInkiResolver<T>).resolve()
+            _ => (self as &PtrInkiResolver<T>).resolve_notrack()
         }
     }    
 }
 
 impl<T> PtrInkiResolver<T> for Ptr<T> where T : 'static + source::ParseFromKV
 {
-    fn resolve(&self) -> Option<Arc<T>> {
+    fn resolve_notrack(&self) -> Option<Arc<T>> {
         match &self.target {
             &PtrTarget::Null => return None,
             &PtrTarget::ObjPath { ref resolver, ref path } => {
@@ -78,10 +79,10 @@ impl<T> PtrInkiResolver<T> for Ptr<T> where T : 'static + source::ParseFromKV
         }
     }
     fn unwrap(&self) -> Arc<T> {
-        return (self as &PtrInkiResolver<T>).resolve().unwrap();
+        return self.resolve_notrack().unwrap();
     }
     fn unwrap_unique(&self) -> Box<T> {
-        return Box::new((*(self as &PtrInkiResolver<T>).resolve().unwrap()).clone());
+        return Box::new((*self.resolve_notrack().unwrap()).clone());
     }    
 }
 
@@ -95,6 +96,18 @@ impl<Target> fmt::Debug for Ptr<Target> where Target : source::ParseFromKV {
             &PtrTarget::TempObject { ref path, .. } => { write!(f, "Temp object path={}", path).ok(); }
         }
         return Ok(());
+    }
+}
+
+impl<Target> source::WriteAsText for Ptr<Target> where Target : source::WriteAsText + shared::TypeDescriptor, Self : PtrInkiResolver<Target> {
+	fn write_text(&self, output: &mut String) -> Result<(), shared::PutkiError>
+    {
+        if let Some(path) = self.get_target_path() {
+            output.push_str(&lexer::escape_string(&String::from(path)));
+        } else {
+            output.push_str("\"\"");
+        }
+        Ok(())
     }
 }
 
@@ -136,6 +149,14 @@ impl<Target> Ptr<Target>
                 path: String::from(path),
                 object: obj
             }
+        }
+    }
+
+    pub fn get_owned_object(&self) -> Option<Arc<Target>> {
+        if let PtrTarget::TempObject { ref object, .. } = self.target {
+            Some(object.clone())
+        } else {
+            None
         }
     }
 

@@ -34,6 +34,15 @@ pub struct ScanResult<'a>
 	pub data: LexedData
 }
 
+pub fn escape_string(input:&String) -> String
+{
+	let mut s = String::with_capacity(input.len() + 32);
+	s.push('\"');
+	s.push_str(&input.replace("\"", "\\\""));
+	s.push('\"');
+	s
+}
+
 pub fn kv_to_string(kv: &HashMap<String, LexedData>) -> String
 {
 	let mut tmp = String::new();
@@ -67,9 +76,7 @@ impl ToString for LexedData
 			},
 			&LexedData::Value(ref val) => tmp.push_str(val),
 			&LexedData::StringLiteral(ref val) => {
-				tmp.push_str("\"");
-				tmp.push_str(val);
-				tmp.push_str("\"");
+				tmp.push_str(&escape_string(val));
 			}
 			&LexedData::Array(ref vec) => {
 				tmp.push('[');

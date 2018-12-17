@@ -8,6 +8,10 @@ use std::sync::Arc;
 use std::any;
 use std::any::TypeId;
 use std::thread;
+use std::path::Path;
+
+use putki::PutkiError;
+use putki::FieldWriter;
 
 #[derive(Debug, Clone, Default)]
 struct TestValues {
@@ -15,7 +19,7 @@ struct TestValues {
 	value2: i32
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 struct Multi {
 	contained: TestValues
 }
@@ -56,19 +60,19 @@ impl putki::BuildFields for Pointer {
 
 impl putki::BuildCandidate for TestValues {
     fn as_any_ref(&mut self) -> &mut any::Any { return self; }    
-    fn build(&mut self, p:&putki::Pipeline, br: &mut putki::BuildRecord) { p.build(br, self); }
+    fn build(&mut self, p:&putki::Pipeline, br: &mut putki::BuildRecord) -> Result<(), putki::PutkiError> { p.build(br, self) }
 	fn scan_deps(&self, p:&putki::Pipeline, br: &mut putki::BuildRecord) { }
 }
 
 impl putki::BuildCandidate for Multi {
     fn as_any_ref(&mut self) -> &mut any::Any { return self; }    
-    fn build(&mut self, p:&putki::Pipeline, br: &mut putki::BuildRecord) { p.build(br, self); }
+    fn build(&mut self, p:&putki::Pipeline, br: &mut putki::BuildRecord) -> Result<(), putki::PutkiError> { p.build(br, self) }
 	fn scan_deps(&self, p:&putki::Pipeline, br: &mut putki::BuildRecord) { }
 }
 
 impl putki::BuildCandidate for Pointer {
     fn as_any_ref(&mut self) -> &mut any::Any { return self; }    
-    fn build(&mut self, p:&putki::Pipeline, br: &mut putki::BuildRecord) { p.build(br, self); }
+    fn build(&mut self, p:&putki::Pipeline, br: &mut putki::BuildRecord) -> Result<(), putki::PutkiError> { p.build(br, self) }
 	fn scan_deps(&self, p:&putki::Pipeline, br: &mut putki::BuildRecord) { 
 		println!("Adding output dependencies...");
 		p.add_output_dependency(br, &self.next);
@@ -115,7 +119,7 @@ impl putki::Builder<Pointer> for PointerBuilder {
 }
 
 impl putki::ParseFromKV for TestValues {
-	fn parse(kv : &putki::lexer::LexedKv, _pctx: &Arc<putki::InkiPtrContext>) -> Self {
+	fn parse(kv : &putki::lexer::LexedKv, _pctx: &Arc<putki::InkiResolver>) -> Self {
 		return Self {
 			value1 : putki::lexer::get_int(kv.get("Value1"), 0),
 			value2 : putki::lexer::get_int(kv.get("Value2"), 0)
@@ -123,22 +127,46 @@ impl putki::ParseFromKV for TestValues {
 	}
 }
 
+impl putki::WriteAsText for TestValues {
+	fn write_text(&self, output: &mut String) -> Result<(), PutkiError> {
+		output.write_field("Value1", &self.value1, false)?;
+		output.write_field("Value2", &self.value2, true)
+	}
+}
+
 impl putki::ParseFromKV for Multi {
-	fn parse(kv : &putki::lexer::LexedKv, _pctx: &Arc<putki::InkiPtrContext>) -> Self {
+	fn parse(kv : &putki::lexer::LexedKv, _pctx: &Arc<putki::InkiResolver>) -> Self {
 		return Self {
 			contained : putki::lexer::get_object(kv.get("Contained")).map(|v| { putki::ParseFromKV::parse(v.0, &_pctx) }).unwrap_or_default()
 		}
 	}
 }
 
+impl putki::WriteAsText for Multi {
+	fn write_text(&self, output: &mut String) -> Result<(), PutkiError> {
+		output.write_field("Contained", &self.contained, false)
+	}
+}
+
 impl putki::ParseFromKV for Pointer {
-	fn parse(kv : &putki::lexer::LexedKv, _pctx: &Arc<putki::InkiPtrContext>) -> Self {
+	fn parse(kv : &putki::lexer::LexedKv, _pctx: &Arc<putki::InkiResolver>) -> Self {
 		return Self {
 			contained : putki::lexer::get_object(kv.get("Contained")).map(|v| { putki::ParseFromKV::parse(v.0, &_pctx) }).unwrap_or_default(),
 			next: kv.get("Next").map(|v| { putki::ptr_from_data(_pctx, v) }).unwrap_or_default()
 		}
 	}
 }
+
+impl putki::WriteAsText for Pointer {
+	fn write_text(&self, output: &mut String) -> Result<(), PutkiError> {
+		output.write_field("Contained", &self.contained, false)?;
+		output.write_field("Next", &self.next, true)
+	}
+}
+
+impl putki::InkiObj for TestValues { }
+impl putki::InkiObj for Multi { }
+impl putki::InkiObj for Pointer { }
 
 #[test]
 fn test_pipeline() {
@@ -168,7 +196,7 @@ fn test_pipeline() {
 		}		
 	"#));	
 
-	let desc = putki::PipelineDesc::new(la.clone())
+	let desc = putki::PipelineDesc::new(la.clone(), Path::new("."))
 			.add_builder(TestValueBuilder{ })
 			.add_builder(PointerBuilder{ });
 
@@ -189,6 +217,21 @@ fn test_pipeline() {
 	for x in thr {
 		x.join().ok();
 	}
+
+	let p2 = pipeline.clone();
+	thread::spawn(move || {
+		let recs = p2.peek_build_records().unwrap();
+		for (ref k, ref v) in recs.iter() {						
+			let mut r = String::new();
+			if let Some(bo) = v.built_object() {
+				println!("i got {}", k);
+				bo.write_object(&mut r);
+				println!("{}", r);
+			} else {
+				panic!("Failed somehow with {}", k);
+			}
+		}
+	}).join().ok();
 
 	println!("Building package");
 	let mut rcp = putki::PackageRecipe::new();
