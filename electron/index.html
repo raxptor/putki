@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <title>Electron editor</title>
+    <link rel="stylesheet" href="style.css">    
+  </head>
+  <body>
+    <script>
+      require('./renderer.js')
+    </script>
+    <x-entry>
+      <x-path>@Character characters/char-1</x-path>
+      <x-properties>
+        <x-prop-name>Name</x-prop-name>
+        <x-prop-value><input value="Percival Drake"></x-prop-value>
+        <x-prop-name>Description</x-prop-name>
+        <x-prop-value><textarea rows="10">He was a good man after all.</textarea></x-prop-value>
+      </x-properties>
+    </x-entry>
+    <x-entry>
+        <x-path>@Roster roster</x-path>
+        <x-properties>
+          <x-prop-name>Name</x-prop-name>
+          <x-prop-value><input value="My favorite roster"></x-prop-value>
+          <x-prop-name>Characters</x-prop-name>
+          <x-prop-value>
+            <table>
+              <tr>
+                <td class="list-index">1</td>
+                <td>Hej</td>
+              </tr>
+              <tr>
+                <td class="list-index">2</td>
+                <td>Hej</td>
+              </tr>
+            </table>
+        </table></x-prop-value>
+        </x-properties>
+      </x-entry>    
+  </body>
+</html>

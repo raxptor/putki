@@ -1,0 +1,105 @@
+body {
+    font-family: 'Gill Sans', 'Gill Sans MT', Calibri, 'Trebuchet MS', sans-serif;
+}
+
+x-info {
+    display: flex;
+    flex-direction: column;
+}
+
+x-entry {
+    display: flex;
+    flex-direction: column;
+    padding: 5px;
+    margin: 10px;
+    outline: 1px solid;
+}
+
+x-desc {
+    font-family: 'Lucida Sans', 'Lucida Sans Regular', 'Lucida Grande', 'Lucida Sans Unicode', Geneva, Verdana, sans-serif;
+}
+
+x-name {
+    display: block;
+    font-size: x-large;
+    margin-bottom: 10px;
+}
+
+x-path {
+    background-color: bisque;
+}
+
+x-inline-path {
+    background-color: chocolate;
+}
+
+x-portrait {
+    display: block;
+}
+
+x-icon {
+    display: block;
+}
+
+x-skill x-entry {
+    flex-direction: row;
+    flex-flow: row;
+}
+x-skill x-entry x-info {
+    margin-left: 10px;
+}
+
+x-item x-entry {
+    flex-direction: row;
+    flex-flow: row;
+}
+x-item x-entry x-info {
+    margin-left: 10px;
+}
+
+x-upgrade x-entry {
+    flex-direction: row;
+    flex-flow: row;
+}
+
+x-state-locked {
+    background-color: aquamarine;
+    border: 1px dashed;
+    margin-left: 5px;
+    padding-left: 2px;
+    padding-right: 2px;
+}
+
+x-state-dyn {
+    font-weight: bold;
+}
+
+x-properties {
+    margin-top: 10px;
+    font-family: 'Lucida Sans', 'Lucida Sans Regular', 'Lucida Grande', 'Lucida Sans Unicode', Geneva, Verdana, sans-serif;
+}
+
+x-loot {
+    display: block;
+}
+
+x-prop-name {
+    display: block;
+    font-weight: bolder;
+    font-size: small;
+    width: 100%;    
+}
+
+x-prop-value {
+    display: block;
+    width: 100%;    
+    margin-bottom: 3px;
+}
+
+x-prop-value input {
+    width: 95%;
+}
+
+x-prop-value textarea {
+    width: 95%;
+}
