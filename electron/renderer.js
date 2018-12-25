@@ -21,7 +21,7 @@ var UserTypes = {
         Fields: [
             { Name: "Name", Type:"String", Array:false },
             { Name: "Description", Type:"Text", Array:false },
-            { Name: "Skills", Type:"Skill", Array:true, Pointer:true}
+            { Name: "Skills", Type:"Skill", Array:true, Pointer:true},
             { Name: "HasInventory", Type:"Bool" },
             { Name: "Cucumber", Type:"Bool" },
             { Name: "Damage", Type:"DamageType", Array:false },
@@ -78,14 +78,27 @@ var Data = {
         Description: "He is small and weak" 
     },
     "skills/perc/sk1": {
+        _inline: true,
+        _type: "Skill",
         Name: "Lunge",
         Description: "Basic skill"
     },
+    "skills/guard": {
+        _type:"Skill",
+        Name: "Guard",
+        Description: "Basic skill"
+    },
     "skills/perc/sk2": {
+        _type: "Skill",
         Name: "Pin",
         Description: "Extended skill"
     }
 }
+
+var Obj2Path = {};
+
+for (var x in Data)
+    Obj2Path[Data[x]] = x;
 
 function clone(src) {
     console.log("clone", src, JSON.stringify(src), " and reparse ", JSON.parse(JSON.stringify(src)));
@@ -105,6 +118,8 @@ function default_value(field, un_array)
         return field.Default;
     if (field.Array && !un_array)
         return [];
+    if (field.Pointer)
+        return null;
     var type = resolve_type(field.Type);
     if (type.Fields !== undefined)
         return {};
@@ -148,6 +163,7 @@ function create_array_editor(ed)
                 data: iv,
                 datafield: i
             }, true));
+            _val.classList.add("value");
             _row.appendChild(_idx);
             _row.appendChild(_val);
             var ctl0 = document.createElement('td');
@@ -183,6 +199,29 @@ function create_array_editor(ed)
     return _array;
 }
 
+function create_pointer_editor(ed)
+{
+    var fld = document.createElement("x-pointer"); 
+    var iv = ed.data[ed.datafield];
+    if (iv instanceof Object) {
+        var inl = build_full_entry({
+            type: iv._type,
+            path: iv._path,
+            data: iv
+        });
+        fld.appendChild(inl);
+    } else {
+        var txt = document.createTextNode(iv);
+        fld.classList.add("pointer-text");
+        fld.classList.add("click-to-change");
+        fld.appendChild(txt);
+        var data = Data[iv];
+        if (data === undefined)
+            fld.classList.add("invalid-pointer");
+    }
+    return fld; 
+}
+
 function create_type_editor(ed, un_array)
 {
     var type = resolve_type(ed.field.Type);
@@ -190,6 +229,10 @@ function create_type_editor(ed, un_array)
     if (!un_array && ed.field.Array)
     {
         return create_array_editor(ed);
+    }
+    if (ed.field.Pointer)
+    {
+        return create_pointer_editor(ed);
     }
 
     if (type.Editor == "String")
@@ -323,6 +366,7 @@ function build_properties(objdesc)
 function build_inline_entry(objdesc)
 {
     var _entry = document.createElement('x-inline-entry'); 
+    /*
     if (objdesc.path !== undefined)
     {
         var _path = document.createElement('x-path');
@@ -330,6 +374,7 @@ function build_inline_entry(objdesc)
         _path.appendChild(_path_text);
         _entry.appendChild(_path);
     }
+    */
     _entry.appendChild(build_properties(objdesc));
     return _entry;  
 }  
@@ -338,10 +383,20 @@ function build_full_entry(objdesc)
 {
     var _entry = document.createElement('x-entry'); 
     var _path = document.createElement('x-path');
-    var _path_text = document.createTextNode("@" + objdesc.type + " " + objdesc.path);
+    var _path_text = document.createTextNode("@" + objdesc.type+ " " + objdesc.path);
+    _path.classList.add("click-to-change"); 
     _path.appendChild(_path_text);
     _entry.appendChild(_path);
     _entry.appendChild(build_properties(objdesc));
+
+    _path.addEventListener("click", function() {
+        var p = prompt("Enter new path", objdesc.path);
+        if (p != null)
+        {
+            objdesc.path = p;
+            _path_text.value = p;
+        }
+    });
     return _entry;  
 }  
 
@@ -355,8 +410,14 @@ document.body.appendChild(build_full_entry({path: "gurka", type:"Character", dat
     ],
     "MultiMasks": [],
     "Skills": [
-        "skills/perc/sk1",
-        "skills/perc/sk2"
+        {
+            Name: "Pin",
+            Description: "Basic skill",
+            _path: "skills/perc/pin",
+            _type: "Skill"
+        },
+        "skills/guard",
+        "skills/invalid"
     ]
 }}));
 

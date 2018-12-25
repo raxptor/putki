@@ -83,6 +83,33 @@ x-state-dyn {
     font-weight: bold;
 }
 
+x-pointer {
+    font-weight: normal;
+    font-size: small;
+    display: block;
+}
+
+/*
+tr:nth-child(2)
+{
+    background-color: #eee;
+}*/
+
+td.value {
+    width: 100%
+}
+
+.invalid-pointer {
+    color: #f00;    
+}
+
+.pointer-text {
+    margin: 3px;
+    padding-left: 5px;
+    padding-right: 5px;
+    border: 1px dashed;
+    }
+
 x-properties .no-value {
     background-color: #eee;
     color: #888;
@@ -97,6 +124,16 @@ x-prop-name.no_value {
 }
 
 .click-to-add:hover {
+    color: #040;
+    text-decoration: underline;
+    text-decoration-color: #000;
+}
+
+.click-to-change {
+    cursor: pointer;
+}
+
+.click-to-change:hover {
     color: #040;
     text-decoration: underline;
     text-decoration-color: #000;
