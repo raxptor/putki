@@ -86,6 +86,20 @@ x-state-dyn {
 x-properties .no-value {
     background-color: #eee;
     color: #888;
+    font-weight: normal; 
+}
+x-prop-name.no_value {
+    font-weight: normal;
+}
+
+.click-to-add {
+    cursor: pointer;
+}
+
+.click-to-add:hover {
+    color: #040;
+    text-decoration: underline;
+    text-decoration-color: #000;
 }
 
 x-properties {

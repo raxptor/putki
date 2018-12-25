@@ -21,11 +21,19 @@ var UserTypes = {
         Fields: [
             { Name: "Name", Type:"String", Array:false },
             { Name: "Description", Type:"Text", Array:false },
+            { Name: "Skills", Type:"Skill", Array:true, Pointer:true}
             { Name: "HasInventory", Type:"Bool" },
             { Name: "Cucumber", Type:"Bool" },
             { Name: "Damage", Type:"DamageType", Array:false },
             { Name: "Mask", Type:"Mask", Array:false },
             { Name: "Immunities", Type:"DamageType", Array:true },
+            { Name: "MultiMasks", Type:"Mask", Array:true },
+        ]
+    },
+    "Skill": {
+        Fields: [
+            { Name: "Name", Type:"String", Array:false },
+            { Name: "Description", Type:"String", Array:false },
         ]
     },
     "Mask": {
@@ -39,7 +47,7 @@ var UserTypes = {
     "Roster": {
         Fields: [
             { Name: "Name", Type:"String", Array:false },
-            { Name: "Characters", Type:"Character", ptr:true, Array:true }
+            { Name: "Characters", Type:"Character", Pointer :true, Array:true }
         ]
     },
     "DamageType": {
@@ -68,10 +76,19 @@ var Data = {
         _type: "Character",
         Name: "My second guy",
         Description: "He is small and weak" 
-    }    
+    },
+    "skills/perc/sk1": {
+        Name: "Lunge",
+        Description: "Basic skill"
+    },
+    "skills/perc/sk2": {
+        Name: "Pin",
+        Description: "Extended skill"
+    }
 }
 
 function clone(src) {
+    console.log("clone", src, JSON.stringify(src), " and reparse ", JSON.parse(JSON.stringify(src)));
     return JSON.parse(JSON.stringify(src));
 }
 
@@ -82,17 +99,19 @@ function resolve_type(type)
     return Primitive[type];
 }
 
-function default_value(field)
+function default_value(field, un_array)
 {
-    var type = resolve_type(field.Type);
     if (field.Default !== undefined)
         return field.Default;
-    if (type.Array)
+    if (field.Array && !un_array)
         return [];
+    var type = resolve_type(field.Type);
     if (type.Fields !== undefined)
         return {};
     if (type.Editor == "Int")
         return 0;
+    if (type.Editor == "String" || type.Editor == "Text")
+        return "";
     if (type.Values !== undefined && type.Values.length > 0)
         return type.Values[type.Values.length-1].Value;
 }
@@ -154,7 +173,7 @@ function create_array_editor(ed)
             ctl0.colSpan = 2;
             ctl0.appendChild(mk_button("new", function() { 
                 return function() {
-                    iv.splice(iv.length, 0, default_value(ed.field));
+                    iv.splice(iv.length, 0, default_value(ed.field, true));
                     _array._x_reload();
                 }; } (i)));
             _row.appendChild(ctl0);
@@ -177,6 +196,9 @@ function create_type_editor(ed, un_array)
     {
         var ip = document.createElement("input");
         ip.value = iv;
+        ip.addEventListener("change", function() {
+            ed.data[ed.datafield] = ip.value;
+        });  
         return ip;
     }
     if (type.Editor == "Text")
@@ -184,24 +206,31 @@ function create_type_editor(ed, un_array)
         var ta = document.createElement("textarea");
         ta.rows = 10;
         ta.value = iv;
+        ta.addEventListener("change", function() {
+            ed.data[ed.datafield] = ta.value;
+        }); 
         return ta;
     }
     if (type.Editor == "Checkbox")
     {
         var ta = document.createElement("input");
         ta.type = "checkbox";
+        ta.checked = [true, "true", "True", "1"].indexOf(ed.data[ed.datafield]) != -1;
+        ta.addEventListener("change", function() {
+            ed.data[ed.datafield] = ta.checked;
+        });        
         return ta;
     }
     if (type.Editor == "Select")
     {
         var sel = document.createElement("select");
         for (var i=0;i<type.Values.length;i++)
-        {
+        {   
             var opt = document.createElement("option"); 
             opt.text = type.Values[i].Name;
             opt.value = type.Values[i].Value;
             sel.options.add(opt);
-            if (iv == type.Values[i].Name)
+            if (iv == type.Values[i].Name   )
                 sel.selectedIndex = i;
         }
         sel.addEventListener("change", function() {
@@ -209,8 +238,6 @@ function create_type_editor(ed, un_array)
             {
                 if (sel.value == type.Values[x].Value)
                 {
-                    console.log("its value is ", type.Values[x].Name);
-                    console.log(ed);
                     ed.data[ed.datafield] = type.Values[x].Name; 
                 }
             }
@@ -234,8 +261,34 @@ function create_wrapped_editor(parent, ed)
     obj._x_reload = function() {
         delete obj._x_reload;
         parent.removeChild(obj);
-        create_wrapped_editor(parent, ed);
+        return create_wrapped_editor(parent, ed);
     };
+    return obj;
+}
+
+function create_wrapped_propname(parent, editor, info)
+{
+    var _prop_name = document.createElement('x-prop-name');
+    _prop_name.appendChild(document.createTextNode(info.field.Name));
+    if (info.data[info.datafield] === undefined)
+    {
+        parent.classList.add("no-value");
+        _prop_name.classList.add("no-value");
+        _prop_name.classList.add("click-to-add");
+        editor.style.display = "none";
+    }
+    _prop_name.addEventListener("click", function() {
+        if (info.data[info.datafield] === undefined)
+        { 
+            parent.classList.remove("no-value");
+            _prop_name.classList.remove("no-value");
+            _prop_name.classList.remove("no-value");
+            info.data[info.datafield] = default_value(info.field);
+            editor = editor._x_reload();
+            delete editor.style.display;
+        }
+    });
+    return _prop_name;
 }
 
 function build_properties(objdesc)
@@ -248,19 +301,19 @@ function build_properties(objdesc)
         {
             var _property = document.createElement('x-property');
             var f = type.Fields[i];
-            var _prop_name = document.createElement('x-prop-name');
-            _prop_name.appendChild(document.createTextNode(f.Name));
             var _prop_value = document.createElement('x-prop-value');
-            create_wrapped_editor(_prop_value, {
+            var _prop_editor = create_wrapped_editor(_prop_value, {
+                data: objdesc.data,
+                field: f,
+                datafield: f.Name
+            });
+            var _prop_name = create_wrapped_propname(_property, _prop_editor, {
                 data: objdesc.data,
                 field: f,
                 datafield: f.Name
             });
             _property.appendChild(_prop_name);
-            if (objdesc.data[f.Name] === undefined)
-                _property.classList.add("no-value");
-            else
-                _property.appendChild(_prop_value);
+            _property.appendChild(_prop_value);
             _properties.appendChild(_property);
         }
     }
@@ -299,6 +352,11 @@ document.body.appendChild(build_full_entry({path: "gurka", type:"Character", dat
     "Immunities": [
         "DAMAGE_PHYSICAL",
         "DAMAGE_UBER"
+    ],
+    "MultiMasks": [],
+    "Skills": [
+        "skills/perc/sk1",
+        "skills/perc/sk2"
     ]
 }}));
 
