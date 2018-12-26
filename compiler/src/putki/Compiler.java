@@ -132,7 +132,7 @@ public class Compiler
 	List<String> buildConfigs = new ArrayList<String>();
 
 	public boolean mixkiOnly = false;
-	
+
 	public void error(String path, int line, String err)
 	{
 		System.out.println(path + ":" + line + " Error! " + err);
@@ -684,7 +684,7 @@ public class Compiler
 					else if (line.startsWith("putkipath:"))
 					{
 						pt.putkiPath = start.resolve(line.substring(10));
-					}					
+					}
 					else if (line.startsWith("name:"))
 					{
 						pt.moduleName = line.substring(5);
@@ -859,7 +859,7 @@ public class Compiler
 				}
 			}
 		}
-		
+
 		for (ParsedStruct struct : allTypes)
 		{
 			if (struct.parent != null)
@@ -867,7 +867,7 @@ public class Compiler
 				struct.resolvedParent.possibleChildren.add(struct);
 			}
 		}
-		
+
 		return true;
 	}
 
@@ -915,6 +915,7 @@ public class Compiler
 		CppGenerator.generateOutkiHeader(c, writer);
 		CppGenerator.generateOutkiImplementation(c, writer);
 		RustGenerator.generateCrate(c, writer);
+		JavascriptGenerator.generateDescriptors(c,  writer			);
 		writer.write();
 	}
 }
