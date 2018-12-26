@@ -10,5 +10,8 @@
   "license": "CC0-1.0",
   "devDependencies": {
     "electron": "^3.0.7"
+  },
+  "dependencies": {
+    "dialogs": "^1.1.20"
   }
 }

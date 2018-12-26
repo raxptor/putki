@@ -1,3 +1,6 @@
+var Dialogs = require("dialogs");
+var dialogs = new Dialogs({});
+
 var Primitive = {
     "String": {
         Editor: "String"
@@ -10,12 +13,24 @@ var Primitive = {
     },
     "Hash": {
         Editor: "Hash"
-    },    
+    }, 
     "Int": {
+        Editor: "Int"
+    },
+    "I32": {
+        Editor: "Int"
+    },
+    "U32": {
+        Editor: "Int"
+    },
+    "Float": {
+        Editor: "Int"
+    },
+    "U8": {
         Editor: "Int"
     }
 }
-
+/*
 var UserTypes = {
     "Character": {
         Fields: [
@@ -59,7 +74,10 @@ var UserTypes = {
         ]
     }
 }
-
+*/
+var Mod0 = require("/Users/dannilsson/git/oldgods/_gen/js/types.js");
+console.log(Mod0);
+var UserTypes = Mod0.Types;
 
 var Data = {
     "roster0": {
@@ -125,7 +143,7 @@ function default_value(field, un_array)
         return {};
     if (type.Editor == "Int")
         return 0;
-    if (type.Editor == "String" || type.Editor == "Text")
+    if (type.Editor == "String" || type.Editor == "Text" || type.Editor == "Hash")
         return "";
     if (type.Values !== undefined && type.Values.length > 0)
         return type.Values[type.Values.length-1].Value;
@@ -158,11 +176,11 @@ function create_array_editor(ed)
             var _idx = document.createElement('td');
             var _val = document.createElement('td');
             _idx.appendChild(document.createTextNode(i.toString()));
-            _val.appendChild(create_type_editor({
+            var _we = create_wrapped_editor(_val, {
                 field: ed.field,
                 data: iv,
                 datafield: i
-            }, true));
+            }, true);
             _val.classList.add("value");
             _row.appendChild(_idx);
             _row.appendChild(_val);
@@ -201,31 +219,54 @@ function create_array_editor(ed)
 
 function create_pointer_editor(ed)
 {
-    var fld = document.createElement("x-pointer"); 
+    var ptr = document.createElement("x-pointer"); 
+    var ptrval = document.createElement("div");
     var iv = ed.data[ed.datafield];
     if (iv instanceof Object) {
         var inl = build_full_entry({
             type: iv._type,
             path: iv._path,
             data: iv
+        }, function (new_path) {
+            iv._path = new_path;
         });
-        fld.appendChild(inl);
+        ptrval.appendChild(inl);
     } else {
         var txt = document.createTextNode(iv);
-        fld.classList.add("pointer-text");
-        fld.classList.add("click-to-change");
-        fld.appendChild(txt);
+        ptrval.classList.add("pointer-text");
+        ptrval.classList.add("click-to-change");
+        ptrval.appendChild(txt);
         var data = Data[iv];
         if (data === undefined)
-            fld.classList.add("invalid-pointer");
+            ptrval.classList.add("invalid-pointer");
     }
-    return fld; 
+
+    var btns = document.createElement("x-pointer-buttons");
+    var ptrnew = mk_button("new", function() {
+        ed.data[ed.datafield] = { _type: ed.field.Type };
+        ptr._x_reload();
+    });
+    var ptrclear = mk_button("clear", function() {
+        ed.data[ed.datafield] = null;
+        ptr._x_reload();
+    });
+    btns.appendChild(ptrnew);
+    btns.appendChild(ptrclear);
+    ptr.appendChild(ptrval);
+    ptr.appendChild(btns);
+    return ptr; 
 }
 
 function create_type_editor(ed, un_array)
 {
     var type = resolve_type(ed.field.Type);
     var iv = ed.data[ed.datafield];
+    if (iv === undefined)
+    {
+        var dummy = document.createElement("div");
+        return dummy;
+    }
+
     if (!un_array && ed.field.Array)
     {
         return create_array_editor(ed);
@@ -235,7 +276,7 @@ function create_type_editor(ed, un_array)
         return create_pointer_editor(ed);
     }
 
-    if (type.Editor == "String")
+    if (type.Editor == "String" || type.Editor == "Hash")
     {
         var ip = document.createElement("input");
         ip.value = iv;
@@ -244,6 +285,16 @@ function create_type_editor(ed, un_array)
         });  
         return ip;
     }
+    if (type.Editor == "Int")
+    {
+        var ip = document.createElement("input");
+        ip.value = iv;
+        ip.type = "number";
+        ip.addEventListener("change", function() {
+            ed.data[ed.datafield] = ip.value;
+        });  
+        return ip;
+    } 
     if (type.Editor == "Text")
     {
         var ta = document.createElement("textarea");
@@ -264,7 +315,7 @@ function create_type_editor(ed, un_array)
         });        
         return ta;
     }
-    if (type.Editor == "Select")
+    if (type.Values !== undefined)
     {
         var sel = document.createElement("select");
         for (var i=0;i<type.Values.length;i++)
@@ -294,17 +345,20 @@ function create_type_editor(ed, un_array)
             data: iv
         });
     }
-    return document.createTextNode("UNKNOWN TYPE " + ed);
+    var el = document.createElement("input");
+    el.value = "UNKNOWN TYPE " + ed.field.Type;
+    return el;
+//    return document.createTextNode("UNKNOWN TYPE " + ed);
 }
 
-function create_wrapped_editor(parent, ed)
+function create_wrapped_editor(parent, ed, un_array)
 {
-    var obj = create_type_editor(ed);
+    var obj = create_type_editor(ed, un_array);
     parent.appendChild(obj);
     obj._x_reload = function() {
         delete obj._x_reload;
         parent.removeChild(obj);
-        return create_wrapped_editor(parent, ed);
+        return create_wrapped_editor(parent, ed, un_array);
     };
     return obj;
 }
@@ -319,6 +373,8 @@ function create_wrapped_propname(parent, editor, info)
         _prop_name.classList.add("no-value");
         _prop_name.classList.add("click-to-add");
         editor.style.display = "none";
+        if (info.field.Default !== undefined)
+            _prop_name.appendChild(document.createTextNode(" (" + info.field.Default + ")"));
     }
     _prop_name.addEventListener("click", function() {
         if (info.data[info.datafield] === undefined)
@@ -379,23 +435,26 @@ function build_inline_entry(objdesc)
     return _entry;  
 }  
 
-function build_full_entry(objdesc)
+function build_full_entry(objdesc, on_new_path)
 {
     var _entry = document.createElement('x-entry'); 
     var _path = document.createElement('x-path');
-    var _path_text = document.createTextNode("@" + objdesc.type+ " " + objdesc.path);
+    var _type_text = document.createTextNode("@" + objdesc.type + " ");
+    var _path_text = document.createTextNode(objdesc.path);
     _path.classList.add("click-to-change"); 
+    _path.appendChild(_type_text);
     _path.appendChild(_path_text);
     _entry.appendChild(_path);
     _entry.appendChild(build_properties(objdesc));
-
     _path.addEventListener("click", function() {
-        var p = prompt("Enter new path", objdesc.path);
-        if (p != null)
-        {
-            objdesc.path = p;
-            _path_text.value = p;
-        }
+        dialogs.prompt("Enter new path", objdesc.path, function (p) {
+            if (p != null)
+            {
+                objdesc.path = p;
+                _path_text.textContent = p;
+                on_new_path(p);
+            }
+        });
     });
     return _entry;  
 }  
