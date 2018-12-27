@@ -78,7 +78,25 @@ var UserTypes = {
 */
 var Mod0 = require("/Users/dannilsson/git/oldgods/_gen/js/types.js");
 console.log(Mod0);
+
 var UserTypes = Mod0.Types;
+
+for (var xx in UserTypes)
+{
+    (function (x) {
+        var all = [];
+        var add = function(tn) {
+            all = all.concat(UserTypes[tn].Fields);
+            if (UserTypes[tn].Parent !== undefined)
+                add(UserTypes[tn].Parent);
+        };
+        if (UserTypes[x].Fields !== undefined)
+        {
+            add(x);
+            UserTypes[x].ExpandedFields = all;
+        }
+    })(xx);
+}
 
 var Data = {
     "roster0": {
@@ -206,12 +224,22 @@ function create_array_editor(ed)
         {
             var ctl0 = document.createElement('x-array-bottom-controls');
             ctl0.style.gridRow = row;
-            ctl0.appendChild(mk_button("new", function() { 
+            ctl0.appendChild(mk_button("add empty", function() { 
                 return function() {
                     iv.splice(iv.length, 0, default_value(ed.field, true));
                     on_inline_changed(_array._x_reload());
                 }; } (i)));
             _array.appendChild(ctl0); 
+
+            if (ed.field.Pointer) {
+                var ptrnew = mk_button("add inst", function() {
+                    ask_type(ed.field.Type, function(seltype) {
+                        iv.splice(iv.length, 0, { _type: seltype });
+                        on_inline_changed(_array._x_reload());
+                    });
+                });
+                ctl0.appendChild(ptrnew);
+            }        
         }
     }
     return _array;
@@ -226,8 +254,6 @@ function create_pointer_preview(object)
             descs.push("@" + object._type);
         if (object._path !== undefined)
             descs.push(object._path);
-        else
-            descs.push("<anonymous>");
         if (object._type !== undefined)
             descs.push(create_object_preview_txt(object, resolve_type(object._type)));
     }
@@ -245,19 +271,17 @@ function create_pointer_preview(object)
 function create_object_preview_txt(object, type)
 {
     var txts = [];
-    for (var x in type.Fields)
+    for (var x in type.ExpandedFields)
     {
-        var fn = type.Fields[x].Name;
+        var fn = type.ExpandedFields[x].Name;
         var val = object[fn];
-
         if (val === undefined || val === null || (val instanceof Array && val.length == 0) ||
             (val instanceof Object && Object.keys(val).length === 0))
             continue;
-
         if (val instanceof Object)
         {
-            var t = resolve_type(type.Fields[x].Type);
-            txts.push(fn + "=[" + create_object_preview_txt(val, t)+ "]");
+            var t = resolve_type(type.ExpandedFields[x].Type);
+            txts.push(fn + ":{" + create_object_preview_txt(val, t)+ "}");
         }
         else
         {
@@ -373,8 +397,10 @@ function create_pointer_editor(ed)
 
     var btns = document.createElement("x-pointer-buttons");
     var ptrnew = mk_button("new", function() {
-        ed.data[ed.datafield] = { _type: ed.field.Type };
-        on_inline_changed(ptr._x_reload());
+        ask_type(ed.field.Type, function(seltype) {
+            ed.data[ed.datafield] = { _type: seltype };
+            on_inline_changed(ptr._x_reload());    
+        });
     });
     var ptrclear = mk_button("clear", function() {
         ed.data[ed.datafield] = null;
@@ -650,20 +676,25 @@ function create_property(parent, row, objdesc, is_array_element)
 function build_properties(objdesc)
 {
     var _properties = document.createElement('x-properties');
-    var type = resolve_type(objdesc.type);
     var row = 1;
-    if (type.Fields)
-    {
-        for (var i=0;i<type.Fields.length;i++)
+    var insert_fn = function(typename) {
+        var type = resolve_type(typename);
+        if (type.Fields)
         {
-            var f = type.Fields[i];
-            row = create_property(_properties, row, {
-                data: objdesc.data,
-                field: f,
-                datafield: f.Name
-            }); 
+            for (var i=0;i<type.Fields.length;i++)
+            {
+                var f = type.Fields[i];
+                row = create_property(_properties, row, {
+                    data: objdesc.data,
+                    field: f,
+                    datafield: f.Name
+                }); 
+            }
+            if (type.Parent !== undefined)
+                insert_fn(type.Parent);
         }
     }
+    insert_fn(objdesc.type);
     return _properties;
 }
 
@@ -702,6 +733,99 @@ function build_full_entry(objdesc, on_new_path)
     return _entry;  
 }  
 
+function compatible_types(type_name_root)
+{
+    var list = [];
+    for (var tp in UserTypes)
+    {
+        if (!UserTypes[tp].PermitAsAsset)
+            continue;
+        var pr = tp;
+        while (pr)
+        {
+            pr = UserTypes[pr].Parent;
+            if (pr == type_name_root || tp == type_name_root)
+            {
+                list.push(tp);
+                pr = null;
+            }
+        }
+    }
+    list.sort();
+    console.log(list);
+    return list;
+}
+
+function ask_type(type_name_root, on_done)
+{
+    var popup = document.createElement('div');
+    popup.classList.add("modal");
+    var content = document.createElement('x-popup-type');
+    content.classList.add("modal-content");
+    popup.appendChild(content);
+
+    var form = document.createElement('form');
+    var filter = document.createElement('input');
+    form.appendChild(filter);
+    content.appendChild(form);
+
+    var listBox = document.createElement('x-type-select-box');
+    var types = compatible_types(type_name_root);
+    var pick = null;
+
+    form.onsubmit = function(event) {
+        event.preventDefault();
+        document.body.removeChild(popup);
+        if (pick)
+        {
+            on_done(pick);
+        }
+    };
+
+
+    var build = function() {
+        while (listBox.firstChild) {
+            listBox.removeChild(listBox.firstChild);
+        }
+        var fstr = filter.value.toLowerCase();
+        console.log("filtering on ", fstr);
+
+        var filtered = [];
+        for (var idx in types)
+        {
+            var tp = types[idx];
+            if (fstr.length > 0 && tp.toLowerCase().indexOf(fstr) == -1)
+                continue;
+            filtered.push(tp);
+        }
+
+        pick = null;
+        for (var idx in filtered)
+        {
+            var tp = filtered[idx];
+            var t = UserTypes[tp];
+            var typeBox = document.createElement('x-type-box');
+            if (filtered.length == 1 || tp.toLowerCase() == fstr)
+            {
+                typeBox.classList.add("only-one");
+                pick = tp;
+            }
+            var nm = document.createTextNode('@' + tp);
+            typeBox.appendChild(nm);
+            listBox.appendChild(typeBox);
+        }
+    };
+
+    build();
+    filter.addEventListener("input", function() { 
+        setTimeout(build, 10)
+    });
+
+    content.appendChild(listBox);
+    document.body.appendChild(popup);
+    filter.focus();
+}
+
 document.body.appendChild(build_full_entry({path: "gurka", type:"Character", data: {
     "Name": "Pervical Slusk",
     "Description": "A mastermind of deception",
@@ -730,6 +854,11 @@ document.body.appendChild(build_full_entry({path: "gurka", type:"Character", dat
         "skills/invalid"
     ]
 }}));
+
+
+document.body.appendChild(build_full_entry({path: "CueCumber", type:"AtkModifyDamage", data: {
+}}));
+
 
 /*
 var fs = require('fs');

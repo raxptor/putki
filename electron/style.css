@@ -173,7 +173,6 @@ x-array {
 }
 
 x-prop-index {
-    height: 18px;
     grid-column: 1;
     padding-right: 5px;
 }
@@ -182,6 +181,12 @@ x-array-controls {
     text-align: right;
     white-space: nowrap;
     grid-column: 4;
+}
+
+x-array-inline-controls {
+    text-align: right;
+    white-space: nowrap;
+    width: 100%;
 }
 
 x-array-bottom-controls {
@@ -215,7 +220,6 @@ x-prop-value {
     display: block;
     grid-column: 3;
     margin-bottom: 3px;
-    height: 18px;
     overflow: hidden;
 }
 
@@ -236,6 +240,11 @@ x-pointer.array-element {
 
 x-prop-value input {
     width: 98%;
+}
+
+x-prop-value x-array-inline-controls input {
+    margin-left: 20px;
+    width: unset;
 }
 
 x-prop-value textarea {
