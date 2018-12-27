@@ -15,20 +15,17 @@ x-info {
 }
 
 x-entry {
-    display: flex;
-    flex-direction: column;
+    display: block;
+    grid-column: 1/4;
     padding: 5px;
-    margin: 5px;
+    margin-bottom: 5px;
     outline: 1px solid;
 }
 
 x-inline-entry {
-    padding: 3px;
-    margin: 7px;
-    background-color: #eef;
+    background-color: #fff;
     display: block;
-    grid-column: 1/3;
-    outline: 1px dashed lightgray;
+    grid-column: 2/4;
 }
 
 x-name {
@@ -37,8 +34,11 @@ x-name {
 }
 
 x-path {
-    background-color: bisque;
+    background-color: #ddd;
     margin-bottom: 8px;
+    width: 100%;
+    display: block;
+    text-align: center;
 }
 
 x-inline-path {
@@ -84,10 +84,10 @@ x-state-locked {
 
 x-pointer {
     display: block;
-    position: relative;
     padding-top: 2px;
     padding-bottom: 2px;
     border: 1px dashed; 
+    grid-column: 2/4;
 }
 
 x-pointer-buttons {
@@ -127,47 +127,65 @@ x-properties .no-value {
     text-decoration-color: #000;
 }
 
-.click-to-change {
+.click-to-expand {
     cursor: pointer;
+    color: #003;
+    font-style: italic;
 }
 
-.click-to-change:hover {
+.click-to-expand:hover {
     color: #040;
     text-decoration: underline;
     text-decoration-color: #000;
 }
 
+input[type="checkbox"] {
+    margin-left: 0px;
+    padding-left: 0px;
+}
+
+.collapsed {
+    display: none;
+}
+
+.block-editor {
+    border: 1px dashed;
+    padding: 6px;
+    margin-top: 2px;
+    margin-bottom: 6px;
+}
+
+/*
+ columns
+ 1=index 2=name 3=value 4=controls
+         [                       ]
+*/
+
 x-properties {
     display: grid;
-    grid-auto-columns: max-content auto;
+    grid-auto-columns: min-content min-content auto min-content;
 }
 
 x-array {
     display: grid;
-    border: 1px dashed;
-    padding: 5px;
-    margin: 5px;
-    background-color: #ffe;
-    padding-left: 10px;
-    grid-column: 1/3;
-    grid-auto-columns: min-content auto max-content;
+    grid-column: 2/4;
+    grid-auto-columns: min-content min-content auto min-content;
 }
 
-x-array-index {
+x-prop-index {
+    height: 18px;
     grid-column: 1;
     padding-right: 5px;
 }
 
-x-array-value {
-    grid-column: 2;
-}
-
 x-array-controls {
-    grid-column: 3;
+    text-align: right;
+    white-space: nowrap;
+    grid-column: 4;
 }
 
 x-array-bottom-controls {
-    grid-column: 1/4;
+    grid-column: 2/5;
 }
 
 x-property {
@@ -186,30 +204,40 @@ x-property:nth-child(even) {
 */
 
 x-prop-name {
+    cursor: pointer;
     display: block;
-    grid-column-start: 1;
-    grid-column-end: 2;
-    width: 100%;    
+    padding-right: 10px;
+    margin-top: 2px;
+    grid-column: 2;
 }
 
 x-prop-value {
     display: block;
-    grid-column-start: 2;
-    grid-column-end: 3;
-    width: 100%;    
+    grid-column: 3;
     margin-bottom: 3px;
     height: 18px;
     overflow: hidden;
+}
+
+x-prop-value.array-element {
+    grid-column: 2/4;
+}
+
+x-prop-value.preview {
+    margin-top: 3px;
     text-overflow: ellipsis;
+    white-space: nowrap;
+    overflow: hidden;
+}
+
+x-pointer.array-element {
+    grid-column: 2/5;
 }
 
 x-prop-value input {
-    width: 95%;
-}
-x-pointer-buttons input {
-    width: unset;
+    width: 98%;
 }
 
 x-prop-value textarea {
-    width: 95%;
+    width: 98%;
 }

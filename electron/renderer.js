@@ -1,3 +1,4 @@
+const { ipcRenderer } = require('electron');
 var Dialogs = require("dialogs");
 var dialogs = new Dialogs({});
 
@@ -130,11 +131,11 @@ function resolve_type(type)
     return Primitive[type];
 }
 
-function default_value(field, un_array)
+function default_value(field, is_array_element)
 {
     if (field.Default !== undefined)
         return field.Default;
-    if (field.Array && !un_array)
+    if (field.Array && !is_array_element)
         return [];
     if (field.Pointer)
         return null;
@@ -166,55 +167,154 @@ function create_array_editor(ed)
     var _array = document.createElement('x-array');
 
     if (iv === undefined)
+    {
         iv = [];
+        ed.data[ed.field.name] = iv;
+    } 
     
+    var row = 1;
     for (var i=0;i<=iv.length;i++)
     {   
         if (i < iv.length)
         {
-            var _idx = document.createElement('x-array-index');
-            var _val = document.createElement('x-array-value');
-            _idx.appendChild(document.createTextNode(i.toString()));
-            var _we = create_wrapped_editor({
-                field: ed.field,
-                data: iv,
-                datafield: i
-            }, true);
-            _val.appendChild(_we.inline);
-            _val.classList.add("value");
-            _idx.style.gridRow = i+1;
-            _val.style.gridRow = i+1;
-            _array.appendChild(_idx);
-            _array.appendChild(_val);
             var ctl0 = document.createElement('x-array-controls');
-            ctl0.appendChild(mk_button("delete", function(idx) { 
-                return function() {
-                    iv.splice(idx, 1);
-                    _array._x_reload();
-                }; } (i)
-            ));
             ctl0.appendChild(mk_button("clone", function(idx) { 
                 return function() {
                     iv.splice(idx, 0, clone(iv[idx]));
-                    _array._x_reload();
+                    on_inline_changed(_array._x_reload());
                 }; } (i)
             ));
-            ctl0.style.gridRow = i+1;
-            _array.appendChild(ctl0);
+            ctl0.appendChild(mk_button("delete", function(idx) { 
+                return function() {
+                    iv.splice(idx, 1);
+                    on_inline_changed(_array._x_reload());
+                }; } (i)
+            ));
+            ctl0.style.gridRow = row;
+            var _idx = document.createElement('x-prop-index');
+            _idx.appendChild(document.createTextNode(i.toString()));
+            _idx.style.gridRow = row;
+            _array.appendChild(_idx);
+            row = create_property(_array, row, {
+                data: ed.data[ed.datafield],
+                field: ed.field,
+                datafield: i
+            }, true);
+            _array.appendChild(ctl0); 
         }
         else
         {
             var ctl0 = document.createElement('x-array-bottom-controls');
-            ctl0.style.gridRow = i+1;
+            ctl0.style.gridRow = row;
             ctl0.appendChild(mk_button("new", function() { 
                 return function() {
                     iv.splice(iv.length, 0, default_value(ed.field, true));
-                    _array._x_reload();
+                    on_inline_changed(_array._x_reload());
                 }; } (i)));
             _array.appendChild(ctl0); 
         }
     }
     return _array;
+}
+
+function create_pointer_preview(object)
+{
+    var descs = [];
+    if (object instanceof Object)
+    {
+        if (object._type !== undefined)
+            descs.push("@" + object._type);
+        if (object._path !== undefined)
+            descs.push(object._path);
+        else
+            descs.push("<anonymous>");
+        if (object._type !== undefined)
+            descs.push(create_object_preview_txt(object, resolve_type(object._type)));
+    }
+    else
+    {
+        if (object === undefined || object === null)
+            descs.push("null");
+        else
+            descs.push(object);   
+    }
+    var tn = document.createTextNode(descs.join(' '));
+    return tn;
+}
+
+function create_object_preview_txt(object, type)
+{
+    var txts = [];
+    for (var x in type.Fields)
+    {
+        var fn = type.Fields[x].Name;
+        var val = object[fn];
+
+        if (val === undefined || val === null || (val instanceof Array && val.length == 0) ||
+            (val instanceof Object && Object.keys(val).length === 0))
+            continue;
+
+        if (val instanceof Object)
+        {
+            var t = resolve_type(type.Fields[x].Type);
+            txts.push(fn + "=[" + create_object_preview_txt(val, t)+ "]");
+        }
+        else
+        {
+            if (val instanceof String)
+                txts.push(fn + "=" + "\"" + val + "\"");
+            else
+                txts.push(fn + "=" + val.toString());
+        }
+    }
+    if (txts.length == 0)
+        return "<default>";
+    else
+        return txts.join(', ');
+}
+
+function reload_wrapped(new_fn)
+{
+    var preview = new_fn();
+    preview._x_reload = function() {
+        var pn = preview.parentNode;
+        var neue = new_fn();
+        neue._x_reload = preview._x_reload;
+        neue._x_changed = preview._x_changed;
+        neue.classList = preview.classList;
+        if (preview.style)
+            neue.style.gridRow = preview.style.gridRow;
+        delete preview._x_reload;
+        pn.removeChild(preview);
+        if (preview._x_reloaded)
+            preview._x_reloaded(neue);
+        preview = neue; 
+        pn.appendChild(preview);
+        return preview;
+    };
+    return preview;
+}
+
+function on_inline_changed(node)
+{
+    while (node !== null)
+    {
+        var next = node.parentNode;
+        if (node._x_changed)
+        {
+            console.log("Change handeled by ", node);
+            node._x_changed();
+        }
+        node = next;
+    }
+    console.log("No change handler ", node);
+}
+
+function create_object_preview(object, type)
+{
+    var tn = document.createTextNode(create_object_preview_txt(object, type));
+    tn._x_is_preview = true;
+    return tn;
 }
 
 function create_array_preview(arr)
@@ -232,7 +332,10 @@ function create_array_preview(arr)
         }
         else
         {
-            pure.push(arr[i]);
+            if (arr[i] == null)
+                pure.push("null");
+            else
+                pure.push(arr[i]);
         }
     }
     if (has_objects)
@@ -241,9 +344,9 @@ function create_array_preview(arr)
     }
     if (arr.length == 0)
     {
-        return document.createTextNode("0 item(s)");
+        return document.createTextNode("<empty>");
     }
-    return document.createTextNode(pure.join(", "));
+    return document.createTextNode("[" + pure.join(", ") + "]");
 }
 
 function create_pointer_editor(ed)
@@ -261,23 +364,21 @@ function create_pointer_editor(ed)
         });
         ptrval.appendChild(inl);
     } else {
+        /*
         var txt = document.createTextNode(iv);
-        ptrval.classList.add("pointer-text");
-        ptrval.classList.add("click-to-change");
         ptrval.appendChild(txt);
         var data = Data[iv];
-        if (data === undefined)
-            ptrval.classList.add("invalid-pointer");
+        */
     }
 
     var btns = document.createElement("x-pointer-buttons");
     var ptrnew = mk_button("new", function() {
         ed.data[ed.datafield] = { _type: ed.field.Type };
-        ptr._x_reload();
+        on_inline_changed(ptr._x_reload());
     });
     var ptrclear = mk_button("clear", function() {
         ed.data[ed.datafield] = null;
-        ptr._x_reload();
+        on_inline_changed(ptr._x_reload());
     });
     btns.appendChild(ptrnew);
     btns.appendChild(ptrclear);
@@ -286,89 +387,79 @@ function create_pointer_editor(ed)
     return ptr; 
 }
 
-function create_type_editor(ed, un_array)
+function set_default(obj, field, val)
+{
+    if (obj[field] === undefined || obj[field] === null)
+        obj[field] = val;
+}
+
+function def_arr(desc) 
+{
+    set_default(desc.data, desc.datafield, []);
+}
+
+function def_obj(desc) 
+{
+    set_default(desc.data, desc.datafield, {});
+}
+
+function create_type_editor(ed, is_array_element)
 {
     var type = resolve_type(ed.field.Type);
-    var iv = ed.data[ed.datafield];
-    if (iv === undefined)
-    {
-        if (ed.field.Array)
-        {
-            ed.data[ed.datafield] = [];
-            iv = [];
-        }
-        else if (!ed.field.Pointer && type.Fields !== undefined)
-        {
-            ed.data[ed.datafield] = {};
-            iv = {};
-        }
-        else if (ed.field.Default !== undefined)
-        {
-            iv = ed.field.Default;
-        }
-        else if (type.Editor == "Bool")
-        {
-            iv = false;
-        }
-        else if (type.Editor == "Int")
-        {
-            iv = 0;
-        }
-        else if (ed.field.Pointer)
-        {
-            ed.data[ed.datafield] = null;
-            iv = null;
-        }
-        else if (type.Editor == "String" || type.Editor == "Text" || type.Editor == "Hash")
-        {
-            iv = "";
-        }
-        else 
-        {
-            return {
-                block: document.createElement("div"),
-                inline: document.createTextNode("unknown")
-            }
-        }
-    }
-
-    if (!un_array && ed.field.Array)
+    if (!is_array_element && ed.field.Array)
     {
         return {
-            block: create_array_editor(ed),
-            inline: create_array_preview(iv)
+            block: reload_wrapped(function() { def_arr(ed); return create_array_editor(ed); }),
+            inline: reload_wrapped(function() { def_arr(ed); return create_array_preview(ed.data[ed.datafield]) })
         };
     }
     if (ed.field.Pointer)
     {
+        var preview = reload_wrapped(function() { return create_pointer_preview(ed.data[ed.datafield]); });
+        preview._x_context_menu = function() {
+            ipcRenderer.send('edit-pointer', 'ping');
+        };
         return {
-            inline: document.createTextNode(iv),
-            block: create_pointer_editor(ed)
+            inline: preview,
+            block: reload_wrapped(function() { return create_pointer_editor(ed); })
         }
     }
 
     if (type.Editor == "String" || type.Editor == "Hash")
     {
-        var ip = document.createElement("input");
-        ip.value = iv;
-        ip.addEventListener("change", function() {
-            ed.data[ed.datafield] = ip.value;
-        });  
         return {
-            inline: ip
+            inline: reload_wrapped(function() {
+                var ip = document.createElement("input");
+                if (ed.data[ed.datafield] !== undefined)
+                    ip.value = ed.data[ed.datafield];
+                else
+                    ip.value = default_value(ed.field, is_array_element);
+                ip.addEventListener("change", function() {
+                    ed.data[ed.datafield] = ip.value;
+                    on_inline_changed(ip);
+                });  
+                return ip;         
+            })
         }
     }
     if (type.Editor == "Int")
     {
-        var ip = document.createElement("input");
-        ip.value = iv;
-        ip.type = "number";
-        ip.addEventListener("change", function() {
-            ed.data[ed.datafield] = ip.value;
-        });  
         return {
-            inline: ip
-        };
+            inline: reload_wrapped(function() {
+                var ip = document.createElement("input");
+                var val = ed.data[ed.datafield];
+                if (val === undefined)
+                    ip.value = default_value(ed.field, is_array_element);
+                else
+                    ip.value = val;
+                ip.type = "number";
+                ip.addEventListener("change", function() {
+                    ed.data[ed.datafield] = ip.value;
+                    on_inline_changed(ip);
+                });  
+                return ip;
+            })
+        }
     } 
     if (type.Editor == "Text")
     {
@@ -377,6 +468,7 @@ function create_type_editor(ed, un_array)
         ta.value = iv;
         ta.addEventListener("change", function() {
             ed.data[ed.datafield] = ta.value;
+            on_inline_changed(ta);
         }); 
         return {
             inline: ta
@@ -384,49 +476,59 @@ function create_type_editor(ed, un_array)
     }
     if (type.Editor == "Checkbox")
     {
-        var ta = document.createElement("input");
-        ta.type = "checkbox";
-        ta.checked = [true, "true", "True", "1"].indexOf(ed.data[ed.datafield]) != -1;
-        ta.addEventListener("change", function() {
-            ed.data[ed.datafield] = ta.checked;
-        });    
         return {
-            inline: ta
-        }    
+            inline: reload_wrapped(function() {
+                var ta = document.createElement("input");
+                ta.type = "checkbox";
+                var val = ed.data[ed.datafield];
+                if (val === undefined)
+                    val = default_value(ed.field, is_array_element);
+                ta.checked = [true, "true", "True", "1"].indexOf(val) != -1;
+                ta.addEventListener("change", function() {
+                    ed.data[ed.datafield] = ta.checked;
+                    on_inline_changed(ta); 
+                });  
+                return ta;
+            })
+        };
     }
     if (type.Values !== undefined)
     {
-        var sel = document.createElement("select");
-        for (var i=0;i<type.Values.length;i++)
-        {   
-            var opt = document.createElement("option"); 
-            opt.text = type.Values[i].Name;
-            opt.value = type.Values[i].Value;
-            sel.options.add(opt);
-            if (iv == type.Values[i].Name   )
-                sel.selectedIndex = i;
-        }
-        sel.addEventListener("change", function() {
-            for (var x in type.Values)
-            {
-                if (sel.value == type.Values[x].Value)
-                {
-                    ed.data[ed.datafield] = type.Values[x].Name; 
-                }
-            }
-        });
         return {
-            inline: sel
+            inline: reload_wrapped(function() {
+                console.log("reloading select");
+                var sel = document.createElement("select");
+                for (var i=0;i<type.Values.length;i++)
+                {   
+                    var opt = document.createElement("option"); 
+                    opt.text = type.Values[i].Name;
+                    opt.value = type.Values[i].Value;
+                    sel.options.add(opt);
+                    if (ed.data[ed.datafield] == type.Values[i].Name)
+                        sel.selectedIndex = i;
+                }
+                sel.addEventListener("change", function() {
+                    for (var x in type.Values)
+                    {
+                        if (sel.value == type.Values[x].Value)
+                        {
+                            ed.data[ed.datafield] = type.Values[x].Name; 
+                            on_inline_changed(sel);
+                        }
+                    }
+                });
+                return sel;
+            })
         }
     }
     if (type.Fields !== undefined)
     {
         return {
-            inline: document.createTextNode("OBJECT"),
-            block: build_inline_entry({
+            inline: reload_wrapped(function() { def_obj(ed); return create_object_preview(ed.data[ed.datafield], type) } ),
+            block: reload_wrapped(function() { def_obj(ed); return build_block_entry({
                 type: ed.field.Type,
-                data: iv
-            })
+                data: ed.data[ed.datafield]
+            })})
         };
     }
     var el = document.createElement("input");
@@ -437,45 +539,112 @@ function create_type_editor(ed, un_array)
 //    return document.createTextNode("UNKNOWN TYPE " + ed);
 }
 
-function create_wrapped_editor(ed, un_array)
+// returns row
+function create_property(parent, row, objdesc, is_array_element)
 {
-    return create_type_editor(ed, un_array);
-    /*
-    obj._x_reload = function() {
-        var r = obj.style.gridRow;
-        var p = obj.parentNode;
-        delete obj._x_reload;
-        p.removeChild(obj);
-        var n = create_wrapped_editor(ed, un_array);
-        n.style.gridRow = r;
-        p.appendChild(n);
-        return n;
-    };
-    return obj;*/
-}
-
-function create_wrapped_propname(parent, editor, info)
-{
-    var _prop_name = document.createElement('x-prop-name');
-    _prop_name.appendChild(document.createTextNode(info.field.Name));
-    if (info.data[info.datafield] === undefined)
+    var update_label = function() { };
+    var dom = create_type_editor(objdesc, is_array_element);
+ 
+    if (!is_array_element)
     {
-        parent.classList.add("no-value");
-        _prop_name.classList.add("no-value");
-        _prop_name.classList.add("click-to-add");
+        var _prop_name = document.createElement('x-prop-name');
+        _prop_name.appendChild(document.createTextNode(objdesc.field.Name));
+        _prop_name.style.gridRow = row;
+        parent.appendChild(_prop_name);
+        update_label = function() {
+            console.log("update label");
+            _prop_name.classList.remove("no-value");
+            var cv = objdesc.data[objdesc.datafield];
+            if (cv === undefined || cv === null || (cv instanceof Array && cv.length == 0) ||
+                (cv instanceof Object && Object.keys(cv).length === 0))
+                _prop_name.classList.add("no-value");
+        };
+        _prop_name.addEventListener("contextmenu", function() {
+            var value = objdesc.data[objdesc.datafield];
+            if (value instanceof Array)
+            {
+                value.splice(0, value.length);
+            }
+            else if (value instanceof Object)
+            {
+                for (var x in value)
+                    delete value[x];
+            }
+            else
+            {
+                delete objdesc.data[objdesc.datafield];
+            }
+            if (dom.inline && dom.inline._x_reload)
+                dom.inline._x_reload();
+            if (dom.block && dom.block._x_reload)
+                dom.block._x_reload();
+            update_label();
+        });
+        update_label();
     }
-    _prop_name.addEventListener("click", function() {
-        if (info.data[info.datafield] === undefined)
-        { 
-            parent.classList.remove("no-value");
-            _prop_name.classList.remove("no-value");
-            _prop_name.classList.remove("no-value");
-            info.data[info.datafield] = default_value(info.field);
-            //editor = editor._x_reload();
-            //delete editor.style.display;
+
+    var _prop_value;
+    if (dom.inline)
+    {
+        _prop_value = document.createElement('x-prop-value'); 
+        _prop_value.appendChild(dom.inline);
+        _prop_value.style.gridRow = row;
+        if (is_array_element)
+            _prop_value.classList.add("array-element");
+        _prop_value.addEventListener("contextmenu", function() {
+            if (dom.inline._x_context_menu)
+                dom.inline._x_context_menu();
+        });
+        parent.appendChild(_prop_value);
+        dom.inline._x_reloaded = function(neue) {
+            neue._x_reloaded = dom.inline._x_reloaded;
+            delete dom.inline._x_reloaded;
+            dom.inline = neue;
+        } 
+    }
+    if (dom.block)
+    {
+        row = row + 1; 
+        dom.block.style.gridRow = row;
+        if (is_array_element)
+        {
+            dom.block.classList.add("array-element");
         }
-    });
-    return _prop_name;
+        dom.block.classList.add("block-editor");
+        parent.appendChild(dom.block);
+        dom.block._x_changed = function() { console.log(";aa"); };
+        if (dom.inline)
+        {
+            dom.block.classList.add("collapsed");
+            _prop_value.classList.add("click-to-expand");
+            _prop_value.addEventListener("click", function() {
+                dom.block.classList.toggle("collapsed");
+            });
+            if (dom.inline._x_is_preview)
+                _prop_value.classList.add("preview");
+            // reload the preview if content changes
+            dom.block._x_reloaded = function(neue) {
+                neue._x_reloaded = dom.block._x_reloaded;
+                delete dom.block._x_reloaded;
+                dom.block = neue;
+            }
+            dom.block._x_changed = function() {
+                update_label();
+                console.log("BLOCK CHANGED val=", objdesc.data[objdesc.datafield], " from ", objdesc);
+                if (dom.inline._x_reload) {
+                    dom.inline = dom.inline._x_reload();
+                }
+            }
+        }
+    }
+    else
+    {
+        dom.inline._x_changed = function() {
+            update_label();
+        };
+    }
+    row = row + 1;
+    return row;
 }
 
 function build_properties(objdesc)
@@ -488,55 +657,24 @@ function build_properties(objdesc)
         for (var i=0;i<type.Fields.length;i++)
         {
             var f = type.Fields[i];
-            var dom = create_wrapped_editor({
+            row = create_property(_properties, row, {
                 data: objdesc.data,
                 field: f,
                 datafield: f.Name
-            });
-            var _prop_name = create_wrapped_propname(_properties, null, {
-                data: objdesc.data,
-                field: f,
-                datafield: f.Name
-            });
-            _prop_name.style.gridRow = row;
-            _properties.appendChild(_prop_name);
-
-            if (dom.inline)
-            {
-                var _prop_value = document.createElement('x-prop-value'); 
-                _prop_value.appendChild(dom.inline);
-                _prop_value.style.gridRow = row;
-                _properties.appendChild(_prop_value);
-            }
-            if (dom.block)
-            {
-                row = row + 1; 
-                dom.block.style.gridRow = row;
-                _properties.appendChild(dom.block);
-                if (dom.inline)
-                {
-                    dom.block.style.display = "none";
-                }
-            }
-            row = row + 1;
+            }); 
         }
     }
     return _properties;
 }
 
-function build_inline_entry(objdesc)
+function build_block_entry(objdesc)
 {
     var _entry = document.createElement('x-inline-entry'); 
-    /*
-    if (objdesc.path !== undefined)
-    {
-        var _path = document.createElement('x-path');
-        var _path_text = document.createTextNode("@" + objdesc.type + " " + objdesc.path);
-        _path.appendChild(_path_text);
-        _entry.appendChild(_path);
-    }
-    */
-    _entry.appendChild(build_properties(objdesc));
+    var inline = build_properties(objdesc);
+    _entry.appendChild(inline);
+    _entry._x_changed = function() {
+        console.log("object changed!");
+    };
     return _entry;  
 }  
 
@@ -545,8 +683,7 @@ function build_full_entry(objdesc, on_new_path)
     var _entry = document.createElement('x-entry'); 
     var _path = document.createElement('x-path');
     var _type_text = document.createTextNode("@" + objdesc.type + " ");
-    var _path_text = document.createTextNode(objdesc.path);
-    _path.classList.add("click-to-change"); 
+    var _path_text = document.createTextNode(objdesc.path !== undefined ? objdesc.path : "<anonymous>");
     _path.appendChild(_type_text);
     _path.appendChild(_path_text);
     _entry.appendChild(_path);
@@ -558,6 +695,7 @@ function build_full_entry(objdesc, on_new_path)
                 objdesc.path = p;
                 _path_text.textContent = p;
                 on_new_path(p);
+                on_inline_changed(_path);
             }
         });
     });
@@ -573,7 +711,10 @@ document.body.appendChild(build_full_entry({path: "gurka", type:"Character", dat
         "DAMAGE_UBER"
     ],
     "Tags": [ "c", "b", "a" ],
-    "BaseStats": {},
+    "BaseStats": {
+        "Initiative": 4,
+        "SanityPool": 400   
+    },
     "MultiMasks": [],
     "Skills": [
         {

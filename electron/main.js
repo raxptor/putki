@@ -1,5 +1,5 @@
 // Modules to control application life and create native browser window
-const {app, BrowserWindow} = require('electron')
+const {app, Menu, ipcMain, BrowserWindow} = require('electron')
 
 // Keep a global reference of the window object, if you don't, the window will
 // be closed automatically when the JavaScript object is garbage collected.
@@ -46,3 +46,27 @@ app.on('activate', function () {
   }
 })
 
+ipcMain.on('edit-pointer', (event, arg) => {
+  var menu = Menu.buildFromTemplate([{
+    label: 'Create',
+    submenu: [
+      {
+          label: 'Default',
+          click: function() {
+            event.sender.send('edit-pointer-reply', 'default')
+          }
+      }
+    ]
+  }, {
+    label: 'Link',
+    click: function() {
+      event.sender.send('edit-pointer-reply', 'default');
+    }
+  }, {
+    label: 'Clear',
+    click: function() {
+      event.sender.send('edit-pointer-reply', 'clear');
+    }
+  }]);
+  menu.popup({ });  
+});
