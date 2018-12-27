@@ -163,58 +163,87 @@ function mk_button(command, fn)
 function create_array_editor(ed)
 {
     var iv = ed.data[ed.field.Name];
-    var _array = document.createElement('table');
+    var _array = document.createElement('x-array');
 
     if (iv === undefined)
         iv = [];
     
     for (var i=0;i<=iv.length;i++)
-    {
-        var _row = document.createElement('tr');
+    {   
         if (i < iv.length)
         {
-            var _idx = document.createElement('td');
-            var _val = document.createElement('td');
+            var _idx = document.createElement('x-array-index');
+            var _val = document.createElement('x-array-value');
             _idx.appendChild(document.createTextNode(i.toString()));
-            var _we = create_wrapped_editor(_val, {
+            var _we = create_wrapped_editor({
                 field: ed.field,
                 data: iv,
                 datafield: i
             }, true);
+            _val.appendChild(_we.inline);
             _val.classList.add("value");
-            _row.appendChild(_idx);
-            _row.appendChild(_val);
-            var ctl0 = document.createElement('td');
-            var ctl1 = document.createElement('td');
+            _idx.style.gridRow = i+1;
+            _val.style.gridRow = i+1;
+            _array.appendChild(_idx);
+            _array.appendChild(_val);
+            var ctl0 = document.createElement('x-array-controls');
             ctl0.appendChild(mk_button("delete", function(idx) { 
                 return function() {
                     iv.splice(idx, 1);
                     _array._x_reload();
                 }; } (i)
             ));
-            ctl1.appendChild(mk_button("clone", function(idx) { 
+            ctl0.appendChild(mk_button("clone", function(idx) { 
                 return function() {
                     iv.splice(idx, 0, clone(iv[idx]));
                     _array._x_reload();
                 }; } (i)
             ));
-            _row.appendChild(ctl1);
-            _row.appendChild(ctl0);
+            ctl0.style.gridRow = i+1;
+            _array.appendChild(ctl0);
         }
         else
         {
-            var ctl0 = document.createElement('td');
-            ctl0.colSpan = 2;
+            var ctl0 = document.createElement('x-array-bottom-controls');
+            ctl0.style.gridRow = i+1;
             ctl0.appendChild(mk_button("new", function() { 
                 return function() {
                     iv.splice(iv.length, 0, default_value(ed.field, true));
                     _array._x_reload();
                 }; } (i)));
-            _row.appendChild(ctl0);
+            _array.appendChild(ctl0); 
         }
-        _array.appendChild(_row);
     }
     return _array;
+}
+
+function create_array_preview(arr)
+{
+    var has_objects = false;
+    var pure = [];
+    for (var i=0;i<arr.length;i++)
+    {
+        if (arr[i] instanceof Object)
+        {
+            if (arr[i]._path !== undefined)
+                pure.push(arr[i]._path);
+             else
+                has_objects = true;
+        }
+        else
+        {
+            pure.push(arr[i]);
+        }
+    }
+    if (has_objects)
+    {
+        return document.createTextNode(arr.length + " item(s)");
+    }
+    if (arr.length == 0)
+    {
+        return document.createTextNode("0 item(s)");
+    }
+    return document.createTextNode(pure.join(", "));
 }
 
 function create_pointer_editor(ed)
@@ -263,17 +292,59 @@ function create_type_editor(ed, un_array)
     var iv = ed.data[ed.datafield];
     if (iv === undefined)
     {
-        var dummy = document.createElement("div");
-        return dummy;
+        if (ed.field.Array)
+        {
+            ed.data[ed.datafield] = [];
+            iv = [];
+        }
+        else if (!ed.field.Pointer && type.Fields !== undefined)
+        {
+            ed.data[ed.datafield] = {};
+            iv = {};
+        }
+        else if (ed.field.Default !== undefined)
+        {
+            iv = ed.field.Default;
+        }
+        else if (type.Editor == "Bool")
+        {
+            iv = false;
+        }
+        else if (type.Editor == "Int")
+        {
+            iv = 0;
+        }
+        else if (ed.field.Pointer)
+        {
+            ed.data[ed.datafield] = null;
+            iv = null;
+        }
+        else if (type.Editor == "String" || type.Editor == "Text" || type.Editor == "Hash")
+        {
+            iv = "";
+        }
+        else 
+        {
+            return {
+                block: document.createElement("div"),
+                inline: document.createTextNode("unknown")
+            }
+        }
     }
 
     if (!un_array && ed.field.Array)
     {
-        return create_array_editor(ed);
+        return {
+            block: create_array_editor(ed),
+            inline: create_array_preview(iv)
+        };
     }
     if (ed.field.Pointer)
     {
-        return create_pointer_editor(ed);
+        return {
+            inline: document.createTextNode(iv),
+            block: create_pointer_editor(ed)
+        }
     }
 
     if (type.Editor == "String" || type.Editor == "Hash")
@@ -283,7 +354,9 @@ function create_type_editor(ed, un_array)
         ip.addEventListener("change", function() {
             ed.data[ed.datafield] = ip.value;
         });  
-        return ip;
+        return {
+            inline: ip
+        }
     }
     if (type.Editor == "Int")
     {
@@ -293,7 +366,9 @@ function create_type_editor(ed, un_array)
         ip.addEventListener("change", function() {
             ed.data[ed.datafield] = ip.value;
         });  
-        return ip;
+        return {
+            inline: ip
+        };
     } 
     if (type.Editor == "Text")
     {
@@ -303,7 +378,9 @@ function create_type_editor(ed, un_array)
         ta.addEventListener("change", function() {
             ed.data[ed.datafield] = ta.value;
         }); 
-        return ta;
+        return {
+            inline: ta
+        };
     }
     if (type.Editor == "Checkbox")
     {
@@ -312,8 +389,10 @@ function create_type_editor(ed, un_array)
         ta.checked = [true, "true", "True", "1"].indexOf(ed.data[ed.datafield]) != -1;
         ta.addEventListener("change", function() {
             ed.data[ed.datafield] = ta.checked;
-        });        
-        return ta;
+        });    
+        return {
+            inline: ta
+        }    
     }
     if (type.Values !== undefined)
     {
@@ -336,31 +415,43 @@ function create_type_editor(ed, un_array)
                 }
             }
         });
-        return sel;
+        return {
+            inline: sel
+        }
     }
     if (type.Fields !== undefined)
     {
-        return build_inline_entry({
-            type: ed.field.Type,
-            data: iv
-        });
+        return {
+            inline: document.createTextNode("OBJECT"),
+            block: build_inline_entry({
+                type: ed.field.Type,
+                data: iv
+            })
+        };
     }
     var el = document.createElement("input");
     el.value = "UNKNOWN TYPE " + ed.field.Type;
-    return el;
+    return {
+        inline: el
+    };
 //    return document.createTextNode("UNKNOWN TYPE " + ed);
 }
 
-function create_wrapped_editor(parent, ed, un_array)
+function create_wrapped_editor(ed, un_array)
 {
-    var obj = create_type_editor(ed, un_array);
-    parent.appendChild(obj);
+    return create_type_editor(ed, un_array);
+    /*
     obj._x_reload = function() {
+        var r = obj.style.gridRow;
+        var p = obj.parentNode;
         delete obj._x_reload;
-        parent.removeChild(obj);
-        return create_wrapped_editor(parent, ed, un_array);
+        p.removeChild(obj);
+        var n = create_wrapped_editor(ed, un_array);
+        n.style.gridRow = r;
+        p.appendChild(n);
+        return n;
     };
-    return obj;
+    return obj;*/
 }
 
 function create_wrapped_propname(parent, editor, info)
@@ -372,9 +463,6 @@ function create_wrapped_propname(parent, editor, info)
         parent.classList.add("no-value");
         _prop_name.classList.add("no-value");
         _prop_name.classList.add("click-to-add");
-        editor.style.display = "none";
-        if (info.field.Default !== undefined)
-            _prop_name.appendChild(document.createTextNode(" (" + info.field.Default + ")"));
     }
     _prop_name.addEventListener("click", function() {
         if (info.data[info.datafield] === undefined)
@@ -383,8 +471,8 @@ function create_wrapped_propname(parent, editor, info)
             _prop_name.classList.remove("no-value");
             _prop_name.classList.remove("no-value");
             info.data[info.datafield] = default_value(info.field);
-            editor = editor._x_reload();
-            delete editor.style.display;
+            //editor = editor._x_reload();
+            //delete editor.style.display;
         }
     });
     return _prop_name;
@@ -394,26 +482,43 @@ function build_properties(objdesc)
 {
     var _properties = document.createElement('x-properties');
     var type = resolve_type(objdesc.type);
+    var row = 1;
     if (type.Fields)
     {
         for (var i=0;i<type.Fields.length;i++)
         {
-            var _property = document.createElement('x-property');
             var f = type.Fields[i];
-            var _prop_value = document.createElement('x-prop-value');
-            var _prop_editor = create_wrapped_editor(_prop_value, {
+            var dom = create_wrapped_editor({
                 data: objdesc.data,
                 field: f,
                 datafield: f.Name
             });
-            var _prop_name = create_wrapped_propname(_property, _prop_editor, {
+            var _prop_name = create_wrapped_propname(_properties, null, {
                 data: objdesc.data,
                 field: f,
                 datafield: f.Name
             });
-            _property.appendChild(_prop_name);
-            _property.appendChild(_prop_value);
-            _properties.appendChild(_property);
+            _prop_name.style.gridRow = row;
+            _properties.appendChild(_prop_name);
+
+            if (dom.inline)
+            {
+                var _prop_value = document.createElement('x-prop-value'); 
+                _prop_value.appendChild(dom.inline);
+                _prop_value.style.gridRow = row;
+                _properties.appendChild(_prop_value);
+            }
+            if (dom.block)
+            {
+                row = row + 1; 
+                dom.block.style.gridRow = row;
+                _properties.appendChild(dom.block);
+                if (dom.inline)
+                {
+                    dom.block.style.display = "none";
+                }
+            }
+            row = row + 1;
         }
     }
     return _properties;
@@ -467,6 +572,8 @@ document.body.appendChild(build_full_entry({path: "gurka", type:"Character", dat
         "DAMAGE_PHYSICAL",
         "DAMAGE_UBER"
     ],
+    "Tags": [ "c", "b", "a" ],
+    "BaseStats": {},
     "MultiMasks": [],
     "Skills": [
         {
@@ -475,6 +582,9 @@ document.body.appendChild(build_full_entry({path: "gurka", type:"Character", dat
             _path: "skills/perc/pin",
             _type: "Skill"
         },
+        "skills/superlong/text/that/fills",
+        "more/than/fits",
+        "this/one/is/long/too",
         "skills/guard",
         "skills/invalid"
     ]

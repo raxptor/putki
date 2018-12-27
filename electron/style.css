@@ -1,5 +1,8 @@
 body {
-    font-family: 'Gill Sans', 'Gill Sans MT', Calibri, 'Trebuchet MS', sans-serif;
+    font-family: sans-serif;
+    //'Gill Sans', 'Gill Sans MT', Calibri, 'Trebuchet MS', sans-serif;
+    font-size: small;
+    font-weight: normal;
 }
 
 input {
@@ -20,20 +23,16 @@ x-entry {
 }
 
 x-inline-entry {
-    display: flex;
-    flex-direction: column;
-    margin-left: 10px;
-    padding: 2px;
+    padding: 3px;
+    margin: 7px;
+    background-color: #eef;
+    display: block;
+    grid-column: 1/3;
     outline: 1px dashed lightgray;
-}
-
-x-desc {
-    font-family: 'Lucida Sans', 'Lucida Sans Regular', 'Lucida Grande', 'Lucida Sans Unicode', Geneva, Verdana, sans-serif;
 }
 
 x-name {
     display: block;
-    font-size: x-large;
     margin-bottom: 10px;
 }
 
@@ -83,13 +82,7 @@ x-state-locked {
     padding-right: 2px;
 }
 
-x-state-dyn {
-    font-weight: bold;
-}
-
 x-pointer {
-    font-weight: normal;
-    font-size: small;
     display: block;
     position: relative;
     padding-top: 2px;
@@ -121,12 +114,7 @@ td.value {
 }
 
 x-properties .no-value {
-    background-color: #eee;
     color: #888;
-    font-weight: normal; 
-}
-x-prop-name.no_value {
-    font-weight: normal;
 }
 
 .click-to-add {
@@ -150,7 +138,36 @@ x-prop-name.no_value {
 }
 
 x-properties {
-    font-family: 'Lucida Sans', 'Lucida Sans Regular', 'Lucida Grande', 'Lucida Sans Unicode', Geneva, Verdana, sans-serif;
+    display: grid;
+    grid-auto-columns: max-content auto;
+}
+
+x-array {
+    display: grid;
+    border: 1px dashed;
+    padding: 5px;
+    margin: 5px;
+    background-color: #ffe;
+    padding-left: 10px;
+    grid-column: 1/3;
+    grid-auto-columns: min-content auto max-content;
+}
+
+x-array-index {
+    grid-column: 1;
+    padding-right: 5px;
+}
+
+x-array-value {
+    grid-column: 2;
+}
+
+x-array-controls {
+    grid-column: 3;
+}
+
+x-array-bottom-controls {
+    grid-column: 1/4;
 }
 
 x-property {
@@ -170,15 +187,20 @@ x-property:nth-child(even) {
 
 x-prop-name {
     display: block;
-    font-weight: bolder;
-    font-size: small;
+    grid-column-start: 1;
+    grid-column-end: 2;
     width: 100%;    
 }
 
 x-prop-value {
     display: block;
+    grid-column-start: 2;
+    grid-column-end: 3;
     width: 100%;    
     margin-bottom: 3px;
+    height: 18px;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 x-prop-value input {
