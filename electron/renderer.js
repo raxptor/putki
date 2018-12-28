@@ -179,8 +179,9 @@ function mk_button(command, fn)
     return _input;
 }
 
-function create_array_editor(ed)
+function create_array_editor(ed, args)
 {
+    var expanded = (args || {}).expanded || [];
     var iv = ed.data[ed.field.Name];
     var _array = document.createElement('x-array');
 
@@ -217,7 +218,7 @@ function create_array_editor(ed)
                 data: ed.data[ed.datafield],
                 field: ed.field,
                 datafield: i
-            }, true);
+            }, true, expanded.indexOf(i) != -1);    
             _array.appendChild(ctl0); 
         }
         else
@@ -227,7 +228,7 @@ function create_array_editor(ed)
             ctl0.appendChild(mk_button("add empty", function() { 
                 return function() {
                     iv.splice(iv.length, 0, default_value(ed.field, true));
-                    on_inline_changed(_array._x_reload());
+                    on_inline_changed(_array._x_reload({ expanded: [iv.length-1] }));
                 }; } (i)));
             _array.appendChild(ctl0); 
 
@@ -235,7 +236,7 @@ function create_array_editor(ed)
                 var ptrnew = mk_button("add inst", function() {
                     ask_type(ed.field.Type, function(seltype) {
                         iv.splice(iv.length, 0, { _type: seltype });
-                        on_inline_changed(_array._x_reload());
+                        on_inline_changed(_array._x_reload({ expanded: [iv.length-1] }));
                     });
                 });
                 ctl0.appendChild(ptrnew);
@@ -300,9 +301,9 @@ function create_object_preview_txt(object, type)
 function reload_wrapped(new_fn)
 {
     var preview = new_fn();
-    preview._x_reload = function() {
+    preview._x_reload = function(args) {
         var pn = preview.parentNode;
-        var neue = new_fn();
+        var neue = new_fn(args);
         neue._x_reload = preview._x_reload;
         neue._x_changed = preview._x_changed;
         neue.classList = preview.classList;
@@ -435,8 +436,8 @@ function create_type_editor(ed, is_array_element)
     if (!is_array_element && ed.field.Array)
     {
         return {
-            block: reload_wrapped(function() { def_arr(ed); return create_array_editor(ed); }),
-            inline: reload_wrapped(function() { def_arr(ed); return create_array_preview(ed.data[ed.datafield]) })
+            block: reload_wrapped(function(args) { def_arr(ed); return create_array_editor(ed, args); }),
+            inline: reload_wrapped(function(args) { def_arr(ed); return create_array_preview(ed.data[ed.datafield], args) })
         };
     }
     if (ed.field.Pointer)
@@ -566,7 +567,7 @@ function create_type_editor(ed, is_array_element)
 }
 
 // returns row
-function create_property(parent, row, objdesc, is_array_element)
+function create_property(parent, row, objdesc, is_array_element, expanded)
 {
     var update_label = function() { };
     var dom = create_type_editor(objdesc, is_array_element);
@@ -641,7 +642,8 @@ function create_property(parent, row, objdesc, is_array_element)
         dom.block._x_changed = function() { console.log(";aa"); };
         if (dom.inline)
         {
-            dom.block.classList.add("collapsed");
+            if (!expanded)
+                dom.block.classList.add("collapsed");
             _prop_value.classList.add("click-to-expand");
             _prop_value.addEventListener("click", function() {
                 dom.block.classList.toggle("collapsed");
@@ -813,10 +815,22 @@ function ask_type(type_name_root, on_done)
             var nm = document.createTextNode('@' + tp);
             typeBox.appendChild(nm);
             listBox.appendChild(typeBox);
+            (function(type) {
+                typeBox.onclick = function() {
+                    document.body.removeChild(popup);
+                    on_done(type);
+                }
+            })(tp);
         }
+        return filtered;
     };
 
-    build();
+    var types = build();
+    if (types.length == 1) {
+        on_done(types[0]);
+        return;
+    }
+
     filter.addEventListener("input", function() { 
         setTimeout(build, 10)
     });
