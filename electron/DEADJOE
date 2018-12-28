@@ -1,0 +1,47 @@
+
+*** These modified files were found in JOE when it aborted on Fri Dec 28 12:25:22 2018
+*** JOE was aborted because the terminal closed
+
+*** File '(Unnamed)'
+character/
+Debug
+IModiferBase
+IModifierBase
+IModifierBase
+Modifier
+Modifier
+Modifier
+Modifier
+Journal entry
+
+*** File '(Unnamed)'
+>>>
+>>>
+prod
+prod
+prod
+>>>
+skin
+UpgradeBits
+CharacterSi
+Script
+Character
+
+*** File '(Unnamed)'
+unity-proj/Assets/StreamingAssets/GameData/characters/golem.txt
+unity-proj/Assets/StreamingAssets/GameData/characters/golem.txt
+unity-proj/Assets/StreamingAssets/GameData/main.txt
+unity-proj/Assets/StreamingAssets/GameData/main.txt
+samuel_smith_attack.json
+/Users/dannilsson/git/oldgods/_gen/js/types.js
+/Users/dannilsson/git/oldgods/_gen/js/types.js
+/Users/dannilsson/git/oldgods/_gen/js/types.js
+/Users/dannilsson/git/oldgods/_gen/js/types.js
+/Users/dannilsson/git/oldgods/typedefs/character.typedefr
+/Users/dannilsson/git/oldgods/_gen/js/types.js
+
+*** File '* Startup Log *'
+Processing '/usr/local/Cellar/joe/4.0/etc/joe/joerc'...
+Processing '/usr/local/Cellar/joe/4.0/etc/joe/ftyperc'...
+Finished processing /usr/local/Cellar/joe/4.0/etc/joe/ftyperc
+Finished processing /usr/local/Cellar/joe/4.0/etc/joe/joerc

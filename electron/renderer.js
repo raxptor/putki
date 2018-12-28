@@ -1,4 +1,6 @@
 const { ipcRenderer } = require('electron');
+const dataloader = require('./dataloader');
+
 var Dialogs = require("dialogs");
 var dialogs = new Dialogs({});
 
@@ -98,44 +100,9 @@ for (var xx in UserTypes)
     })(xx);
 }
 
-var Data = {
-    "roster0": {
-        _type: "Roster",
-        Name: "Roster Deluxe",
-        Characters: ["characters/char1", "characters/char2"]
-    },
-    "characters/char1": {
-        _type: "Character",
-        Name: "My favorite guy",
-        Description: "He is big and strong"  
-    },
-    "characters/char2": {
-        _type: "Character",
-        Name: "My second guy",
-        Description: "He is small and weak" 
-    },
-    "skills/perc/sk1": {
-        _inline: true,
-        _type: "Skill",
-        Name: "Lunge",
-        Description: "Basic skill"
-    },
-    "skills/guard": {
-        _type:"Skill",
-        Name: "Guard",
-        Description: "Basic skill"
-    },
-    "skills/perc/sk2": {
-        _type: "Skill",
-        Name: "Pin",
-        Description: "Extended skill"
-    }
-}
+var Data = {};
+dataloader.load_tree("/Users/dannilsson/git/oldgods/data/", Data, UserTypes);
 
-var Obj2Path = {};
-
-for (var x in Data)
-    Obj2Path[Data[x]] = x;
 
 function clone(src) {
     console.log("clone", src, JSON.stringify(src), " and reparse ", JSON.parse(JSON.stringify(src)));
@@ -165,7 +132,7 @@ function default_value(field, is_array_element)
     if (type.Editor == "String" || type.Editor == "Text" || type.Editor == "Hash")
         return "";
     if (type.Values !== undefined && type.Values.length > 0)
-        return type.Values[type.Values.length-1].Value;
+        return type.Values[0].Name;
 }
 
 function mk_button(command, fn)
@@ -246,17 +213,16 @@ function create_array_editor(ed, args)
     return _array;
 }
 
-function create_pointer_preview(object)
+function create_pointer_preview(object, default_type)
 {
     var descs = [];
     if (object instanceof Object)
     {
         if (object._type !== undefined)
-            descs.push("@" + object._type);
+            descs.push("@" + resolve_type(object._type).PrettyName);
         if (object._path !== undefined)
             descs.push(object._path);
-        if (object._type !== undefined)
-            descs.push(create_object_preview_txt(object, resolve_type(object._type)));
+        descs.push(create_object_preview_txt(object, resolve_type(object._type || default_type)));
     }
     else
     {
@@ -275,21 +241,33 @@ function create_object_preview_txt(object, type)
     for (var x in type.ExpandedFields)
     {
         var fn = type.ExpandedFields[x].Name;
+        var pn = type.ExpandedFields[x].PrettyName;
         var val = object[fn];
         if (val === undefined || val === null || (val instanceof Array && val.length == 0) ||
             (val instanceof Object && Object.keys(val).length === 0))
             continue;
-        if (val instanceof Object)
+        if (val instanceof Array)
+        {
+            if (val.length > 0 && (val[0].constructor == String))
+            {
+                txts.push(pn + ":[" + val.join(", ") + "]");
+            }
+            else
+            {
+                txts.push(pn + ":[" + val.length + " itms]");
+            }
+        }
+        else if (val instanceof Object)
         {
             var t = resolve_type(type.ExpandedFields[x].Type);
-            txts.push(fn + ":{" + create_object_preview_txt(val, t)+ "}");
+            txts.push(pn + ":{" + create_object_preview_txt(val, t)+ "}");
         }
         else
         {
             if (val instanceof String)
-                txts.push(fn + "=" + "\"" + val + "\"");
+                txts.push(pn + "=" + "\"" + val + "\"");
             else
-                txts.push(fn + "=" + val.toString());
+                txts.push(pn + "=" + val.toString());
         }
     }
     if (txts.length == 0)
@@ -381,7 +359,7 @@ function create_pointer_editor(ed)
     var iv = ed.data[ed.datafield];
     if (iv instanceof Object) {
         var inl = build_full_entry({
-            type: iv._type,
+            type: iv._type || ed.field.Type,
             path: iv._path,
             data: iv
         }, function (new_path) {
@@ -442,7 +420,7 @@ function create_type_editor(ed, is_array_element)
     }
     if (ed.field.Pointer)
     {
-        var preview = reload_wrapped(function() { return create_pointer_preview(ed.data[ed.datafield]); });
+        var preview = reload_wrapped(function() { return create_pointer_preview(ed.data[ed.datafield], ed.field.Type); });
         preview._x_context_menu = function() {
             ipcRenderer.send('edit-pointer', 'ping');
         };
@@ -458,11 +436,11 @@ function create_type_editor(ed, is_array_element)
             inline: reload_wrapped(function() {
                 var ip = document.createElement("input");
                 if (ed.data[ed.datafield] !== undefined)
-                    ip.value = ed.data[ed.datafield];
+                    ip.value = ed.data[ed.datafield].replace("\n", "\\n");
                 else
                     ip.value = default_value(ed.field, is_array_element);
                 ip.addEventListener("change", function() {
-                    ed.data[ed.datafield] = ip.value;
+                    ed.data[ed.datafield] = ip.value.replace("\\n", "\n");
                     on_inline_changed(ip);
                 });  
                 return ip;         
@@ -523,7 +501,6 @@ function create_type_editor(ed, is_array_element)
     {
         return {
             inline: reload_wrapped(function() {
-                console.log("reloading select");
                 var sel = document.createElement("select");
                 for (var i=0;i<type.Values.length;i++)
                 {   
@@ -575,11 +552,10 @@ function create_property(parent, row, objdesc, is_array_element, expanded)
     if (!is_array_element)
     {
         var _prop_name = document.createElement('x-prop-name');
-        _prop_name.appendChild(document.createTextNode(objdesc.field.Name));
+        _prop_name.appendChild(document.createTextNode(objdesc.field.PrettyName));
         _prop_name.style.gridRow = row;
         parent.appendChild(_prop_name);
         update_label = function() {
-            console.log("update label");
             _prop_name.classList.remove("no-value");
             var cv = objdesc.data[objdesc.datafield];
             if (cv === undefined || cv === null || (cv instanceof Array && cv.length == 0) ||
@@ -715,7 +691,7 @@ function build_full_entry(objdesc, on_new_path)
 {
     var _entry = document.createElement('x-entry'); 
     var _path = document.createElement('x-path');
-    var _type_text = document.createTextNode("@" + objdesc.type + " ");
+    var _type_text = document.createTextNode("@" + resolve_type(objdesc.type).PrettyName + " ");
     var _path_text = document.createTextNode(objdesc.path !== undefined ? objdesc.path : "<anonymous>");
     _path.appendChild(_type_text);
     _path.appendChild(_path_text);
@@ -734,6 +710,17 @@ function build_full_entry(objdesc, on_new_path)
     });
     return _entry;  
 }  
+
+function build_root_entry(path)
+{
+    return build_full_entry(
+        {
+            path: path,
+            type: Data[path]._type,
+            data: Data[path]
+        }
+    );
+}
 
 function compatible_types(type_name_root)
 {
@@ -840,6 +827,9 @@ function ask_type(type_name_root, on_done)
     filter.focus();
 }
 
+document.body.appendChild(build_root_entry("character/samuel-smith"));
+
+/*
 document.body.appendChild(build_full_entry({path: "gurka", type:"Character", data: {
     "Name": "Pervical Slusk",
     "Description": "A mastermind of deception",
@@ -869,10 +859,14 @@ document.body.appendChild(build_full_entry({path: "gurka", type:"Character", dat
     ]
 }}));
 
-
-document.body.appendChild(build_full_entry({path: "CueCumber", type:"AtkModifyDamage", data: {
+*/
+document.body.appendChild(build_full_entry({path: "CueCumber", type:"atkmodifydamage", data: {
 }}));
 
+/*
+dataloader.load_folder('c:/git/oldgods/unity-proj/Assets/StreamingAssets/GameData');
+dataloader.load_file('c:/git/oldgods/unity-proj/Assets/StreamingAssets/GameData/');
+*/
 
 /*
 var fs = require('fs');
