@@ -199,6 +199,7 @@ function parse(status, rootlevel)
                             // it has path
                             var path = pcs[1].trim();
                             data["_path"] = path;
+                            data["_file"] = status.file;
                             if (rootlevel)
                                 status.result[path] = data;
                             else
@@ -316,7 +317,8 @@ exports.load_tree = function(path, result)
             data: data,
             pos: 0,
             error: false,
-            result: result
+            result: result,
+            file: file
         };
         parse(pd, true);
         if (pd.error)
@@ -325,6 +327,7 @@ exports.load_tree = function(path, result)
             return false;
         }
     });
+    console.log(result);
     return true;
 }
 

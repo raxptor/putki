@@ -203,10 +203,15 @@ x-property {
     color: #ddd;
 }
 
-/*
-x-property:nth-child(even) {
+.shared {
+    font-style: normal;
+    background-color: #dfd;
+    color: black;
 }
-*/
+
+.nullptr {
+    color: red;
+}
 
 x-prop-name {
     cursor: pointer;

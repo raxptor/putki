@@ -223,16 +223,24 @@ function create_pointer_preview(object, default_type)
         if (object._path !== undefined)
             descs.push(object._path);
         descs.push(create_object_preview_txt(object, resolve_type(object._type || default_type)));
+        return document.createTextNode(descs.join(' '));
     }
-    else
+    else    
     {
+        var style = document.createElement('span');
         if (object === undefined || object === null)
-            descs.push("null");
+        {
+            style.appendChild(document.createTextNode("null"));
+            style.classList.add('nullptr');
+            return style;
+        }
         else
-            descs.push(object);   
+        {
+            style.appendChild(document.createTextNode(object.toString()));
+            style.classList.add('shared');
+            return style;            
+        }
     }
-    var tn = document.createTextNode(descs.join(' '));
-    return tn;
 }
 
 function create_object_preview_txt(object, type)
@@ -420,12 +428,14 @@ function create_type_editor(ed, is_array_element)
     }
     if (ed.field.Pointer)
     {
-        var preview = reload_wrapped(function() { return create_pointer_preview(ed.data[ed.datafield], ed.field.Type); });
-        preview._x_context_menu = function() {
-            ipcRenderer.send('edit-pointer', 'ping');
-        };
         return {
-            inline: preview,
+            inline: reload_wrapped(function() { 
+                var prev = create_pointer_preview(ed.data[ed.datafield], ed.field.Type); 
+                prev._x_context_menu = function() {
+                    ipcRenderer.send('edit-pointer', 'ping');
+                };
+                return prev;
+            }),
             block: reload_wrapped(function() { return create_pointer_editor(ed); })
         }
     }
