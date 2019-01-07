@@ -38,23 +38,6 @@ var Primitive = {
     }
 }
 
-for (var xx in UserTypes)
-{
-    (function (x) {
-        var all = [];
-        var add = function(tn) {
-            all = all.concat(UserTypes[tn].Fields);
-            if (UserTypes[tn].Parent !== undefined)
-                add(UserTypes[tn].Parent);
-        };
-        if (UserTypes[x].Fields !== undefined)
-        {
-            add(x);
-            UserTypes[x].ExpandedFields = all;
-        }
-    })(xx);
-}
-
 function clone(src) {
     console.log("clone", src, JSON.stringify(src), " and reparse ", JSON.parse(JSON.stringify(src)));
     return JSON.parse(JSON.stringify(src));
@@ -209,6 +192,9 @@ function create_pointer_preview(object, default_type)
         {
             style.appendChild(document.createTextNode(object.toString()));
             style.classList.add('shared');
+            style.addEventListener('click', function() {
+                open_editor(object);
+            });          
             return style;            
         }
     }
@@ -394,7 +380,6 @@ function create_type_editor(ed, is_array_element)
         var preview = reload_wrapped(function() { return create_pointer_preview(ed.data[ed.datafield], ed.field.Type); });
         var block = reload_wrapped(function() { return create_pointer_editor(ed); });
         var value_context_menu = function(dom) {
-
             var ptypes = popups.compatible_types(UserTypes, ed.field.Type);
             var opts = {};
             for (var x in ptypes)
@@ -763,22 +748,120 @@ ipcRenderer.on('edit-pointer-reply', (event, arg) => {
     }
 });
 
+function activateTab(tab)
+{
+    var tabs = document.getElementById('tabs');
+    var cn = tabs.childNodes;
+    for (var x=0;x<cn.length;x++)
+    {
+        cn[x].classList.remove('active');
+        if (cn[x] != tab)
+            cn[x]._x_page.style.display = "none";
+        else
+        {
+            cn[x]._x_page.style.display = "block";
+            cn[x].classList.add('active');
+        }
+    }
+}
+
+function add_tab(title, page, on_close)
+{
+    var tab = document.createElement('x-tab');
+    var lbl = document.createElement('x-tab-label');
+    lbl.appendChild(document.createTextNode(title));
+    tab.appendChild(lbl);
+    document.getElementById('tabs').appendChild(tab);
+    tab._x_page = page;
+    tab.addEventListener('click', function() {
+        activateTab(tab);
+    })
+    if (on_close)
+    {
+        var close = document.createElement('x-tab-close');
+        close.appendChild(document.createTextNode("[X]"));
+        tab.appendChild(close);
+        close.addEventListener('click', function() {
+            if (on_close == null || on_close()) {
+                tab.parentNode.removeChild(tab);
+                page.parentNode.removeChild(page);
+            }
+        })
+    }
+    activateTab(tab);
+    return tab;
+}
+
+function add_page(title, make, on_close)
+{
+    var page = document.createElement('x-page');
+    make(page);
+    document.getElementById('content').appendChild(page);
+    return add_tab(title, page, on_close);
+}
+
+function open_editor(path, editor)
+{
+    if (!Data.hasOwnProperty(path))
+        return;
+
+    if (!Editing.hasOwnProperty(path))
+    {        
+        Editing[path] = add_page(path, function(page) {
+            page.appendChild(build_root_entry(path, editor));
+        }, function() {
+            delete Editing[path];
+            return true;
+        });
+    } else {
+        activateTab(Editing[path]);
+    }
+}
+
 var Mod0 = require(path.join(project_root, '_gen/js/types.js'));
 var UserTypes = Mod0.Types;
+
+
+for (var xx in UserTypes)
+{
+    (function (x) {
+        var all = [];
+        var add = function(tn) {
+            all = all.concat(UserTypes[tn].Fields);
+            if (UserTypes[tn].Parent !== undefined)
+                add(UserTypes[tn].Parent);
+        };
+        if (UserTypes[x].Fields !== undefined)
+        {
+            add(x);
+            UserTypes[x].ExpandedFields = all;
+        }
+    })(xx);
+}
+
 var Data = {};
+var Editing = {};
 dataloader.load_tree(path.join(project_root, 'unity-proj/Assets/StreamingAssets/GameData'), Data);
 
 const plugin0 = require(path.join(project_root, 'editor-plugin/plugin.js'));
 plugin0.install();
 
 
-var page = document.createElement('x-page');
-databrowser.create(page, UserTypes, Data, plugin_config(), function preview(d) {    
-    if (d.hasOwnProperty('name'))
-        return d['name'];
-    return '';
+
+add_page("Index", function(page) {
+    databrowser.create(page, UserTypes, Data, plugin_config(), function preview(d) {    
+        if (d.hasOwnProperty('name'))
+            return d['name'];
+        return '';
+    }, function(path) {
+        open_editor(path);
+    });
 });
-document.getElementById('content').appendChild(page);
+
+open_editor("game");
+
+open_editor("maps/manor-1", plugin0.editors[0].Editor);
+
 
 /*
 datawriter.write(UserTypes, Data);
@@ -787,7 +870,7 @@ datawriter.write(UserTypes, Data);
 
 //popups.ask_type(UserTypes, null, function(which) { console.log("selected ", which); });
 //popups.ask_instance(UserTypes, Data, "item", function(which) { console.log("selected ", which); });
-//document.body.appendChild(build_root_entry("maps/manor-1", plugin0.editors[0].Editor));
+
 //document.body.appendChild(build_root_entry("manor/music-room/play-instrument"));
 //document.body.appendChild(build_root_entry("procitems/trinkets/rune-necklace"));
 

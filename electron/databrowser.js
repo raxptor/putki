@@ -13,7 +13,7 @@ function mk_button(command, fn)
     return _input;
 }
 
-exports.create = function(onto, types, data, config, data_browser_preview) {
+exports.create = function(onto, types, data, config, data_browser_preview, start_editing) {
     var base = document.createElement('x-browser');
     var filter = document.createElement('input');
     filter.type = "text";
@@ -67,6 +67,11 @@ exports.create = function(onto, types, data, config, data_browser_preview) {
                 preview.appendChild(document.createTextNode(data_browser_preview(data[x])));
                 preview.style.gridRow = e.count;
             }
+            (function(_path) {
+                path.addEventListener('click', function() {
+                    start_editing(_path);
+                })
+            })(data[x]._path);
             e.items.push({ path:data[x]._path, type:data[x]._type, elements: [path, type, preview] });
         }
         var count = 0;
