@@ -117,6 +117,8 @@ exports.ask_instance = function(alltypes, alldata, type_name_root, on_done)
     var potential = {};
 
     var dig = function(d) {
+        if (d === null || d === undefined)
+            return;
         if (d.hasOwnProperty('_path') && d.hasOwnProperty('_type')) {
             if (types.hasOwnProperty(d._type)) {
                 potential["#" + d._path] = d;

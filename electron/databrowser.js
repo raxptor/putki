@@ -13,15 +13,18 @@ function mk_button(command, fn)
     return _input;
 }
 
-exports.create = function(types, data, config) {
-    var base = document.createElement('x-browser');    
+exports.create = function(onto, types, data, config, data_browser_preview) {
+    var base = document.createElement('x-browser');
+    var filter = document.createElement('input');
+    filter.type = "text";
+    base.appendChild(filter);
+    var grid = null;
+    var fn_map = {};
     var rebuild = function() {  
-        while (base.firstChild) {
-            base.removeChild(base.firstChild);
-        }
-        var grid = document.createElement('x-browser-objlist');
-        var fn_map = {};
-        console.log(data);
+        if (grid)
+            base.removeChild(grid);
+        grid = document.createElement('x-browser-objlist');
+        fn_map = {};
         for (var x in data) {
             var fn = data[x]._file || "new.txt";
             if (fn_map[fn] === undefined) {
@@ -36,7 +39,7 @@ exports.create = function(types, data, config) {
                 (function(fn) {
                     controls.appendChild(mk_button("New instance", function() {
                         popups.ask_type(types, null, function(which) { 
-                            dialogs.prompt("Enter new path", "example/path", function (p) {
+                            dialogs.prompt("Enter path", "example/path", function (p) {
                                 if (p != null)
                                 {
                                     data[p.toLowerCase()] = {
@@ -56,9 +59,15 @@ exports.create = function(types, data, config) {
             path.appendChild(document.createTextNode(data[x]._path));
             path.style.gridRow = e.count;
             var type = document.createElement('x-browser-type');
-            type.appendChild(document.createTextNode(data[x]._type));
+            type.appendChild(document.createTextNode("@" + types[data[x]._type].PrettyName));
             type.style.gridRow = e.count;
-            e.items.push({ elements: [path, type] });
+            var preview = document.createElement('x-browser-preview');
+            //if (data_browser_preview !== null) {
+            {
+                preview.appendChild(document.createTextNode(data_browser_preview(data[x])));
+                preview.style.gridRow = e.count;
+            }
+            e.items.push({ path:data[x]._path, type:data[x]._type, elements: [path, type, preview] });
         }
         var count = 0;
         for (var x in fn_map) {
@@ -76,8 +85,50 @@ exports.create = function(types, data, config) {
             e.controls.style.gridRow = ++count;
             grid.appendChild(e.controls);            
         }
+        filtrate();
         base.appendChild(grid);        
     };
     rebuild();    
+    if (onto != null)
+        onto.appendChild(base);
+    filter.focus();
+
+    function filtrate() {
+        var search = filter.value.toLowerCase();        
+        for (var x in fn_map) {
+            var e = fn_map[x];            
+            e.header.classList.remove('hidden');        
+            e.controls.classList.remove('hidden');        
+            var found = 0;
+            for (var i in e.items) {
+                var els = e.items[i].elements;
+                for (var j in els) {
+                    els[j].classList.remove('hidden');
+                }
+                if (search.length > 0 && e.items[i].path.indexOf(search) == -1 && x.indexOf(search) == -1 && e.items[i].type.indexOf(search) == -1)
+                {
+                    for (var j in els) {
+                        els[j].classList.add('hidden');
+                    }
+                }
+                else
+                {
+                    found++;
+                }
+            }
+            if (found == 0)
+            {
+                e.header.classList.add('hidden');
+                e.controls.classList.add('hidden');
+            }
+        }        
+    }
+
+    filtrate();
+
+    filter.addEventListener("input", function() { 
+        setTimeout(filtrate, 10)
+    });
+
     return base;
 }

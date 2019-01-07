@@ -203,13 +203,20 @@ function create_array_editor(ed, args)
             _array.appendChild(ctl0); 
 
             if (ed.field.Pointer) {
-                var ptrnew = mk_button("add inst", function() {
+                var ptrnew = mk_button("add new embed", function() {
                     popups.ask_type(UserTypes, ed.field.Type, function(seltype) {
                         iv.splice(iv.length, 0, { _type: seltype });
                         on_inline_changed(_array._x_reload({ expanded: [iv.length-1] }));
                     });
                 });
+                var ptrlink = mk_button("add link", function() {
+                    popups.ask_instance(UserTypes, Data, ed.field.Type, function(selpath) {
+                        iv.splice(iv.length, 0, selpath);
+                        on_inline_changed(_array._x_reload({ expanded: [iv.length-1] }));
+                    });
+                });                
                 ctl0.appendChild(ptrnew);
+                ctl0.appendChild(ptrlink);
             }        
         }
     }
@@ -253,7 +260,7 @@ function create_object_preview_txt(object, type)
             continue;
         if (val instanceof Array)
         {
-            if (val.length > 0 && (val[0].constructor == String))
+            if (val.length > 0 && (val[0] != null && val[0].constructor == String))
             {
                 txts.push(pn + ":[" + val.join(", ") + "]");
             }
@@ -386,11 +393,18 @@ function create_pointer_editor(ed)
             on_inline_changed(ptr._x_reload());    
         });
     });
+    var ptrlink = mk_button("link", function() {
+        popups.ask_instance(UserTypes, Data, ed.field.Type, function(path) {
+            ed.data[ed.datafield] = path;
+            on_inline_changed(ptr._x_reload());    
+        });
+    });
     var ptrclear = mk_button("clear", function() {
         ed.data[ed.datafield] = null;
         on_inline_changed(ptr._x_reload());
     });
     btns.appendChild(ptrnew);
+    btns.appendChild(ptrlink);
     btns.appendChild(ptrclear);
     ptr.appendChild(ptrval);
     ptr.appendChild(btns);
@@ -420,7 +434,8 @@ function create_type_editor(ed, is_array_element)
     {
         return {
             block: reload_wrapped(function(args) { def_arr(ed); return create_array_editor(ed, args); }),
-            inline: reload_wrapped(function(args) { def_arr(ed); return create_array_preview(ed.data[ed.datafield], args) })
+            inline: reload_wrapped(function(args) { def_arr(ed); return create_array_preview(ed.data[ed.datafield], args) }),
+            pre_expand: (ed.data[ed.datafield] || []).length > 0
         };
     }
     if (ed.field.Pointer)
@@ -431,7 +446,8 @@ function create_type_editor(ed, is_array_element)
         };
         return {
             inline: preview,
-            block: reload_wrapped(function() { return create_pointer_editor(ed); })
+            block: reload_wrapped(function() { return create_pointer_editor(ed); }),
+            pre_expand: (ed.data[ed.datafield] instanceof Object)
         }
     }
 
@@ -620,10 +636,10 @@ function create_property(parent, row, objdesc, is_array_element, expanded)
         }
         dom.block.classList.add("block-editor");
         parent.appendChild(dom.block);
-        dom.block._x_changed = function() { console.log(";aa"); };
+        // dom.block._x_changed = function() { console.log(";aa"); };
         if (dom.inline)
         {
-            if (!expanded)
+            if (!expanded && !dom.pre_expand)
                 dom.block.classList.add("collapsed");
             _prop_value.classList.add("click-to-expand");
             _prop_value.addEventListener("click", function() {
@@ -639,7 +655,6 @@ function create_property(parent, row, objdesc, is_array_element, expanded)
             }
             dom.block._x_changed = function() {
                 update_label();
-                console.log("BLOCK CHANGED val=", objdesc.data[objdesc.datafield], " from ", objdesc);
                 if (dom.inline._x_reload) {
                     dom.inline = dom.inline._x_reload();
                 }
@@ -747,10 +762,17 @@ function plugin_config()
 const plugin0 = require('c:/git/oldgods/editor-plugin/plugin.js');
 plugin0.install();
 console.log(plugin0.editors);
-
-document.body.appendChild(databrowser.create(UserTypes, Data, plugin_config()));
+/*
+databrowser.create(document.body, UserTypes, Data, plugin_config(), function preview(d) {    
+    if (d.hasOwnProperty('name'))
+        return d['name'];
+    return '';
+});
+*/
 
 //popups.ask_type(UserTypes, null, function(which) { console.log("selected ", which); });
 //popups.ask_instance(UserTypes, Data, "item", function(which) { console.log("selected ", which); });
 
-/*document.body.appendChild(build_root_entry("maps/testmap", plugin0.editors[0].Editor));*/
+//document.body.appendChild(build_root_entry("maps/testmap", plugin0.editors[0].Editor));*/
+document.body.appendChild(build_root_entry("items/medicament"));
+

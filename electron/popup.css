@@ -48,3 +48,11 @@ x-type-box.only-one {
 x-browser {
     display: block;
 }
+
+x-browser input[type="text"] {
+    width: 100%;
+}
+
+.hidden {
+    display: none;
+}

@@ -189,7 +189,7 @@ x-array-inline-controls {
 }
 
 x-array-bottom-controls {
-    grid-column: 2/5;
+    grid-column: 1/5;
 }
 
 x-property {
@@ -257,24 +257,36 @@ x-browser {
 x-browser-file {
     display: block;
     grid-column: 1/4;
-    padding: 5px;
-    margin: 5px;
+    padding: 5px;    
+    margin-top: 5px;
+    margin-bottom: 5px;
     border: 1px solid;
     background-color: #eef;
 }
 
 x-browser-objlist {
     display: grid;
-    grid-auto-columns: max-content auto max-content;
-    row-gap: 3px;
+    grid-auto-columns: max-content max-content auto;
 }
 
 x-browser-path {
     grid-column: 1;
+    color: #330;
+    cursor: pointer;
+    text-decoration: underline;
+    margin-left: 10px;    
 }
 
 x-browser-controls {
     grid-column: 1/4;
+    margin-top: 4px;
+    margin-left: 20px;
+}
+
+x-browser-preview {
+    grid-column: 3;
+    margin-left: 10px;
+    color: #030;
 }
 
 x-browser-type {
