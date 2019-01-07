@@ -1,5 +1,7 @@
 const { ipcRenderer } = require('electron');
 const dataloader = require('./dataloader');
+const popups = require('./popups');
+const databrowser = require('./databrowser');
 
 var Dialogs = require("dialogs");
 var dialogs = new Dialogs({});
@@ -202,7 +204,7 @@ function create_array_editor(ed, args)
 
             if (ed.field.Pointer) {
                 var ptrnew = mk_button("add inst", function() {
-                    ask_type(ed.field.Type, function(seltype) {
+                    popups.ask_type(UserTypes, ed.field.Type, function(seltype) {
                         iv.splice(iv.length, 0, { _type: seltype });
                         on_inline_changed(_array._x_reload({ expanded: [iv.length-1] }));
                     });
@@ -379,7 +381,7 @@ function create_pointer_editor(ed)
 
     var btns = document.createElement("x-pointer-buttons");
     var ptrnew = mk_button("new", function() {
-        ask_type(ed.field.Type, function(seltype) {
+        popups.ask_type(UserTypes, ed.field.Type, function(seltype) {
             ed.data[ed.datafield] = { _type: seltype };
             on_inline_changed(ptr._x_reload());    
         });
@@ -731,111 +733,6 @@ function build_root_entry(path, editor_func)
     );
 }
 
-function compatible_types(type_name_root)
-{
-    var list = [];
-    for (var tp in UserTypes)
-    {
-        if (!UserTypes[tp].PermitAsAsset)
-            continue;
-        var pr = tp;
-        while (pr)
-        {
-            pr = UserTypes[pr].Parent;
-            if (pr == type_name_root || tp == type_name_root)
-            {
-                list.push(tp);
-                pr = null;
-            }
-        }
-    }
-    list.sort();
-    console.log(list);
-    return list;
-}
-
-function ask_type(type_name_root, on_done)
-{
-    var popup = document.createElement('div');
-    popup.classList.add("modal");
-    var content = document.createElement('x-popup-type');
-    content.classList.add("modal-content");
-    popup.appendChild(content);
-
-    var form = document.createElement('form');
-    var filter = document.createElement('input');
-    form.appendChild(filter);
-    content.appendChild(form);
-
-    var listBox = document.createElement('x-type-select-box');
-    var types = compatible_types(type_name_root);
-    var pick = null;
-
-    form.onsubmit = function(event) {
-        event.preventDefault();
-        document.body.removeChild(popup);
-        if (pick)
-        {
-            on_done(pick);
-        }
-    };
-
-
-    var build = function() {
-        while (listBox.firstChild) {
-            listBox.removeChild(listBox.firstChild);
-        }
-        var fstr = filter.value.toLowerCase();
-        console.log("filtering on ", fstr);
-
-        var filtered = [];
-        for (var idx in types)
-        {
-            var tp = types[idx];
-            if (fstr.length > 0 && tp.toLowerCase().indexOf(fstr) == -1)
-                continue;
-            filtered.push(tp);
-        }
-
-        pick = null;
-        for (var idx in filtered)
-        {
-            var tp = filtered[idx];
-            var t = UserTypes[tp];
-            var typeBox = document.createElement('x-type-box');
-            if (filtered.length == 1 || tp.toLowerCase() == fstr)
-            {
-                typeBox.classList.add("only-one");
-                pick = tp;
-            }
-            var nm = document.createTextNode('@' + tp);
-            typeBox.appendChild(nm);
-            listBox.appendChild(typeBox);
-            (function(type) {
-                typeBox.onclick = function() {
-                    document.body.removeChild(popup);
-                    on_done(type);
-                }
-            })(tp);
-        }
-        return filtered;
-    };
-
-    var types = build();
-    if (types.length == 1) {
-        on_done(types[0]);
-        return;
-    }
-
-    filter.addEventListener("input", function() { 
-        setTimeout(build, 10)
-    });
-
-    content.appendChild(listBox);
-    document.body.appendChild(popup);
-    filter.focus();
-}
-
 function plugin_config()
 {
     return { 
@@ -851,4 +748,9 @@ const plugin0 = require('c:/git/oldgods/editor-plugin/plugin.js');
 plugin0.install();
 console.log(plugin0.editors);
 
-document.body.appendChild(build_root_entry("maps/testmap", plugin0.editors[0].Editor));
+document.body.appendChild(databrowser.create(UserTypes, Data, plugin_config()));
+
+//popups.ask_type(UserTypes, null, function(which) { console.log("selected ", which); });
+//popups.ask_instance(UserTypes, Data, "item", function(which) { console.log("selected ", which); });
+
+/*document.body.appendChild(build_root_entry("maps/testmap", plugin0.editors[0].Editor));*/

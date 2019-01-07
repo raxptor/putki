@@ -199,6 +199,7 @@ function parse(status, rootlevel)
                             // it has path
                             var path = pcs[1].trim();
                             data["_path"] = path;
+                            data["_file"] = status.file;
                             if (rootlevel)
                                 status.result[path] = data;
                             else
@@ -308,15 +309,16 @@ function tree_sync(root, cb)
     }
 }
 
-exports.load_tree = function(path, result)
+exports.load_tree = function(_path, result)
 {
-    tree_sync(path, function(file) {
+    tree_sync(_path, function(file) {
         var data = strip_comments(fs.readFileSync(file, "utf8"));
         var pd = {
             data: data,
             pos: 0,
             error: false,
-            result: result
+            result: result,
+            file: path.relative(_path, file)
         };
         parse(pd, true);
         if (pd.error)
@@ -338,6 +340,7 @@ exports.load_file = function(fn)
        data: data,
        pos: 0,
        error: false,
+       file: fn,
        result: {}
    };
 
