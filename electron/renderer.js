@@ -167,13 +167,26 @@ function create_array_editor(ed, args)
         if (i < iv.length)
         {
             var ctl0 = document.createElement('x-array-controls');
+            ctl0.appendChild(mk_button("mv", function(idx) { 
+                return function() {
+                    dialogs.prompt("Move to index", idx, function(val) {
+                        if (val != null)
+                        {
+                            var org = iv[idx];
+                            iv.splice(idx, 1);
+                            iv.splice(val, 0, org);
+                            on_inline_changed(_array._x_reload());
+                        }
+                    });
+                }; } (i)
+            ));            
             ctl0.appendChild(mk_button("clone", function(idx) { 
                 return function() {
                     iv.splice(idx, 0, clone(iv[idx]));
                     on_inline_changed(_array._x_reload());
                 }; } (i)
             ));
-            ctl0.appendChild(mk_button("delete", function(idx) { 
+            ctl0.appendChild(mk_button("del", function(idx) { 
                 return function() {
                     iv.splice(idx, 1);
                     on_inline_changed(_array._x_reload());
@@ -188,7 +201,7 @@ function create_array_editor(ed, args)
                 data: ed.data[ed.datafield],
                 field: ed.field,
                 datafield: i
-            }, true, expanded.indexOf(i) != -1);    
+            }, true, expanded.indexOf(i) != -1);
             _array.appendChild(ctl0); 
         }
         else
@@ -252,8 +265,6 @@ function create_object_preview_txt(object, type)
     {
         var fn = type.ExpandedFields[x].Name;
         var pn = type.ExpandedFields[x].PrettyName;
-        if (pn == "DynamicDescription")
-            console.log("curke");
         var val = object[fn];
         if (val === undefined || val === null || (val instanceof Array && val.length == 0) ||
             (val instanceof Object && Object.keys(val).length === 0))
@@ -276,8 +287,13 @@ function create_object_preview_txt(object, type)
         }
         else
         {
-            if (val instanceof String)
-                txts.push(pn + "=" + "\"" + val + "\"");
+            if (val.constructor == String) {
+                var lim = 100;
+                if (val.length < lim)
+                    txts.push(pn + "=" + "\"" + val + "\"");
+                else
+                    txts.push(pn + "=" + "\"" + val.substring(0, lim-3) + "...\"");
+            }
             else
                 txts.push(pn + "=" + val.toString());
         }
@@ -294,12 +310,14 @@ function reload_wrapped(new_fn)
     preview._x_reload = function(args) {
         var pn = preview.parentNode;
         var neue = new_fn(args);
-        neue._x_reload = preview._x_reload;
         neue._x_changed = preview._x_changed;
+        neue._x_context_menu = preview._x_context_menu;
         neue.classList = preview.classList;
         if (preview.style)
             neue.style.gridRow = preview.style.gridRow;
-        delete preview._x_reload;
+        preview._x_destroyed = "I was destroyed through reload_wrapped";
+        neue._x_reload = preview._x_reload;
+        delete preview._x_reload;        
         pn.removeChild(preview);
         if (preview._x_reloaded)
             preview._x_reloaded(neue);
@@ -379,6 +397,9 @@ function create_pointer_editor(ed)
         });
         ptrval.appendChild(inl);
     } else {
+        var ph = document.createElement('div');
+        ph.style.display = 'none';
+        return ph;
         /*
         var txt = document.createTextNode(iv);
         ptrval.appendChild(txt);
@@ -386,6 +407,7 @@ function create_pointer_editor(ed)
         */
     }
 
+    /*
     var btns = document.createElement("x-pointer-buttons");
     var ptrnew = mk_button("new", function() {
         popups.ask_type(UserTypes, ed.field.Type, function(seltype) {
@@ -406,8 +428,9 @@ function create_pointer_editor(ed)
     btns.appendChild(ptrnew);
     btns.appendChild(ptrlink);
     btns.appendChild(ptrclear);
+    */
     ptr.appendChild(ptrval);
-    ptr.appendChild(btns);
+    //ptr.appendChild(btns);
     return ptr; 
 }
 
@@ -441,13 +464,51 @@ function create_type_editor(ed, is_array_element)
     if (ed.field.Pointer)
     {
         var preview = reload_wrapped(function() { return create_pointer_preview(ed.data[ed.datafield], ed.field.Type); });
-        preview._x_context_menu = function() {
-            ipcRenderer.send('edit-pointer', 'ping');
+        var block = reload_wrapped(function() { return create_pointer_editor(ed); });
+        var value_context_menu = function(dom) {
+
+            var ptypes = popups.compatible_types(UserTypes, ed.field.Type);
+            var opts = {};
+            for (var x in ptypes)
+            {
+                opts[x] = { display: ptypes[x].PrettyName, data: x }
+            }
+            ipcRenderer.send('edit-pointer', { types: opts });
+            nextEditPointer = function(arg) {
+                if (arg == "@clear") {
+                    ed.data[ed.datafield] = default_value(ed.field, is_array_element);
+                    on_inline_changed(dom.inline);
+                }
+                else if (arg == "@link") {
+                    popups.ask_instance(UserTypes, Data, ed.field.Type, function(which) {
+                        ed.data[ed.datafield] = which;
+                        on_inline_changed(dom.inline);
+                    });
+                }
+                else if (arg == "@pick-type") {
+                    popups.ask_type(UserTypes, ed.field.Type, function(which) {
+                        if (which != null && which.length > 0)
+                        {
+                            ed.data[ed.datafield] = {
+                                _type: which
+                            };
+                            on_inline_changed(dom.inline);
+                        }
+                    });
+                }
+                else {
+                    ed.data[ed.datafield] = {
+                        _type: arg.data
+                    };
+                    on_inline_changed(dom.inline);
+                }
+            }            
         };
         return {
             inline: preview,
-            block: reload_wrapped(function() { return create_pointer_editor(ed); }),
-            pre_expand: (ed.data[ed.datafield] instanceof Object)
+            block: block,
+            value_context_menu: value_context_menu,
+            pre_expand: !ed.field.Array
         }
     }
 
@@ -489,15 +550,17 @@ function create_type_editor(ed, is_array_element)
     } 
     if (type.Editor == "Text")
     {
-        var ta = document.createElement("textarea");
-        ta.rows = 10;
-        ta.value = iv;
-        ta.addEventListener("change", function() {
-            ed.data[ed.datafield] = ta.value;
-            on_inline_changed(ta);
-        }); 
         return {
-            inline: ta
+            inline: reload_wrapped(function () {
+                var ta = document.createElement("textarea");
+                ta.rows = 10;
+                ta.value = ed.data[ed.datafield] || "";
+                ta.addEventListener("change", function() {
+                    ed.data[ed.datafield] = ta.value;
+                    on_inline_changed(ta);
+                });
+                return ta;
+            })
         };
     }
     if (type.Editor == "Checkbox")
@@ -599,9 +662,9 @@ function create_property(parent, row, objdesc, is_array_element, expanded)
                 delete objdesc.data[objdesc.datafield];
             }
             if (dom.inline && dom.inline._x_reload)
-                dom.inline._x_reload();
+                dom.inline = dom.inline._x_reload();
             if (dom.block && dom.block._x_reload)
-                dom.block._x_reload();
+                dom.block = dom.block._x_reload();
             update_label();
         });
         update_label();
@@ -616,8 +679,8 @@ function create_property(parent, row, objdesc, is_array_element, expanded)
         if (is_array_element)
             _prop_value.classList.add("array-element");
         _prop_value.addEventListener("contextmenu", function() {
-            if (dom.inline._x_context_menu)
-                dom.inline._x_context_menu();
+            if (dom.value_context_menu)            
+                dom.value_context_menu(dom);
         });
         parent.appendChild(_prop_value);
         dom.inline._x_reloaded = function(neue) {
@@ -636,10 +699,10 @@ function create_property(parent, row, objdesc, is_array_element, expanded)
         }
         dom.block.classList.add("block-editor");
         parent.appendChild(dom.block);
-        // dom.block._x_changed = function() { console.log(";aa"); };
         if (dom.inline)
         {
-            if (!expanded && !dom.pre_expand)
+            var expand_me = expanded || dom.pre_expand;
+            if (!expand_me)
                 dom.block.classList.add("collapsed");
             _prop_value.classList.add("click-to-expand");
             _prop_value.addEventListener("click", function() {
@@ -658,6 +721,11 @@ function create_property(parent, row, objdesc, is_array_element, expanded)
                 if (dom.inline._x_reload) {
                     dom.inline = dom.inline._x_reload();
                 }
+            }
+            dom.inline._x_changed = function() {
+                update_label();
+                if (dom.inline._x_reload) { dom.inline = dom.inline._x_reload(); }
+                if (dom.block._x_reload) { dom.block = dom.block._x_reload(); }
             }
         }
     }
@@ -759,20 +827,27 @@ function plugin_config()
     }
 }
 
+ipcRenderer.on('edit-pointer-reply', (event, arg) => {
+    if (nextEditPointer) {
+        nextEditPointer(arg);
+    }
+});
+
 const plugin0 = require('c:/git/oldgods/editor-plugin/plugin.js');
 plugin0.install();
 console.log(plugin0.editors);
-/*
+
+
 databrowser.create(document.body, UserTypes, Data, plugin_config(), function preview(d) {    
     if (d.hasOwnProperty('name'))
         return d['name'];
     return '';
 });
-*/
 
 //popups.ask_type(UserTypes, null, function(which) { console.log("selected ", which); });
 //popups.ask_instance(UserTypes, Data, "item", function(which) { console.log("selected ", which); });
 
-//document.body.appendChild(build_root_entry("maps/testmap", plugin0.editors[0].Editor));*/
-document.body.appendChild(build_root_entry("items/medicament"));
+//document.body.appendChild(build_root_entry("maps/manor-1", plugin0.editors[0].Editor));
+//document.body.appendChild(build_root_entry("manor/music-room/play-instrument"));
+document.body.appendChild(build_root_entry("procitems/trinkets/rune-necklace"));
 

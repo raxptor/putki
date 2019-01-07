@@ -14,6 +14,7 @@ x-info {
 }
 
 x-entry {
+    background-color: #fff;
     display: block;
     grid-column: 1/4;
     padding: 5px;
@@ -22,7 +23,8 @@ x-entry {
 }
 
 x-inline-entry {
-    background-color: #fff;
+    background-color: #ffe;
+    border: 1px dashed;    
     display: block;
     grid-column: 2/4;
 }
@@ -37,7 +39,6 @@ x-path {
     margin-bottom: 8px;
     width: 100%;
     display: block;
-    text-align: center;
 }
 
 x-inline-path {
@@ -85,7 +86,7 @@ x-pointer {
     display: block;
     padding-top: 2px;
     padding-bottom: 2px;
-    border: 1px dashed; 
+    /* border: 1px dashed; */
     grid-column: 2/4;
 }
 
@@ -148,10 +149,10 @@ input[type="checkbox"] {
 }
 
 .block-editor {
-    border: 1px dashed;
     padding: 6px;
     margin-top: 2px;
-    margin-bottom: 6px;
+    margin-bottom: 5px;
+    margin-left: 6px;
 }
 
 /*
@@ -169,6 +170,9 @@ x-array {
     display: grid;
     grid-column: 2/4;
     grid-auto-columns: min-content min-content auto min-content;
+    border: 1px dashed;
+    border-color: #555;
+    border-radius: 8px;
 }
 
 x-prop-index {
@@ -202,11 +206,6 @@ x-property {
     color: #ddd;
 }
 
-/*
-x-property:nth-child(even) {
-}
-*/
-
 x-prop-name {
     cursor: pointer;
     display: block;
@@ -229,7 +228,6 @@ x-prop-value.array-element {
 x-prop-value.preview {
     margin-top: 3px;
     text-overflow: ellipsis;
-    white-space: nowrap;
     overflow: hidden;
 }
 
@@ -239,6 +237,9 @@ x-pointer.array-element {
 
 x-prop-value input {
     width: 98%;
+}
+x-prop-value input[type="checkbox"] {
+    width: unset;
 }
 
 x-prop-value x-array-inline-controls input {

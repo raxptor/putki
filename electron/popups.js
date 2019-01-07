@@ -111,6 +111,8 @@ exports.ask_type = function(alltypes, type_name_root, on_done)
     }, on_done);
 }
 
+exports.compatible_types = compatible_types;
+
 exports.ask_instance = function(alltypes, alldata, type_name_root, on_done)
 {
     var types = compatible_types(alltypes, type_name_root);
