@@ -78,10 +78,14 @@ var UserTypes = {
     }
 }
 */
-var Mod0 = require("/Users/dannilsson/git/oldgods/_gen/js/types.js");
-console.log(Mod0);
 
+var Mod0 = require("c:/git/oldgods/_gen/js/types.js");
+console.log(Mod0);
 var UserTypes = Mod0.Types;
+
+var Data = {};
+//dataloader.load_tree("/Users/dannilsson/git/oldgods/data/", Data, UserTypes);
+dataloader.load_tree("c:/git/oldgods/data", Data, UserTypes);
 
 for (var xx in UserTypes)
 {
@@ -99,9 +103,6 @@ for (var xx in UserTypes)
         }
     })(xx);
 }
-
-var Data = {};
-dataloader.load_tree("/Users/dannilsson/git/oldgods/data/", Data, UserTypes);
 
 
 function clone(src) {
@@ -242,6 +243,8 @@ function create_object_preview_txt(object, type)
     {
         var fn = type.ExpandedFields[x].Name;
         var pn = type.ExpandedFields[x].PrettyName;
+        if (pn == "DynamicDescription")
+            console.log("curke");
         var val = object[fn];
         if (val === undefined || val === null || (val instanceof Array && val.length == 0) ||
             (val instanceof Object && Object.keys(val).length === 0))
@@ -685,9 +688,9 @@ function build_block_entry(objdesc)
         console.log("object changed!");
     };
     return _entry;  
-}  
+} 
 
-function build_full_entry(objdesc, on_new_path)
+function build_full_entry(objdesc, on_new_path, editor_func)
 {
     var _entry = document.createElement('x-entry'); 
     var _path = document.createElement('x-path');
@@ -696,7 +699,11 @@ function build_full_entry(objdesc, on_new_path)
     _path.appendChild(_type_text);
     _path.appendChild(_path_text);
     _entry.appendChild(_path);
-    _entry.appendChild(build_properties(objdesc));
+    if (editor_func != null) {
+        _entry.appendChild(editor_func(plugin_config(), objdesc));
+    } else {
+        _entry.appendChild(build_properties(objdesc));
+    }    
     _path.addEventListener("click", function() {
         dialogs.prompt("Enter new path", objdesc.path, function (p) {
             if (p != null)
@@ -708,17 +715,19 @@ function build_full_entry(objdesc, on_new_path)
             }
         });
     });
-    return _entry;  
+    return _entry;
 }  
 
-function build_root_entry(path)
+function build_root_entry(path, editor_func)
 {
     return build_full_entry(
         {
             path: path,
             type: Data[path]._type,
             data: Data[path]
-        }
+        },
+        null,
+        editor_func,
     );
 }
 
@@ -827,54 +836,19 @@ function ask_type(type_name_root, on_done)
     filter.focus();
 }
 
-document.body.appendChild(build_root_entry("character/samuel-smith"));
-
-/*
-document.body.appendChild(build_full_entry({path: "gurka", type:"Character", data: {
-    "Name": "Pervical Slusk",
-    "Description": "A mastermind of deception",
-    "Mask": { },
-    "Immunities": [
-        "DAMAGE_PHYSICAL",
-        "DAMAGE_UBER"
-    ],
-    "Tags": [ "c", "b", "a" ],
-    "BaseStats": {
-        "Initiative": 4,
-        "SanityPool": 400   
-    },
-    "MultiMasks": [],
-    "Skills": [
-        {
-            Name: "Pin",
-            Description: "Basic skill",
-            _path: "skills/perc/pin",
-            _type: "Skill"
-        },
-        "skills/superlong/text/that/fills",
-        "more/than/fits",
-        "this/one/is/long/too",
-        "skills/guard",
-        "skills/invalid"
-    ]
-}}));
-
-*/
-document.body.appendChild(build_full_entry({path: "CueCumber", type:"atkmodifydamage", data: {
-}}));
-
-/*
-dataloader.load_folder('c:/git/oldgods/unity-proj/Assets/StreamingAssets/GameData');
-dataloader.load_file('c:/git/oldgods/unity-proj/Assets/StreamingAssets/GameData/');
-*/
-
-/*
-var fs = require('fs');
-var path = "c:/git/oldgods/unity-proj/Assets/StreamingAssets/GameData"
-fs.readdir(path, function(err, items) {
-    console.log(items); 
-    for (var i=0; i<items.length; i++) {
-        console.log(items[i]);
+function plugin_config()
+{
+    return { 
+        project_root: "c:/git/oldgods/",
+        types: UserTypes,
+        data: Data,
+        build_root_entry: build_root_entry,
+        build_full_entry: build_full_entry
     }
-});
-*/
+}
+
+const plugin0 = require('c:/git/oldgods/editor-plugin/plugin.js');
+plugin0.install();
+console.log(plugin0.editors);
+
+document.body.appendChild(build_root_entry("maps/testmap", plugin0.editors[0].Editor));
