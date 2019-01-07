@@ -5,8 +5,42 @@
     <title>Electron editor</title>
     <link rel="stylesheet" href="style.css">    
     <link rel="stylesheet" href="popup.css">    
+    <style>
+      body {
+        margin: 0px;
+        padding: 0px;
+      }
+      x-all {
+        display: grid;
+      }
+      x-tabs {
+        grid-row: 1;
+        grid-column: 1/-1;
+        background-color: #eee;
+        padding: 5px;
+        padding-bottom: 5px;
+      }
+      x-tab {
+        display: inline-block;
+        border: 1px solid;        
+        padding: 2px;        
+        margin: 0px;
+      }
+      x-page {
+        grid-row: 2;
+        grid-column: 1;
+        margin: 4px;
+      }
+    </style>
   </head>
-  <body>
+  <body>      
+    <x-all id="content">
+      <x-tabs id="tabs">   
+        <x-tab>Index</x-tab>
+        <x-tab>character/samuel-smith</x-tab>
+        <x-tab>weapontype/gurka</x-tab>
+      </x-tabs>
+    </x-all>
     <script>
       require('./renderer.js')
     </script>   

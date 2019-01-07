@@ -1,5 +1,6 @@
 const { ipcRenderer } = require('electron');
 const dataloader = require('./dataloader');
+const datawriter = require('./datawriter')
 
 var Dialogs = require("dialogs");
 var dialogs = new Dialogs({});
@@ -99,10 +100,6 @@ for (var xx in UserTypes)
         }
     })(xx);
 }
-
-var Data = {};
-dataloader.load_tree("/Users/dannilsson/git/oldgods/data/", Data, UserTypes);
-
 
 function clone(src) {
     console.log("clone", src, JSON.stringify(src), " and reparse ", JSON.parse(JSON.stringify(src)));
@@ -837,41 +834,15 @@ function ask_type(type_name_root, on_done)
     filter.focus();
 }
 
-document.body.appendChild(build_root_entry("character/samuel-smith"));
 
-/*
-document.body.appendChild(build_full_entry({path: "gurka", type:"Character", data: {
-    "Name": "Pervical Slusk",
-    "Description": "A mastermind of deception",
-    "Mask": { },
-    "Immunities": [
-        "DAMAGE_PHYSICAL",
-        "DAMAGE_UBER"
-    ],
-    "Tags": [ "c", "b", "a" ],
-    "BaseStats": {
-        "Initiative": 4,
-        "SanityPool": 400   
-    },
-    "MultiMasks": [],
-    "Skills": [
-        {
-            Name: "Pin",
-            Description: "Basic skill",
-            _path: "skills/perc/pin",
-            _type: "Skill"
-        },
-        "skills/superlong/text/that/fills",
-        "more/than/fits",
-        "this/one/is/long/too",
-        "skills/guard",
-        "skills/invalid"
-    ]
-}}));
+var Data = {};
+dataloader.load_tree("/Users/dannilsson/git/oldgods/data/", Data, UserTypes);
 
-*/
-document.body.appendChild(build_full_entry({path: "CueCumber", type:"atkmodifydamage", data: {
-}}));
+var page = document.createElement('x-page');
+page.appendChild(build_root_entry("character/samuel-smith"));
+document.getElementById('content').appendChild(page);
+
+datawriter.write(UserTypes, Data);
 
 /*
 dataloader.load_folder('c:/git/oldgods/unity-proj/Assets/StreamingAssets/GameData');
