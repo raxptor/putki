@@ -44,3 +44,15 @@ x-type-box.only-one {
     background-color: #000;
     color: #fff;
 }
+
+x-browser {
+    display: block;
+}
+
+x-browser input[type="text"] {
+    width: 100%;
+}
+
+.hidden {
+    display: none;
+}

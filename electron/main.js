@@ -1,6 +1,95 @@
 // Modules to control application life and create native browser window
-const {app, Menu, ipcMain, BrowserWindow} = require('electron')
+const {app, Menu, ipcMain, BrowserWindow} = require('electron');
 
+const template = [
+  {
+    label: 'File',
+    submenu: [
+      {
+        label: "Save"
+      },
+      {
+        label: "Import JSON",
+        click: function() { console.log("Export JSON"); }
+      },      
+      {
+        label: "Export JSON",
+        click: function() { console.log("Export JSON"); }
+      },
+      {
+        role: 'quit'
+      },
+    ]
+  },   
+  {
+     label: 'Edit',
+     submenu: [
+        {
+           role: 'undo'
+        },
+        {
+           role: 'redo'
+        },
+        {
+           type: 'separator'
+        },
+        {
+           role: 'cut'
+        },
+        {
+           role: 'copy'
+        },
+        {
+           role: 'paste'
+        }
+     ]
+  },  
+  {
+     label: 'View',
+     submenu: [
+        {
+           role: 'reload'
+        },
+        {
+           role: 'toggledevtools'
+        },
+        {
+           type: 'separator'
+        },
+        {
+           role: 'resetzoom'
+        },
+        {
+           role: 'zoomin'
+        },
+        {
+           role: 'zoomout'
+        },
+        {
+           type: 'separator'
+        },
+        {
+           role: 'togglefullscreen'
+        }
+     ]
+  },  
+  {
+     role: 'window',
+     submenu: [
+        {
+           role: 'minimize'
+        },
+        {
+           role: 'close'
+        }
+     ]
+  }  
+]
+
+/*
+const menu = Menu.buildFromTemplate(template)
+Menu.setApplicationMenu(menu);
+*/
 // Keep a global reference of the window object, if you don't, the window will
 // be closed automatically when the JavaScript object is garbage collected.
 let mainWindow
@@ -47,25 +136,39 @@ app.on('activate', function () {
 })
 
 ipcMain.on('edit-pointer', (event, arg) => {
+
+  console.log(arg);
+  var submenu = [];
+  for (var x in arg.types) {
+      (function(x) {
+        submenu.push({
+            label: arg.types[x].display,
+            click: function() {
+              event.sender.send('edit-pointer-reply', arg.types[x]);
+            }
+        });
+      })(x);
+  }
+  if (submenu.length > 10) {
+    submenu = [{
+      label: 'New',
+      click: function() {
+        event.sender.send('edit-pointer-reply', '@pick-type');
+      }
+    }];
+  }
   var menu = Menu.buildFromTemplate([{
     label: 'Create',
-    submenu: [
-      {
-          label: 'Default',
-          click: function() {
-            event.sender.send('edit-pointer-reply', 'default')
-          }
-      }
-    ]
+    submenu: submenu
   }, {
     label: 'Link',
     click: function() {
-      event.sender.send('edit-pointer-reply', 'default');
+      event.sender.send('edit-pointer-reply', '@link');
     }
   }, {
     label: 'Clear',
     click: function() {
-      event.sender.send('edit-pointer-reply', 'clear');
+      event.sender.send('edit-pointer-reply', '@clear');
     }
   }]);
   menu.popup({ });  
