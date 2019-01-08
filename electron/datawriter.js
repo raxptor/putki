@@ -93,7 +93,7 @@ function format(types, data, indent, typename)
     }
 }
 
-exports.write = function(types, data)
+exports.write = function(root, types, data)
 {
     var files = {};
     for (var x in data)
@@ -105,13 +105,11 @@ exports.write = function(types, data)
             files[d._file] = file;
         }
         file.push(format(types, d, 0));
-        file.push("\n\n");
     }
-
     for (var x in files)
     {
-        console.log("writing file ", x);
-        fs.writeFileSync(x + "2", files[x].join(""));
-        console.log(files[x].join(""));
+        var pth = path.join(root, x);
+        console.log("writing file ", pth);
+        fs.writeFileSync(pth, files[x].join("\n\n"));
     }
 };

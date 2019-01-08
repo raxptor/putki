@@ -39,6 +39,11 @@ var Primitive = {
     }
 }
 
+function on_change(ed)
+{
+    ipcRenderer.send("change");
+}
+
 function clone(src) {
     console.log("clone", src, JSON.stringify(src), " and reparse ", JSON.parse(JSON.stringify(src)));
     return JSON.parse(JSON.stringify(src));
@@ -108,6 +113,7 @@ function create_array_editor(ed, args)
                             iv.splice(idx, 1);
                             iv.splice(val, 0, org);
                             on_inline_changed(_array._x_reload());
+                            on_change();
                         }
                     });
                 }; } (i)
@@ -116,12 +122,14 @@ function create_array_editor(ed, args)
                 return function() {
                     iv.splice(idx, 0, clone(iv[idx]));
                     on_inline_changed(_array._x_reload());
+                    on_change();
                 }; } (i)
             ));
             ctl0.appendChild(mk_button("del", function(idx) { 
                 return function() {
                     iv.splice(idx, 1);
                     on_inline_changed(_array._x_reload());
+                    on_change();
                 }; } (i)
             ));
             ctl0.style.gridRow = row;
@@ -144,6 +152,7 @@ function create_array_editor(ed, args)
                 return function() {
                     iv.splice(iv.length, 0, default_value(ed.field, true));
                     on_inline_changed(_array._x_reload({ expanded: [iv.length-1] }));
+                    on_change();
                 }; } (i)));
             _array.appendChild(ctl0); 
 
@@ -152,12 +161,14 @@ function create_array_editor(ed, args)
                     popups.ask_type(UserTypes, ed.field.Type, function(seltype) {
                         iv.splice(iv.length, 0, { _type: seltype });
                         on_inline_changed(_array._x_reload({ expanded: [iv.length-1] }));
+                        on_change();
                     });
                 });
                 var ptrlink = mk_button("add link", function() {
                     popups.ask_instance(UserTypes, Data, ed.field.Type, function(selpath) {
                         iv.splice(iv.length, 0, selpath);
                         on_inline_changed(_array._x_reload({ expanded: [iv.length-1] }));
+                        on_change();
                     });
                 });                
                 ctl0.appendChild(ptrnew);
@@ -395,11 +406,13 @@ function create_type_editor(ed, is_array_element)
                 if (arg == "@clear") {
                     ed.data[ed.datafield] = default_value(ed.field, is_array_element);
                     on_inline_changed(dom.inline);
+                    on_change();
                 }
                 else if (arg == "@link") {
                     popups.ask_instance(UserTypes, Data, ed.field.Type, function(which) {
                         ed.data[ed.datafield] = which;
                         on_inline_changed(dom.inline);
+                        on_change();
                     });
                 }
                 else if (arg == "@pick-type") {
@@ -410,6 +423,7 @@ function create_type_editor(ed, is_array_element)
                                 _type: which
                             };
                             on_inline_changed(dom.inline);
+                            on_change();
                         }
                     });
                 }
@@ -418,6 +432,7 @@ function create_type_editor(ed, is_array_element)
                         _type: arg.data
                     };
                     on_inline_changed(dom.inline);
+                    on_change();
                 }
             }            
         };
@@ -441,6 +456,7 @@ function create_type_editor(ed, is_array_element)
                 ip.addEventListener("change", function() {
                     ed.data[ed.datafield] = ip.value.replace("\\n", "\n");
                     on_inline_changed(ip);
+                    on_change();
                 });  
                 return ip;         
             })
@@ -460,6 +476,7 @@ function create_type_editor(ed, is_array_element)
                 ip.addEventListener("change", function() {
                     ed.data[ed.datafield] = ip.value;
                     on_inline_changed(ip);
+                    on_change();
                 });  
                 return ip;
             })
@@ -475,6 +492,7 @@ function create_type_editor(ed, is_array_element)
                 ta.addEventListener("change", function() {
                     ed.data[ed.datafield] = ta.value;
                     on_inline_changed(ta);
+                    on_change();
                 });
                 return ta;
             })
@@ -493,6 +511,7 @@ function create_type_editor(ed, is_array_element)
                 ta.addEventListener("change", function() {
                     ed.data[ed.datafield] = ta.checked;
                     on_inline_changed(ta); 
+                    on_change();
                 });  
                 return ta;
             })
@@ -519,6 +538,7 @@ function create_type_editor(ed, is_array_element)
                         {
                             ed.data[ed.datafield] = type.Values[x].Name; 
                             on_inline_changed(sel);
+                            on_change();
                         }
                     }
                 });
@@ -714,6 +734,7 @@ function build_full_entry(objdesc, on_new_path, editor_func)
                 _path_text.textContent = p;
                 on_new_path(p);
                 on_inline_changed(_path);
+                on_change();
             }
         });
     });
@@ -826,7 +847,28 @@ var UserTypes = {};
 var Data = {};
 var Plugins = [];
 var Editing = {};
+var Configuration = {};
 var Revision = "unknown";
+
+ipcRenderer.on('save', function(event) {
+    document.getElementById('dummy').focus();
+    setTimeout(function() {
+        var root = Configuration.root;
+        if (Configuration.data["data-root"] !== undefined) {
+            datawriter.write(Configuration.data["data-root"], UserTypes, Data);
+        }
+        if (Configuration.data["data-bundle"] !== undefined) {
+            var data = {
+                revision: Revision,
+                data: Data
+            };
+            var pth = path.join(root, Configuration.data["data-bundle"]);
+            fs.writeFileSync(pth, JSON.stringify(data, null, 10), "utf-8");
+            console.log("Wrote bundle to ", pth, "with revision", data.revision);
+        }
+        event.sender.send("saved");
+    }, 50);
+});
 
 ipcRenderer.send('request-configuration');
 ipcRenderer.on('configuration', function(evt, config) {
@@ -834,6 +876,7 @@ ipcRenderer.on('configuration', function(evt, config) {
     var plugins = config.data["plugins"];
     var root = config.root;
     project_root = root;
+    Configuration = config;
     for (var i in js) {
         var p = path.join(root, js[i]);
         console.log("Loading types from", p);

@@ -3,20 +3,27 @@ const {app, Menu, ipcMain, BrowserWindow, dialog} = require('electron');
 const fs = require('fs');
 const path = require('path');
 
+var unsavedChanges = false;
+
+ipcMain.on('change', function() {
+  console.log("Changed");
+  unsavedChanges = true;
+});
+ipcMain.on("saved", function() {
+  console.log("Saved");
+  unsavedChanges = false;
+});
+
 const template = [
   {
     label: 'File',
     submenu: [
       {
-        label: "Save"
-      },
-      {
-        label: "Import JSON",
-        click: function() { console.log("Export JSON"); }
-      },      
-      {
-        label: "Export JSON",
-        click: function() { console.log("Export JSON"); }
+        label: "Save",
+        accelerator: 'CmdOrCtrl+S',        
+        click: function() {
+          mainWindow.webContents.send('save');
+        }
       },
       {
         role: 'quit'
@@ -54,38 +61,9 @@ const template = [
         },
         {
            role: 'toggledevtools'
-        },
-        {
-           type: 'separator'
-        },
-        {
-           role: 'resetzoom'
-        },
-        {
-           role: 'zoomin'
-        },
-        {
-           role: 'zoomout'
-        },
-        {
-           type: 'separator'
-        },
-        {
-           role: 'togglefullscreen'
         }
      ]
-  },  
-  {
-     role: 'window',
-     submenu: [
-        {
-           role: 'minimize'
-        },
-        {
-           role: 'close'
-        }
-     ]
-  }  
+  }
 ]
 
 const menu = Menu.buildFromTemplate(template)
@@ -106,6 +84,30 @@ function createWindow () {
   // Open the DevTools.
   // mainWindow.webContents.openDevTools()
 
+
+  mainWindow.on('close', function(e) {
+    if (unsavedChanges)
+    {
+      e.preventDefault();
+      dialog.showMessageBox(mainWindow, { 
+        type: 'question',
+        title: 'Unsaved changes',
+        buttons: ['Save', 'Discard changes'],
+        message: 'Save before quitting?',
+        detail: 'Click save to save before exiting.',
+      }, function(response) {
+        unsavedChanges = false;
+        if (response == 0) {
+          ipcMain.on("saved", function() {
+            app.quit();
+          });
+          mainWindow.webContents.send("save");
+        } else {
+          app.quit();
+        }
+      });
+    }
+  });
   // Emitted when the window is closed.
   mainWindow.on('closed', function () {
     // Dereference the window object, usually you would store windows
