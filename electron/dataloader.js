@@ -53,7 +53,7 @@ function is_whitespace(c)
 
 function unhex(ch)
 {
-    var x = ch.charCodeAt();
+    var x = ch.toLowerCase().charCodeAt();
     var sym = '09af';
     if (x >= sym.charCodeAt(0) && x <= sym.charCodeAt(1))
         return x - sym.charCodeAt(0);
@@ -152,7 +152,7 @@ function parse(status, rootlevel)
                     {
                         var sb = [];
                         var ws = true;
-                        for (var j=8;j<v.Length;j++)
+                        for (var j=8;j<v.length;j++)
                         {
                             var vc = v[j];
                             if (vc == ' ' || vc == '\t' || vc == '\r' || vc == '\n')
@@ -169,7 +169,7 @@ function parse(status, rootlevel)
                                 sb.push(vc);
                             }
                         }
-                        v = sb.join("");
+                        v = sb.join("").replace( /\\n/g, "\n");
                     }
                     return v;
                 }

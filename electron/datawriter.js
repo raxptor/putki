@@ -15,9 +15,11 @@ function format_string(str, indent)
         var c = str[i];
         var cc = str.charCodeAt(i);
         if (c == '\r')
-            continue;
+            continue;        
         if (c == '\n')
             chars.push("\\n");
+        else if (c == '\\')
+            chars.push("\\\\");
         else if (c == '\t')
             chars.push("\\t");
         else if (c == '\"')
@@ -105,7 +107,10 @@ function format(types, data, indent, typename)
         if (data._path !== undefined) {
              hdr = hdr + data._path + " ";
         }
-        return hdr + "{" + nlsep + pcs.join(delim + nlsep) + finsep + "}";
+        if (indent == 0)
+            return hdr.trim() + "\n{" + nlsep + pcs.join(delim + nlsep) + finsep + "}";    
+        else
+            return hdr + "{" + nlsep + pcs.join(delim + nlsep) + finsep + "}";
     }
     else
     {
@@ -132,6 +137,6 @@ exports.write = function(root, types, data, single_file)
         var pth = path.join(root, x);
         console.log("writing file ", pth);
         fsextra.ensureDirSync(path.dirname(pth));
-        fs.writeFileSync(pth, files[x].join("\n\n"));
+        fs.writeFileSync(pth, files[x].join("\n\n") + "\n");
     }
 };

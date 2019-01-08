@@ -185,8 +185,12 @@ function create_pointer_preview(object, default_type)
     var descs = [];
     if (object instanceof Object)
     {
-        if (object._type !== undefined)
-            descs.push("@" + resolve_type(object._type).PrettyName);
+        if (object._type !== undefined) {
+            // only add type if it has parent, otherwise it is implied.
+            var type = resolve_type(object._type);
+            if (type.hasOwnProperty("Parent"))
+                descs.push("@" + resolve_type(object._type).PrettyName);
+        }
         if (object._path !== undefined)
             descs.push(object._path);
         descs.push(create_object_preview_txt(object, resolve_type(object._type || default_type)));
@@ -454,11 +458,11 @@ function create_type_editor(ed, is_array_element)
             inline: reload_wrapped(function() {
                 var ip = document.createElement("input");
                 if (ed.data[ed.datafield] !== undefined)
-                    ip.value = ed.data[ed.datafield].replace("\n", "\\n");
+                    ip.value = ed.data[ed.datafield].replace(/\n/g, "\\n");
                 else
                     ip.value = default_value(ed.field, is_array_element);
                 ip.addEventListener("change", function() {
-                    ed.data[ed.datafield] = ip.value.replace("\\n", "\n");
+                    ed.data[ed.datafield] = ip.value.replace(/\n/g, "\n");
                     on_inline_changed(ip);
                     on_change();
                 });  
@@ -888,6 +892,10 @@ ipcRenderer.on('save', function(event) {
     setTimeout(function() {
         var root = Configuration.root;
         if (Configuration.data["data-root"] !== undefined) {
+            // untag those that remain.
+            for (var k in Data) {
+                FileSet[Data[k]._file] = false;
+            }
             for (var k in FileSet) {
                 if (FileSet[k]) {
                     fs.unlinkSync(path.join(root, Configuration.data["data-root"], k));

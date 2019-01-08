@@ -50,7 +50,7 @@ exports.create = function(onto, types, data, plugins, config, data_browser_previ
                                 if (p != null)
                                 {
                                     data[p.toLowerCase()] = {
-                                        _path: p.toLowerCase().replace('\\', '/').replace(' ', '-'),
+                                        _path: p.toLowerCase().replace( /\\/g, '/').replace(' ', '-'),
                                         _type: which,
                                         _file: fn
                                     };

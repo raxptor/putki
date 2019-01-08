@@ -129,8 +129,7 @@ x-properties .no-value {
 
 .click-to-expand {
     cursor: pointer;
-    color: #003;
-    font-style: italic;
+    color: #003;    
 }
 
 .click-to-expand:hover {
