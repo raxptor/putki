@@ -1,39 +1,36 @@
 var fs = require('fs');
 var path = require('path');
 
-
-/*
-function make_array(types, data)
+function format_string(str)
 {
-    var c = [];
-    for (var i=0;i<data.length;i++)
-        c.push(make(types, data));
-    return {
-        pre: "[",
-        contents: c,
-        post: "]"
-    }
-}
-
-function make_object(types, data)
-{
-    var pcs = [];
-    for (var d in data) {
-        if (d.charAt(0) != '_') {
-            var val = data[d];
-            pcs.push(d + ": " + make(data[d]) )
-            if (val instanceof Array)
-                pcs.push(make_array());
-            else
-                pcs.push(d + ": " + data[d]);
+    var chars = [];
+    var hex = "0123456789ABCDEF";
+    for (var i=0;i<str.length;i++)
+    {
+        var c = str[i];
+        var cc = str.charCodeAt(i);
+        if (c == '\r')
+            continue;
+        if (c == '\n')
+            chars.push("\\n");
+        else if (c == '\t')
+            chars.push("\\t");
+        else if (c == '\"')
+            chars.push("\\\"");
+        else if (cc <= 127 || c == ' ')
+            chars.push(c);
+        else {
+            chars.push("\\u");
+            chars.push(hex[(cc >> 12) & 0xf]);
+            chars.push(hex[(cc >> 8) & 0xf]);
+            chars.push(hex[(cc >> 4) & 0xf]);
+            chars.push(hex[(cc >> 0) & 0xf]);
         }
     }
-    return {
-        pre: "@" + types[data._type].PrettyName + " " + data._path + " {",
-        contents: pcs,
-        post: "}"
-    };
-}*/
+    return "\"" + chars.join("") + "\"";
+}
+
+var unfiltered = ["I32", "U32", "U8", "Float", "Bool"];
 
 function format(types, data, indent, typename)
 {
@@ -53,6 +50,16 @@ function format(types, data, indent, typename)
         delim = ",";
     }
 
+    if (data.constructor == String && unfiltered.indexOf(typename) != -1)
+    {
+        return data;
+    }
+
+    if (data.constructor == String) 
+    {
+        return format_string(data);
+    }
+
     if (data instanceof Array)
     {
         var pcs = [];
@@ -65,7 +72,7 @@ function format(types, data, indent, typename)
     {
         var pcs = [];
         var type = types[data._type || typename];
-        var flds = type.Fields;
+        var flds = type.ExpandedFields;
         for (var i=0;i<flds.length;i++) {
             var f = flds[i].Name;
             if (data[f] === undefined)
@@ -93,16 +100,17 @@ function format(types, data, indent, typename)
     }
 }
 
-exports.write = function(root, types, data)
+exports.write = function(root, types, data, single_file)
 {
     var files = {};
     for (var x in data)
     {
         var d = data[x]; 
-        var file = files[d._file];
+        var actual = single_file || d._file;
+        var file = files[actual];
         if (file === undefined) {
             file = [];
-            files[d._file] = file;
+            files[actual] = file;
         }
         file.push(format(types, d, 0));
     }

@@ -866,6 +866,10 @@ ipcRenderer.on('save', function(event) {
             fs.writeFileSync(pth, JSON.stringify(data, null, 10), "utf-8");
             console.log("Wrote bundle to ", pth, "with revision", data.revision);
         }
+        if (Configuration.data["game-export"] !== undefined) {
+            console.log("Writing game export bundle to", Configuration.data["game-export"]);
+            datawriter.write(root, UserTypes, Data, Configuration.data["game-export"]);
+        }
         event.sender.send("saved");
     }, 50);
 });
@@ -877,6 +881,7 @@ ipcRenderer.on('configuration', function(evt, config) {
     var root = config.root;
     project_root = root;
     Configuration = config;
+    document.title = config.data["title"];
     for (var i in js) {
         var p = path.join(root, js[i]);
         console.log("Loading types from", p);
