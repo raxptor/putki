@@ -1,5 +1,6 @@
 var fs = require('fs');
 var path = require('path');
+const fsextra = require('fs-extra');
 
 function format_string(str, indent)
 {
@@ -130,6 +131,7 @@ exports.write = function(root, types, data, single_file)
     {
         var pth = path.join(root, x);
         console.log("writing file ", pth);
+        fsextra.ensureDirSync(path.dirname(pth));
         fs.writeFileSync(pth, files[x].join("\n\n"));
     }
 };

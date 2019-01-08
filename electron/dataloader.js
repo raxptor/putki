@@ -309,7 +309,7 @@ function tree_sync(root, cb)
     }
 }
 
-exports.load_tree = function(_path, result)
+exports.load_tree = function(_path, result, result_file_set)
 {
     tree_sync(_path, function(file) {
         var data = strip_comments(fs.readFileSync(file, "utf8"));
@@ -320,6 +320,8 @@ exports.load_tree = function(_path, result)
             result: result,
             file: path.relative(_path, file).replace(/\\/g, "/")
         };
+        if (result_file_set)
+            result_file_set[pd.file] = true;
         parse(pd, true);
         if (pd.error)
         {

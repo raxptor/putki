@@ -12,6 +12,7 @@
     "electron": "^3.0.7"
   },
   "dependencies": {
-    "dialogs": "^1.1.20"
+    "dialogs": "^1.1.20",
+    "fs-extra": "^7.0.1"
   }
 }

@@ -859,6 +859,7 @@ var Data = {};
 var Plugins = [];
 var Editing = {};
 var Configuration = {};
+var FileSet = {};
 var Revision = "unknown";
 
 ipcRenderer.on('choose-menu', function(event, data) {
@@ -887,7 +888,16 @@ ipcRenderer.on('save', function(event) {
     setTimeout(function() {
         var root = Configuration.root;
         if (Configuration.data["data-root"] !== undefined) {
+            for (var k in FileSet) {
+                if (FileSet[k]) {
+                    fs.unlinkSync(path.join(root, Configuration.data["data-root"], k));
+                    FileSet[k] = false;
+                }
+            }
             datawriter.write(path.join(root, Configuration.data["data-root"]), UserTypes, Data);
+            for (var k in Data) {
+                FileSet[Data[k]._file] = true;
+            }
         }
         if (Configuration.data["data-bundle"] !== undefined) {
             var data = {
@@ -946,7 +956,7 @@ ipcRenderer.on('configuration', function(evt, config) {
         })(xx);
     }
     if (config.data["data-root"] !== undefined) {
-        dataloader.load_tree(path.join(root, config.data["data-root"]), Data);
+        dataloader.load_tree(path.join(root, config.data["data-root"]), Data, FileSet);
     }
     if (config.data["data-bundle"] !== undefined) {
         var tmp = JSON.parse(fs.readFileSync(path.join(root, config.data["data-bundle"]), "utf-8"));
