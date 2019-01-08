@@ -1,4 +1,7 @@
-function ask_with_filter(make_contents, on_done)
+var Dialogs = require("dialogs");
+var dialogs = new Dialogs({});
+
+function ask_with_filter(make_contents, on_done, accept_any)
 {
     var popup = document.createElement('div');
     popup.classList.add("modal");
@@ -17,9 +20,10 @@ function ask_with_filter(make_contents, on_done)
     form.onsubmit = function(event) {
         event.preventDefault();
         document.body.removeChild(popup);
-        if (pick)
-        {
+        if (pick) {
             on_done(pick.data);
+        } else if (accept_any) {
+            on_done(filter.value);
         }
     };
 
@@ -34,7 +38,7 @@ function ask_with_filter(make_contents, on_done)
         {
             var tp = filtered[idx];
             var typeBox = document.createElement('x-type-box');
-            if (filtered.length == 1 || tp.exact)
+            if ((!accept_any && filtered.length == 1) || tp.exact)
             {
                 typeBox.classList.add("only-one");
                 pick = tp;
@@ -113,21 +117,37 @@ exports.ask_type = function(alltypes, type_name_root, on_done)
 
 exports.ask_file = function(data, on_done)
 {
-    ask_with_filter(function(fstr) {        
+    ask_with_filter(function(fstr) {
+        var possible = {};
+        for (var x in data)
+        {
+            if (data[x]._file !== undefined)
+                possible[data[x]._file.replace('\\', '/')] = true;
+        }
         var filtered = [];
         var lower = fstr.toLowerCase();
-        for (var idx in data)
+        for (var x in possible)
         {
-            if (fstr.length > 0 && idx.toLowerCase().indexOf(lower) == -1)
+            if (fstr.length > 0 && x.toLowerCase().indexOf(lower) == -1)
                 continue;
             filtered.push({
-                data: idx,
-                exact: idx == lower,
-                display: '@' + tp.PrettyName
+                data: x,
+                exact: x.toLowerCase() == lower,
+                display: x
             });
         }
         return filtered;
-    }, on_done);
+    }, function (which) {
+        console.log("on_done", which);
+        if (which == "$custom") {
+            dialogs.prompt("Enter new filename", "new.txt", function(val) {
+                if (val !== null)
+                    on_done(val);
+            });
+        } else {
+            on_done(which);
+        }
+    }, true);
 }
 
 exports.compatible_types = compatible_types;

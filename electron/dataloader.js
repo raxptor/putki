@@ -318,7 +318,7 @@ exports.load_tree = function(_path, result)
             pos: 0,
             error: false,
             result: result,
-            file: path.relative(_path, file)
+            file: path.relative(_path, file).replace(/\\/g, "/")
         };
         parse(pd, true);
         if (pd.error)

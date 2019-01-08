@@ -19,6 +19,12 @@ const template = [
     label: 'File',
     submenu: [
       {
+        label: "New object",
+        click: function() {
+          mainWindow.webContents.send('new-object');          
+        }
+      },
+      {
         label: "Save",
         accelerator: 'CmdOrCtrl+S',        
         click: function() {
@@ -174,6 +180,23 @@ app.on('activate', function () {
     createWindow()
   }
 })
+
+ipcMain.on('choose-menu', (event, args) => {
+  var submenu = [];
+  for (var i=0;i<args.length;i++)
+  {
+    (function(i) {
+      submenu.push({
+        label: args[i].Title,
+        click: function() {
+          event.sender.send("choose-menu", args[i].Data);
+        }
+      });
+    })(i);
+  }
+  var menu = Menu.buildFromTemplate(submenu);
+  menu.popup({});    
+});
 
 ipcMain.on('edit-pointer', (event, arg) => {
 

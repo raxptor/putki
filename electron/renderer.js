@@ -8,6 +8,7 @@ const databrowser = require('./databrowser');
 
 var Dialogs = require("dialogs");
 var dialogs = new Dialogs({});
+var reload_browser = function() { console.log("Not reloading browser"); }
 
 var Primitive = {
     "String": {
@@ -733,11 +734,18 @@ function build_full_entry(objdesc, on_new_path, editor_func)
         dialogs.prompt("Enter new path", objdesc.path, function (p) {
             if (p != null)
             {
+                var old = Data[objdesc.path];
+                delete Data[objdesc.path];
+                Data[p] = old;
+                old._path = p;
                 objdesc.path = p;
                 _path_text.textContent = p;
-                on_new_path(p);
+                if (on_new_path)
+                    on_new_path(p);
+                
                 on_inline_changed(_path);
                 on_change();
+                reload_browser();
             }
         });
     });
@@ -853,6 +861,27 @@ var Editing = {};
 var Configuration = {};
 var Revision = "unknown";
 
+ipcRenderer.on('choose-menu', function(event, data) {
+    console.log("picked ", data);
+    if (data.command == "plugin-edit") {
+        open_editor(data.path, Plugins[data.plugin].editors[data.editor].Editor);
+    } else if (data.command == "edit") {
+        open_editor(data.path);
+    } else if (data.command == "move") {
+        popups.ask_file(Data, function(npath) {
+            Data[data.path]._file = npath;
+            reload_browser();
+        });        
+    } else if (data.command == "delete") {
+        dialogs.confirm("Really delete " + data.path + "?", function(ok) {
+            if (ok) {
+                delete Data[data.path];
+                reload_browser();
+            }
+        });
+    }
+});
+
 ipcRenderer.on('save', function(event) {
     document.getElementById('dummy').focus();
     setTimeout(function() {
@@ -928,12 +957,35 @@ ipcRenderer.on('configuration', function(evt, config) {
         console.log("Loaded data bundle from revision ", Revision);
     }
     add_page("Index", function(page) {
-        databrowser.create(page, UserTypes, Data, plugin_config(), function preview(d) {    
+        var browser = databrowser.create(page, UserTypes, Data, Plugins, plugin_config(), function preview(d) {    
             if (d.hasOwnProperty('name'))
                 return d['name'];
             return '';
         }, function(path) {
             open_editor(path);
+        });
+        reload_browser = function() { browser._x_reload(); }
+    });    
+});
+
+ipcRenderer.on("new-object", function() {
+    var fn = function(type, file) {
+        dialogs.prompt("Enter object path", "new/instance", function(path) {
+            if (path) {
+                Data[path] = {
+                    _path: path,
+                    _type: type,
+                    _file: file
+                };
+                reload_browser();
+            }
+        });
+    };
+    popups.ask_type(UserTypes, null, function(type) {
+        popups.ask_file(Data, function(which) {
+            if (which) {
+                fn(type, which);
+            }
         });
     });
 });
@@ -951,7 +1003,6 @@ datawriter.write(UserTypes, Data);
 
 //popups.ask_type(UserTypes, null, function(which) { console.log("selected ", which); });
 //popups.ask_instance(UserTypes, Data, "item", function(which) { console.log("selected ", which); });
-//popups.ask_file(Data, function(which) { console.log("selected ", which); });
 
 //document.body.appendChild(build_root_entry("manor/music-room/play-instrument"));
 //document.body.appendChild(build_root_entry("procitems/trinkets/rune-necklace"));

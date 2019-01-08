@@ -1,3 +1,4 @@
+const { ipcRenderer } = require('electron');
 var popups = require('./popups');
 var Dialogs = require("dialogs");
 var dialogs = new Dialogs({});
@@ -13,7 +14,7 @@ function mk_button(command, fn)
     return _input;
 }
 
-exports.create = function(onto, types, data, config, data_browser_preview, start_editing) {
+exports.create = function(onto, types, data, plugins, config, data_browser_preview, start_editing) {
     var base = document.createElement('x-browser');
 
     var form = document.createElement('form');
@@ -76,7 +77,25 @@ exports.create = function(onto, types, data, config, data_browser_preview, start
             (function(_path) {
                 path.addEventListener('click', function() {
                     start_editing(_path);
-                })
+                });
+                path.addEventListener('contextmenu', function() {
+                    var opts = [
+                        { Title:"Edit", Data: { command: "edit", path: _path } },
+                        { Title:"Move", Data: { command: "move", path: _path } },                        
+                        { Title:"Delete", Data: { command: "delete", path: _path } }
+                    ];
+                    for (var i=0;i<plugins.length;i++) {
+                        for (var j=0;j<plugins[i].editors.length;j++)
+                        {
+                            if (plugins[i].editors[j].Type == data[_path]._type)
+                            {
+                                opts.push( { Title:"Edit with " + plugins[i].editors[j].Description, Data: { command: "plugin-edit", path:_path, plugin:i, editor:j } } );
+                            }
+                        }
+                    }
+                    console.log("Opts menu", opts);
+                    ipcRenderer.send('choose-menu', opts);
+                });
             })(data[x]._path);
             e.items.push({ path:data[x]._path, type:data[x]._type, elements: [path, type, preview] });
         }
@@ -156,6 +175,8 @@ exports.create = function(onto, types, data, config, data_browser_preview, start
     filter.addEventListener("input", function() { 
         setTimeout(filtrate, 10)
     });
-
+    base._x_reload = function() {
+        rebuild();
+    };
     return base;
 }
