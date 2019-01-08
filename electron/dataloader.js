@@ -327,7 +327,6 @@ exports.load_tree = function(_path, result)
             return false;
         }
     });
-    console.log(result);
     return true;
 }
 

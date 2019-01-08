@@ -3,6 +3,7 @@ const dataloader = require('./dataloader');
 const datawriter = require('./datawriter')
 const popups = require('./popups');
 const path = require('path');
+const fs = require('fs');
 const databrowser = require('./databrowser');
 
 var Dialogs = require("dialogs");
@@ -254,9 +255,12 @@ function reload_wrapped(new_fn)
         var neue = new_fn(args);
         neue._x_changed = preview._x_changed;
         neue._x_context_menu = preview._x_context_menu;
-        neue.classList = preview.classList;
-        if (preview.style)
-            neue.style.gridRow = preview.style.gridRow;
+        var transfer = ["array-element"];
+        if (preview.classList !== undefined) {
+            for (var i=0;i<transfer.length;i++)
+                if (preview.classList.contains(transfer[i]))
+                    neue.classList.add(transfer[i]);
+        }
         preview._x_destroyed = "I was destroyed through reload_wrapped";
         neue._x_reload = preview._x_reload;
         delete preview._x_reload;        
@@ -729,7 +733,7 @@ function build_root_entry(path, editor_func)
     );
 }
 
-var project_root = "/Users/dannilsson/git/oldgods"
+var project_root = null;
 
 function plugin_config()
 {
@@ -818,51 +822,76 @@ function open_editor(path, editor)
     }
 }
 
-var Mod0 = require(path.join(project_root, '_gen/js/types.js'));
-var UserTypes = Mod0.Types;
-
-
-for (var xx in UserTypes)
-{
-    (function (x) {
-        var all = [];
-        var add = function(tn) {
-            all = all.concat(UserTypes[tn].Fields);
-            if (UserTypes[tn].Parent !== undefined)
-                add(UserTypes[tn].Parent);
-        };
-        if (UserTypes[x].Fields !== undefined)
-        {
-            add(x);
-            UserTypes[x].ExpandedFields = all;
-        }
-    })(xx);
-}
-
+var UserTypes = {};
 var Data = {};
+var Plugins = [];
 var Editing = {};
-dataloader.load_tree(path.join(project_root, 'unity-proj/Assets/StreamingAssets/GameData'), Data);
+var Revision = "unknown";
 
-const plugin0 = require(path.join(project_root, 'editor-plugin/plugin.js'));
-plugin0.install();
-
-
-
-add_page("Index", function(page) {
-    databrowser.create(page, UserTypes, Data, plugin_config(), function preview(d) {    
-        if (d.hasOwnProperty('name'))
-            return d['name'];
-        return '';
-    }, function(path) {
-        open_editor(path);
-    });
+ipcRenderer.send('request-configuration');
+ipcRenderer.on('configuration', function(evt, config) {
+    var js = config.data["gen-js"];
+    var plugins = config.data["plugins"];
+    var root = config.root;
+    project_root = root;
+    for (var i in js) {
+        var p = path.join(root, js[i]);
+        console.log("Loading types from", p);
+        var mod = require(p);
+        for (var x in mod.Types) {
+            UserTypes[x] = mod.Types[x];
+        }
+    }
+    for (var i in plugins) {
+        var p = path.join(root, plugins[i]);
+        console.log("Loading plugin from", p);
+        var plugin = require(p);
+        plugin.install();
+        Plugins.push(plugin);        
+    }
+    for (var xx in UserTypes)
+    {
+        (function (x) {
+            var all = [];
+            var add = function(tn) {
+                all = all.concat(UserTypes[tn].Fields);
+                if (UserTypes[tn].Parent !== undefined)
+                    add(UserTypes[tn].Parent);
+            };
+            if (UserTypes[x].Fields !== undefined)
+            {
+                add(x);
+                UserTypes[x].ExpandedFields = all;
+            }
+        })(xx);
+    }
+    if (config.data["data-root"] !== undefined) {
+        dataloader.load_tree(path.join(root, config.data["data-root"]), Data);
+    }
+    if (config.data["data-bundle"] !== undefined) {
+        var tmp = JSON.parse(fs.readFileSync(path.join(root, config.data["data-bundle"]), "utf-8"));
+        for (var x in tmp.data) {
+            Data[x] = tmp.data[x];
+        }
+        Revision = tmp.revision;
+        console.log("Loaded data bundle from revision ", Revision);
+    }
+    add_page("Index", function(page) {
+        databrowser.create(page, UserTypes, Data, plugin_config(), function preview(d) {    
+            if (d.hasOwnProperty('name'))
+                return d['name'];
+            return '';
+        }, function(path) {
+            open_editor(path);
+        });
+    });    
 });
 
+
+/*
 open_editor("game");
-
 open_editor("maps/manor-1", plugin0.editors[0].Editor);
-
-
+*/
 /*
 datawriter.write(UserTypes, Data);
 =======

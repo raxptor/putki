@@ -1,5 +1,7 @@
 // Modules to control application life and create native browser window
-const {app, Menu, ipcMain, BrowserWindow} = require('electron');
+const {app, Menu, ipcMain, BrowserWindow, dialog} = require('electron');
+const fs = require('fs');
+const path = require('path');
 
 const template = [
   {
@@ -86,10 +88,9 @@ const template = [
   }  
 ]
 
-/*
 const menu = Menu.buildFromTemplate(template)
 Menu.setApplicationMenu(menu);
-*/
+
 // Keep a global reference of the window object, if you don't, the window will
 // be closed automatically when the JavaScript object is garbage collected.
 let mainWindow
@@ -97,6 +98,7 @@ let mainWindow
 function createWindow () {
   // Create the browser window.
   mainWindow = new BrowserWindow({width: 800, height: 600})
+  mainWindow.configPath = configPath;
 
   // and load the index.html of the app.
   mainWindow.loadFile('index.html')
@@ -113,10 +115,46 @@ function createWindow () {
   })
 }
 
-// This method will be called when Electron has finished
-// initialization and is ready to create browser windows.
-// Some APIs can only be used after this event occurs.
-app.on('ready', createWindow)
+var configPath = process.env.PUTKED;
+
+function try_load(path, on_done)
+{
+  if (path != null && path != undefined) {
+    var data = fs.readFileSync(configPath, "utf-8");
+    if (data != null) {
+      on_done(data);
+      return;
+    }
+  }
+  dialog.showOpenDialog(mainWindow, { filters: [{name: 'Configuration file', extensions: ['putked']}] }, function(x) {    
+    if (x == undefined || x.length == 0) {
+      dialog.showMessageBox(mainWindow, { 
+        type: 'error',
+        title: 'Error',
+        message: 'You need to pick a configuration file for the project you want to edit.'
+      }, function() {
+        app.quit();
+      });
+      return;
+    }
+    configPath = x[0];
+    try_load(configPath, on_done);
+  });
+}
+
+ipcMain.on('request-configuration', function(evt, ed) {
+  try_load(configPath, function(data) {
+    evt.sender.send('configuration', {
+      config_path: configPath,
+      root: path.dirname(configPath),
+      data: JSON.parse(data)
+    });
+  });
+});
+  
+app.on('ready', function() {
+  createWindow();
+});
 
 // Quit when all windows are closed.
 app.on('window-all-closed', function () {

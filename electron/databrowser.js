@@ -15,11 +15,17 @@ function mk_button(command, fn)
 
 exports.create = function(onto, types, data, config, data_browser_preview, start_editing) {
     var base = document.createElement('x-browser');
+
+    var form = document.createElement('form');
     var filter = document.createElement('input');
     filter.type = "text";
-    base.appendChild(filter);
+    form.appendChild(filter);
+    base.appendChild(form);
     var grid = null;
     var fn_map = {};
+
+    var pick = null;
+
     var rebuild = function() {  
         if (grid)
             base.removeChild(grid);
@@ -74,7 +80,7 @@ exports.create = function(onto, types, data, config, data_browser_preview, start
             })(data[x]._path);
             e.items.push({ path:data[x]._path, type:data[x]._type, elements: [path, type, preview] });
         }
-        var count = 0;
+        var count = 0;        
         for (var x in fn_map) {
             var e = fn_map[x];
             e.header.style.gridRow = ++count;
@@ -99,7 +105,9 @@ exports.create = function(onto, types, data, config, data_browser_preview, start
     filter.focus();
 
     function filtrate() {
-        var search = filter.value.toLowerCase();        
+        var search = filter.value.toLowerCase();
+        var totFound = 0;
+        var last = null;
         for (var x in fn_map) {
             var e = fn_map[x];            
             e.header.classList.remove('hidden');        
@@ -118,6 +126,8 @@ exports.create = function(onto, types, data, config, data_browser_preview, start
                 }
                 else
                 {
+                    last = e.items[i].path;
+                    totFound++;
                     found++;
                 }
             }
@@ -127,9 +137,21 @@ exports.create = function(onto, types, data, config, data_browser_preview, start
                 e.controls.classList.add('hidden');
             }
         }        
+
+        if (totFound == 1)
+            pick = last;
+        else
+            pick = null;
     }
 
     filtrate();
+
+    form.onsubmit = function(event) {
+        event.preventDefault();
+        if (pick != null) {
+            start_editing(pick);
+        }
+    };
 
     filter.addEventListener("input", function() { 
         setTimeout(filtrate, 10)
