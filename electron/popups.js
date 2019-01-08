@@ -111,6 +111,25 @@ exports.ask_type = function(alltypes, type_name_root, on_done)
     }, on_done);
 }
 
+exports.ask_file = function(data, on_done)
+{
+    ask_with_filter(function(fstr) {        
+        var filtered = [];
+        var lower = fstr.toLowerCase();
+        for (var idx in data)
+        {
+            if (fstr.length > 0 && idx.toLowerCase().indexOf(lower) == -1)
+                continue;
+            filtered.push({
+                data: idx,
+                exact: idx == lower,
+                display: '@' + tp.PrettyName
+            });
+        }
+        return filtered;
+    }, on_done);
+}
+
 exports.compatible_types = compatible_types;
 
 exports.ask_instance = function(alltypes, alldata, type_name_root, on_done)

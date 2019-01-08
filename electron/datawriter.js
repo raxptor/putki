@@ -1,8 +1,12 @@
 var fs = require('fs');
 var path = require('path');
 
-function format_string(str)
+function format_string(str, indent)
 {
+    // indent = -1 means trial.
+    if (indent == -1)
+        return str;
+
     var chars = [];
     var hex = "0123456789ABCDEF";
     for (var i=0;i<str.length;i++)
@@ -17,9 +21,9 @@ function format_string(str)
             chars.push("\\t");
         else if (c == '\"')
             chars.push("\\\"");
-        else if (cc <= 127 || c == ' ')
+        else if (cc <= 127 || c == ' ')            
             chars.push(c);
-        else {
+        else {            
             chars.push("\\u");
             chars.push(hex[(cc >> 12) & 0xf]);
             chars.push(hex[(cc >> 8) & 0xf]);
@@ -39,6 +43,7 @@ function format(types, data, indent, typename)
     var finsep = "";
     var m = 0;
 
+    /*
     if (indent != -1)
         m = (format(types, data, -1, typename) || "").length;
     if (indent != -1 && indent * 6 + m > 120) {
@@ -49,6 +54,11 @@ function format(types, data, indent, typename)
         nlsep = " ";
         delim = ",";
     }
+    */
+
+    // quick
+    nlsep = "\n" + "\t".repeat(indent+1);
+    finsep = "\n" + "\t".repeat(indent);
 
     if (data.constructor == String && unfiltered.indexOf(typename) != -1)
     {
@@ -57,7 +67,7 @@ function format(types, data, indent, typename)
 
     if (data.constructor == String) 
     {
-        return format_string(data);
+        return format_string(data, indent);
     }
 
     if (data instanceof Array)
@@ -76,6 +86,8 @@ function format(types, data, indent, typename)
         for (var i=0;i<flds.length;i++) {
             var f = flds[i].Name;
             if (data[f] === undefined)
+                continue;
+            if (flds[i].Array && data[f].length == 0)
                 continue;
             var frmted = format(types, data[f], indent+1, flds[i].Type);
             if (frmted !== null)

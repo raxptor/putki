@@ -272,6 +272,9 @@ function reload_wrapped(new_fn)
                 if (preview.classList.contains(transfer[i]))
                     neue.classList.add(transfer[i]);
         }
+        if (preview.style !==undefined && preview.style.gridRow !== undefined && neue.style !== undefined)
+            neue.style.gridRow = preview.style.gridRow;
+
         preview._x_destroyed = "I was destroyed through reload_wrapped";
         neue._x_reload = preview._x_reload;
         delete preview._x_reload;        
@@ -855,7 +858,7 @@ ipcRenderer.on('save', function(event) {
     setTimeout(function() {
         var root = Configuration.root;
         if (Configuration.data["data-root"] !== undefined) {
-            datawriter.write(Configuration.data["data-root"], UserTypes, Data);
+            datawriter.write(path.join(root, Configuration.data["data-root"]), UserTypes, Data);
         }
         if (Configuration.data["data-bundle"] !== undefined) {
             var data = {
@@ -932,13 +935,14 @@ ipcRenderer.on('configuration', function(evt, config) {
         }, function(path) {
             open_editor(path);
         });
-    });    
+    });
 });
+
 
 
 /*
 open_editor("game");
-open_editor("maps/manor-1", plugin0.editors[0].Editor);
+
 */
 /*
 datawriter.write(UserTypes, Data);
@@ -947,6 +951,7 @@ datawriter.write(UserTypes, Data);
 
 //popups.ask_type(UserTypes, null, function(which) { console.log("selected ", which); });
 //popups.ask_instance(UserTypes, Data, "item", function(which) { console.log("selected ", which); });
+//popups.ask_file(Data, function(which) { console.log("selected ", which); });
 
 //document.body.appendChild(build_root_entry("manor/music-room/play-instrument"));
 //document.body.appendChild(build_root_entry("procitems/trinkets/rune-necklace"));
