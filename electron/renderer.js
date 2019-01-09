@@ -654,9 +654,14 @@ function create_property(parent, row, objdesc, is_array_element, expanded)
     {
         _prop_value = document.createElement('x-prop-value'); 
         _prop_value.appendChild(dom.inline);
-        _prop_value.style.gridRow = row;
+        _prop_value.style.gridRow = row;        
         if (is_array_element)
             _prop_value.classList.add("array-element");
+
+        var value = (objdesc.data.hasOwnProperty(objdesc.datafield) && objdesc.data[objdesc.datafield]) || undefined;
+        if (value == undefined || (value instanceof Array && value.length == 0))
+            _prop_value.classList.add("no-value");
+
         _prop_value.addEventListener("contextmenu", function() {
             if (dom.value_context_menu)            
                 dom.value_context_menu(dom);
@@ -821,6 +826,26 @@ ipcRenderer.on('edit-pointer-reply', (event, arg) => {
     if (nextEditPointer) {
         nextEditPointer(arg);
     }
+});
+
+function show_unset_values(show)
+{
+    if (!show)
+    {
+        if (unsetHidden.sheet.length > 0)
+            unsetHidden.sheet.removeRule(0);
+        unsetHidden.sheet.insertRule(".no-value { display: none; }", 0);
+    }
+    else
+    {
+        unsetHidden.sheet.removeRule(0);
+    }
+}
+
+var unsetHidden = document.createElement('style');
+document.head.appendChild(unsetHidden);
+ipcRenderer.on('show-unset', (event, arg) => {
+    show_unset_values(arg);
 });
 
 function activateTab(tab)

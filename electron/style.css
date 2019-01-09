@@ -129,7 +129,7 @@ x-properties .no-value {
 
 .click-to-expand {
     cursor: pointer;
-    color: #003;    
+    color: #003;
 }
 
 .click-to-expand:hover {
@@ -212,7 +212,7 @@ x-property {
 }
 
 .nullptr {
-    color: red;
+    color: #004;
 }
 
 x-prop-name {

@@ -67,6 +67,14 @@ const template = [
         },
         {
            role: 'toggledevtools'
+        },
+        {
+          label: 'Show unset values',
+          type: 'checkbox',
+          checked: true,
+          click: function(mi) {
+            mainWindow.webContents.send('show-unset', mi.checked);
+          }
         }
      ]
   }
