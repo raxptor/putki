@@ -83,13 +83,14 @@ exports.create = function(onto, types, data, plugins, config, data_browser_previ
                         { Title:"Edit", Data: { command: "edit", path: _path } },
                         { Title:"Move", Data: { command: "move", path: _path } },                        
                         { Title:"Delete", Data: { command: "delete", path: _path } }
-                    ];
+                    ];                    
                     for (var i=0;i<plugins.length;i++) {
-                        for (var j=0;j<plugins[i].editors.length;j++)
+                        var editors = plugins[i].object_editors;
+                        for (var j=0;j<editors.length;j++)
                         {
-                            if (plugins[i].editors[j].Type == data[_path]._type)
+                            if (editors[i].types.indexOf(data[_path]._type) != -1)
                             {
-                                opts.push( { Title:"Edit with " + plugins[i].editors[j].Description, Data: { command: "plugin-edit", path:_path, plugin:i, editor:j } } );
+                                opts.push( { Title:"Edit with " + editors[j].description, Data: { command: "plugin-edit", path:_path, plugin:i, editor:j } } );
                             }
                         }
                     }

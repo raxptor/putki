@@ -263,8 +263,17 @@ function create_object_preview_txt(object, type)
         return txts.join(', ');
 }
 
-function reload_wrapped(new_fn)
+function reload_wrapped(make, config)
 {
+    var new_fn = make;
+    if (config && config.post_process) {
+        var wrapped = function() {
+            var tmp = make();
+            tmp = config.post_process(tmp, {ed: config.ed});
+            return tmp;
+        };
+        new_fn = wrapped;
+    }
     var preview = new_fn();
     preview._x_reload = function(args) {
         var pn = preview.parentNode;
@@ -389,6 +398,11 @@ function def_obj(desc)
 
 function create_type_editor(ed, is_array_element)
 {
+    var config = {
+        ed: ed,
+        post_process: PluginFieldPostProcess[ed.field.Id]
+    };
+
     var type = resolve_type(ed.field.Type);
     if (!is_array_element && ed.field.Array)
     {
@@ -465,9 +479,9 @@ function create_type_editor(ed, is_array_element)
                     ed.data[ed.datafield] = ip.value.replace(/\n/g, "\n");
                     on_inline_changed(ip);
                     on_change();
-                });  
+                });
                 return ip;         
-            })
+            }, config)
         }
     }
     if (type.Editor == "Int")
@@ -569,7 +583,6 @@ function create_type_editor(ed, is_array_element)
     return {
         inline: el
     };
-//    return document.createTextNode("UNKNOWN TYPE " + ed);
 }
 
 // returns row
@@ -861,6 +874,7 @@ function open_editor(path, editor)
 var UserTypes = {};
 var Data = {};
 var Plugins = [];
+var PluginFieldPostProcess = {};
 var Editing = {};
 var Configuration = {};
 var FileSet = {};
@@ -869,7 +883,7 @@ var Revision = "unknown";
 ipcRenderer.on('choose-menu', function(event, data) {
     console.log("picked ", data);
     if (data.command == "plugin-edit") {
-        open_editor(data.path, Plugins[data.plugin].editors[data.editor].Editor);
+        open_editor(data.path, Plugins[data.plugin].object_editors[data.editor].editor);
     } else if (data.command == "edit") {
         open_editor(data.path);
     } else if (data.command == "move") {
@@ -925,6 +939,7 @@ ipcRenderer.on('save', function(event) {
 });
 
 ipcRenderer.send('request-configuration');
+
 ipcRenderer.on('configuration', function(evt, config) {
     var js = config.data["gen-js"];
     var plugins = config.data["plugins"];
@@ -940,13 +955,7 @@ ipcRenderer.on('configuration', function(evt, config) {
             UserTypes[x] = mod.Types[x];
         }
     }
-    for (var i in plugins) {
-        var p = path.join(root, plugins[i]);
-        console.log("Loading plugin from", p);
-        var plugin = require(p);
-        plugin.install();
-        Plugins.push(plugin);        
-    }
+    var id_counter = 0;
     for (var xx in UserTypes)
     {
         (function (x) {
@@ -960,9 +969,26 @@ ipcRenderer.on('configuration', function(evt, config) {
             {
                 add(x);
                 UserTypes[x].ExpandedFields = all;
-            }
+            }            
         })(xx);
+        // assign unique ids for use as keys later.
+        var flds = UserTypes[xx].Fields;
+        if (flds) {
+            for (var i=0;i<flds.length;i++)
+                flds[i].Id = ++id_counter;
+        }
     }
+    for (var i in plugins) {
+        var p = path.join(root, plugins[i]);
+        console.log("Loading plugin from", p);
+        var plugin = require(p);        
+        var pd = plugin.initialize(config, UserTypes);
+        plugin.install_on_page();
+        Plugins.push(pd);
+        for (var x in pd.field_post_process) {
+            PluginFieldPostProcess[x] = pd.field_post_process[x];
+        }
+    }    
     if (config.data["data-root"] !== undefined) {
         dataloader.load_tree(path.join(root, config.data["data-root"]), Data, FileSet);
     }
@@ -983,7 +1009,9 @@ ipcRenderer.on('configuration', function(evt, config) {
             open_editor(path);
         });
         reload_browser = function() { browser._x_reload(); }
-    });    
+    });
+    if (process.env["EDIT_OBJ"])
+        open_editor(process.env["EDIT_OBJ"]);
 });
 
 ipcRenderer.on("new-object", function() {
