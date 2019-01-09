@@ -141,6 +141,7 @@ function create_array_editor(ed, args)
             row = create_property(_array, row, {
                 data: ed.data[ed.datafield],
                 field: ed.field,
+                parent: ed.parent,
                 datafield: i
             }, true, expanded.indexOf(i) != -1);
             _array.appendChild(ctl0); 
@@ -241,8 +242,12 @@ function create_object_preview_txt(object, type)
         }
         else if (val instanceof Object)
         {
-            var t = resolve_type(type.ExpandedFields[x].Type);
-            txts.push(pn + ":{" + create_object_preview_txt(val, t)+ "}");
+            if (Object.keys(val).length > 0) {
+                var t = resolve_type(type.ExpandedFields[x].Type);
+                var preview = create_object_preview_txt(val, t);
+                if (preview != "<default>")
+                    txts.push(pn + ":{" + preview + "}");
+            }
         }
         else
         {
@@ -309,12 +314,10 @@ function on_inline_changed(node)
         var next = node.parentNode;
         if (node._x_changed)
         {
-            console.log("Change handeled by ", node);
             node._x_changed();
         }
         node = next;
     }
-    console.log("No change handler ", node);
 }
 
 function create_object_preview(object, type)
@@ -365,7 +368,8 @@ function create_pointer_editor(ed)
         var inl = build_full_entry({
             type: iv._type || ed.field.Type,
             path: iv._path,
-            data: iv
+            data: iv,
+            parent: ed
         }, function (new_path) {
             iv._path = new_path;
         });
@@ -402,6 +406,19 @@ function create_type_editor(ed, is_array_element)
         ed: ed,
         post_process: PluginFieldPostProcess[ed.field.Id]
     };
+
+    if (PluginFieldCustom[ed.field.Id]) {
+        var res = PluginFieldCustom[ed.field.Id];
+        var output = {};
+        var opts = {
+            data: Data,
+            on_changed: on_inline_changed
+        };
+        if (res.block) output.block = reload_wrapped(function(args) { return res.block(ed, args, opts); });
+        if (res.inline) output.inline = reload_wrapped(function(args) { return res.inline(ed, args, opts); });
+        output.pre_expand = res.pre_expand;
+        return output;
+    }
 
     var type = resolve_type(ed.field.Type);
     if (!is_array_element && ed.field.Array)
@@ -574,7 +591,8 @@ function create_type_editor(ed, is_array_element)
             inline: reload_wrapped(function() { def_obj(ed); return create_object_preview(ed.data[ed.datafield], type) } ),
             block: reload_wrapped(function() { def_obj(ed); return build_block_entry({
                 type: ed.field.Type,
-                data: ed.data[ed.datafield]
+                data: ed.data[ed.datafield],
+                parent: ed
             })})
         };
     }
@@ -619,10 +637,13 @@ function create_property(parent, row, objdesc, is_array_element, expanded)
             {
                 delete objdesc.data[objdesc.datafield];
             }
-            if (dom.inline && dom.inline._x_reload)
+            if (dom.inline && dom.inline._x_reload) {
                 dom.inline = dom.inline._x_reload();
-            if (dom.block && dom.block._x_reload)
+                on_inline_changed(dom.inline);
+            }
+            if (dom.block && dom.block._x_reload) {
                 dom.block = dom.block._x_reload();
+            }
             update_label();
         });
         update_label();
@@ -711,7 +732,8 @@ function build_properties(objdesc)
                 row = create_property(_properties, row, {
                     data: objdesc.data,
                     field: f,
-                    datafield: f.Name
+                    datafield: f.Name,
+                    parent: objdesc
                 }); 
             }
             if (type.Parent !== undefined)
@@ -786,7 +808,7 @@ var project_root = null;
 
 function plugin_config()
 {
-    return { 
+    return {
         project_root: project_root,
         types: UserTypes,
         data: Data,
@@ -875,6 +897,7 @@ var UserTypes = {};
 var Data = {};
 var Plugins = [];
 var PluginFieldPostProcess = {};
+var PluginFieldCustom = {};
 var Editing = {};
 var Configuration = {};
 var FileSet = {};
@@ -956,6 +979,16 @@ ipcRenderer.on('configuration', function(evt, config) {
         }
     }
     var id_counter = 0;
+
+    for (var xx in UserTypes)
+    {
+        var flds = UserTypes[xx].Fields;
+        if (flds) {
+            for (var i=0;i<flds.length;i++)
+                flds[i].Id = ++id_counter;
+        }
+    }
+
     for (var xx in UserTypes)
     {
         (function (x) {
@@ -972,11 +1005,6 @@ ipcRenderer.on('configuration', function(evt, config) {
             }            
         })(xx);
         // assign unique ids for use as keys later.
-        var flds = UserTypes[xx].Fields;
-        if (flds) {
-            for (var i=0;i<flds.length;i++)
-                flds[i].Id = ++id_counter;
-        }
     }
     for (var i in plugins) {
         var p = path.join(root, plugins[i]);
@@ -988,6 +1016,9 @@ ipcRenderer.on('configuration', function(evt, config) {
         for (var x in pd.field_post_process) {
             PluginFieldPostProcess[x] = pd.field_post_process[x];
         }
+        for (var x in pd.field_custom) {
+            PluginFieldCustom[x] = pd.field_custom[x];
+        }        
     }    
     if (config.data["data-root"] !== undefined) {
         dataloader.load_tree(path.join(root, config.data["data-root"]), Data, FileSet);
