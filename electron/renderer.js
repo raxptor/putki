@@ -912,7 +912,7 @@ ipcRenderer.on('choose-menu', function(event, data) {
     } else if (data.command == "move") {
         popups.ask_file(Data, function(npath) {
             Data[data.path]._file = npath;
-            reload_browser();
+            reload_browser();            
         });        
     } else if (data.command == "delete") {
         dialogs.confirm("Really delete " + data.path + "?", function(ok) {
@@ -1006,6 +1006,7 @@ ipcRenderer.on('configuration', function(evt, config) {
         })(xx);
         // assign unique ids for use as keys later.
     }
+    var data_manglers = [];
     for (var i in plugins) {
         var p = path.join(root, plugins[i]);
         console.log("Loading plugin from", p);
@@ -1013,12 +1014,14 @@ ipcRenderer.on('configuration', function(evt, config) {
         var pd = plugin.initialize(config, UserTypes);
         plugin.install_on_page();
         Plugins.push(pd);
+        if (pd.data_mangler)
+            data_manglers.push(pd.data_mangler);
         for (var x in pd.field_post_process) {
             PluginFieldPostProcess[x] = pd.field_post_process[x];
         }
         for (var x in pd.field_custom) {
             PluginFieldCustom[x] = pd.field_custom[x];
-        }        
+        }
     }    
     if (config.data["data-root"] !== undefined) {
         dataloader.load_tree(path.join(root, config.data["data-root"]), Data, FileSet);
@@ -1031,6 +1034,9 @@ ipcRenderer.on('configuration', function(evt, config) {
         Revision = tmp.revision;
         console.log("Loaded data bundle from revision ", Revision);
     }
+    data_manglers.forEach(x => {
+        x(Data);
+    });
     add_page("Index", function(page) {
         var browser = databrowser.create(page, UserTypes, Data, Plugins, plugin_config(), function preview(d) {    
             if (d.hasOwnProperty('name'))
@@ -1055,6 +1061,7 @@ ipcRenderer.on("new-object", function() {
                     _file: file
                 };
                 reload_browser();
+                open_editor(path);
             }
         });
     };

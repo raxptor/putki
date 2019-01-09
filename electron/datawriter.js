@@ -59,7 +59,8 @@ function format(types, data, indent, typename)
     }
     */
 
-    // quick
+    // Quick; no need for comma delimiters when having newlines.    
+    delim = "";
     nlsep = "\n" + "\t".repeat(indent+1);
     finsep = "\n" + "\t".repeat(indent);
 
@@ -85,7 +86,11 @@ function format(types, data, indent, typename)
     {
         var pcs = [];
         var type = types[data._type || typename];
-        var flds = type.ExpandedFields;
+        var flds = type.ExpandedFields.slice(0).sort( (a, b) => {
+            var x = a["Name"];
+            var y = b["Name"];
+            return x < y ? -1 : (x > y ? 1 : 0);
+        });
         for (var i=0;i<flds.length;i++) {
             var f = flds[i].Name;
             if (data[f] === undefined)

@@ -94,7 +94,6 @@ exports.create = function(onto, types, data, plugins, config, data_browser_previ
                             }
                         }
                     }
-                    console.log("Opts menu", opts);
                     ipcRenderer.send('choose-menu', opts);
                 });
             })(data[x]._path);
