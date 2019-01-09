@@ -71,6 +71,7 @@ const template = [
         {
           label: 'Show unset values',
           type: 'checkbox',
+          accelerator: 'CmdOrCtrl+W',                  
           checked: true,
           click: function(mi) {
             mainWindow.webContents.send('show-unset', mi.checked);
