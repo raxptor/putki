@@ -93,7 +93,7 @@ function format(types, data, indent, typename)
         });
         for (var i=0;i<flds.length;i++) {
             var f = flds[i].Name;
-            if (data[f] === undefined)
+            if (data[f] === undefined || data[f] == null)
                 continue;
             if (flds[i].Array && data[f].length == 0)
                 continue;
@@ -111,11 +111,15 @@ function format(types, data, indent, typename)
          }
         if (data._path !== undefined) {
              hdr = hdr + data._path + " ";
-        }
+        }        
         if (indent == 0)
             return hdr.trim() + "\n{" + nlsep + pcs.join(delim + nlsep) + finsep + "}";    
-        else
-            return hdr + "{" + nlsep + pcs.join(delim + nlsep) + finsep + "}";
+        else {
+            if (pcs.length == 0)
+                return hdr + "{ }";
+            else
+                return hdr + "{" + nlsep + pcs.join(delim + nlsep) + finsep + "}";
+        }
     }
     else
     {
