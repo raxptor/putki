@@ -186,6 +186,8 @@ function create_pointer_preview(object, default_type)
     var descs = [];
     if (object instanceof Object)
     {
+        var root = document.createElement('div');
+
         if (object._type !== undefined) {
             // only add type if it has parent, otherwise it is implied.
             var type = resolve_type(object._type);
@@ -195,7 +197,8 @@ function create_pointer_preview(object, default_type)
         if (object._path !== undefined)
             descs.push(object._path);
         descs.push(create_object_preview_txt(object, resolve_type(object._type || default_type)));
-        return document.createTextNode(descs.join(' '));
+        root.appendChild(document.createTextNode(descs.join(' ')));
+        return root;
     }
     else    
     {
@@ -373,7 +376,16 @@ function create_pointer_editor(ed)
         }, function (new_path) {
             iv._path = new_path;
         });
-        ptrval.appendChild(inl);
+
+        if (iv.hasOwnProperty("_anchor")) {
+            var anch = document.createElement('a');
+            anch.name = iv._anchor;
+            ptrval.appendChild(inl);
+            anch.appendChild(inl);
+            ptrval.appendChild(anch);            
+        } else {
+            ptrval.appendChild(inl);
+        }
     } else {
         var ph = document.createElement('div');
         ph.style.display = 'none';
@@ -773,7 +785,7 @@ function build_full_entry(objdesc, on_new_path, editor_func)
         _entry.appendChild(editor_func(plugin_config(), objdesc));
     } else {
         _entry.appendChild(build_properties(objdesc));
-    }    
+    }
     _path.addEventListener("click", function() {
         dialogs.prompt("Enter new path", objdesc.path, function (p) {
             if (p != null)
@@ -900,11 +912,26 @@ function add_page(title, make, on_close)
     return add_tab(title, page, on_close);
 }
 
-function open_editor(path, editor)
-{
-    if (!Data.hasOwnProperty(path))
-        return;
 
+function goto_anchor(anchor)
+{
+    location.hash = '#';
+    var els = document.getElementsByName(anchor);
+    els.forEach(node => {
+        while (node) {
+            if (node.classList)
+                node.classList.remove('collapsed');
+            node = node.parentNode;
+        }
+    });
+    location.hash = '#' + anchor;
+}
+
+function open_editor(path, editor, anchor)
+{
+    console.log("opening editor", path, editor, anchor);
+    if (!Data.hasOwnProperty(path))
+        return;        
     if (!Editing.hasOwnProperty(path))
     {        
         Editing[path] = add_page(path, function(page) {
@@ -913,8 +940,14 @@ function open_editor(path, editor)
             delete Editing[path];
             return true;
         });
+        if (anchor) {
+            goto_anchor(anchor);
+        }
     } else {
         activateTab(Editing[path]);
+        if (anchor) {
+            goto_anchor(anchor);
+        }
     }
 }
 
@@ -1067,8 +1100,8 @@ ipcRenderer.on('configuration', function(evt, config) {
             if (d.hasOwnProperty('name'))
                 return d['name'];
             return '';
-        }, function(path) {
-            open_editor(path);
+        }, function(path, anchor) {
+            open_editor(path, null, anchor);
         });
         reload_browser = function() { browser._x_reload(); }
     });

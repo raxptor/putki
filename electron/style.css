@@ -287,6 +287,15 @@ x-browser-path {
     margin-left: 10px;    
 }
 
+x-browser-dig-path {
+    grid-column: 1;
+    color: #050;
+    cursor: pointer;
+    text-decoration: underline;
+    margin-left: 50px;    
+}
+
+
 x-browser-controls {
     grid-column: 1/4;
     margin-top: 4px;
