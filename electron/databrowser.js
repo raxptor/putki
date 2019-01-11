@@ -247,5 +247,10 @@ exports.create = function(onto, types, data, plugins, config, data_browser_previ
     base._x_reload = function() {
         rebuild();
     };
+
+    onto._x_on_activate = function() {
+        filter.focus();
+    };
+
     return base;
 }

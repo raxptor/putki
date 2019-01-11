@@ -746,11 +746,11 @@ function build_properties(objdesc)
     var row = 1;
     var insert_fn = function(typename) {
         var type = resolve_type(typename);
-        if (type.Fields)
+        if (type.ExpandedFields)
         {
-            for (var i=0;i<type.Fields.length;i++)
+            for (var i=0;i<type.ExpandedFields.length;i++)
             {
-                var f = type.Fields[i];
+                var f = type.ExpandedFields[i];
                 row = create_property(_properties, row, {
                     data: objdesc.data,
                     field: f,
@@ -758,8 +758,6 @@ function build_properties(objdesc)
                     parent: objdesc
                 }); 
             }
-            if (type.Parent !== undefined)
-                insert_fn(type.Parent);
         }
     }
     insert_fn(objdesc.type);
@@ -877,6 +875,8 @@ function activateTab(tab)
         else
         {
             cn[x]._x_page.style.display = "block";
+            if (cn[x]._x_page._x_on_activate)
+                cn[x]._x_page._x_on_activate();
             cn[x].classList.add('active');
         }
     }
@@ -907,7 +907,7 @@ function add_tab(title, page, on_close)
             activateTab(els[els.length-1]);
         };
         close.addEventListener('click', function() {
-            tab._x_close();
+            setTimeout(tab._x_close, 0);
         })
     }
     activateTab(tab);
@@ -1072,9 +1072,9 @@ ipcRenderer.on('configuration', function(evt, config) {
         (function (x) {
             var all = [];
             var add = function(tn) {
-                all = all.concat(UserTypes[tn].Fields);
                 if (UserTypes[tn].Parent !== undefined)
                     add(UserTypes[tn].Parent);
+                all = all.concat(UserTypes[tn].Fields);
             };
             if (UserTypes[x].Fields !== undefined)
             {
