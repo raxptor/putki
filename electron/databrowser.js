@@ -17,9 +17,11 @@ function mk_button(command, fn)
 exports.create = function(onto, types, data, plugins, config, data_browser_preview, start_editing) {
     var base = document.createElement('x-browser');
 
-    var form = document.createElement('form');
+    var form = document.createElement('form');    
     var filter = document.createElement('input');
     filter.type = "text";
+    form.appendChild(document.createTextNode("Type parts of a path or type to search for objects."));
+    form.style.width = "80%";
     form.appendChild(filter);
     base.appendChild(form);
     var grid = null;
@@ -176,6 +178,7 @@ exports.create = function(onto, types, data, plugins, config, data_browser_previ
     rebuild();
     if (onto != null)
         onto.appendChild(base);
+    form.focus();
     filter.focus();
 
     function filtrate() {

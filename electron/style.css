@@ -313,6 +313,13 @@ x-browser-type {
     grid-column: 2;
 }
 
+x-browser form {
+    padding: 5px;
+    padding-right: 10px;
+    margin: 5px;    
+    border: 1px dashed;    
+}
+
 x-all {
     display: grid;
 }

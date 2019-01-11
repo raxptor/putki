@@ -43,6 +43,7 @@ var Primitive = {
 function on_change(ed)
 {
     ipcRenderer.send("change");
+    document.title = Configuration.data["title"] + " [unsaved changes]";
 }
 
 function clone(src) {
@@ -624,7 +625,11 @@ function create_property(parent, row, objdesc, is_array_element, expanded)
     if (!is_array_element)
     {
         var _prop_name = document.createElement('x-prop-name');
-        _prop_name.appendChild(document.createTextNode(objdesc.field.PrettyName));
+        var disp_prop_name = objdesc.field.PrettyName;
+        if (objdesc.field.LocalizationCategory) {
+            disp_prop_name = disp_prop_name + "\u00A0{loc}";
+        }
+        _prop_name.appendChild(document.createTextNode(disp_prop_name));
         _prop_name.style.gridRow = row;
         parent.appendChild(_prop_name);
         update_label = function() {
@@ -907,8 +912,8 @@ function add_tab(title, page, on_close)
 function add_page(title, make, on_close)
 {
     var page = document.createElement('x-page');
-    make(page);
     document.getElementById('content').appendChild(page);
+    make(page);    
     return add_tab(title, page, on_close);
 }
 
@@ -1015,6 +1020,7 @@ ipcRenderer.on('save', function(event) {
             console.log("Writing game export bundle to", Configuration.data["game-export"]);
             datawriter.write(root, UserTypes, Data, Configuration.data["game-export"]);
         }
+        document.title = Configuration.data["title"];
         event.sender.send("saved");
     }, 50);
 });

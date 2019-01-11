@@ -97,7 +97,7 @@ public class JavascriptGenerator
             	sb.append("\n\t\tPrettyName:\"" + struct.name + "\"");
            		sb.append(",\n\t\tPermitAsAsset:" + struct.permitAsAsset);
            		sb.append(",\n\t\tIsTypeRoot:" + struct.isTypeRoot);
-           		sb.append(",\n\t\tIsValueType:" + struct.isValueType);
+           		sb.append(",\n\t\tIsValueType:" + struct.isValueType);           		
            		if (struct.resolvedParent != null)
            			sb.append(",\n\t\tParent:\""+  struct.resolvedParent.name.toLowerCase() + "\"");
        			sb.append(",\n\t\tFields: [");
@@ -131,6 +131,9 @@ public class JavascriptGenerator
                 	
                 	sb.append(", PrettyName:\"" + field.name + "\"");
                 	sb.append(", Array:" + field.isArray + ", Pointer:" + ptr);
+                	
+                	if (field.localizationCategory != null)
+                		sb.append(", LocalizationCategory: \"" + field.localizationCategory + "\"");
                 	
                 	if (field.defValue != null)
                 	{
