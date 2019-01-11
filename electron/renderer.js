@@ -898,11 +898,16 @@ function add_tab(title, page, on_close)
         var close = document.createElement('x-tab-close');
         close.appendChild(document.createTextNode("[X]"));
         tab.appendChild(close);
-        close.addEventListener('click', function() {
+        tab._x_close = function() {
             if (on_close == null || on_close()) {
                 tab.parentNode.removeChild(tab);
                 page.parentNode.removeChild(page);
-            }
+            };
+            var els = document.getElementById('tabs').childNodes;            
+            activateTab(els[els.length-1]);
+        };
+        close.addEventListener('click', function() {
+            tab._x_close();
         })
     }
     activateTab(tab);
@@ -917,6 +922,15 @@ function add_page(title, make, on_close)
     return add_tab(title, page, on_close);
 }
 
+ipcRenderer.on('close-object', function() {
+    var els = document.getElementById('tabs').childNodes;
+    for (var i=1;i<els.length;i++) {
+        if (els[i].classList.contains('active')) {
+            els[i]._x_close();
+            break;
+        }
+    }
+});
 
 function goto_anchor(anchor)
 {

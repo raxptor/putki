@@ -200,7 +200,7 @@ exports.create = function(onto, types, data, plugins, config, data_browser_previ
                 for (var j in els) {
                     els[j].classList.remove('hidden');
                 }
-                if (search.length > 0 && e.items[i].path.indexOf(search) == -1 && x.indexOf(search) == -1 && e.items[i].type.indexOf(type_search) == -1)
+                if (search.length > 0 && (e.items[i].anchor == undefined || e.items[i].anchor.indexOf(search) == -1) && e.items[i].path.indexOf(search) == -1 && x.indexOf(search) == -1 && e.items[i].type.indexOf(type_search) == -1)
                 {
                     for (var j in els) {
                         els[j].classList.add('hidden');
@@ -208,7 +208,7 @@ exports.create = function(onto, types, data, plugins, config, data_browser_previ
                 }
                 else
                 {
-                    last = e.items[i].path;
+                    last = {path: e.items[i].path, anchor: e.items[i].anchor};
                     totFound++;
                     found++;
                 }
@@ -233,9 +233,10 @@ exports.create = function(onto, types, data, plugins, config, data_browser_previ
         if (filter.value.startsWith("@")) {
             rebuild({ type: filter.value.substring(1).toLowerCase() });
             filtrate();
-        } else {         
+            filter.value = "";
+        } else {
             if (pick != null) {
-                start_editing(pick);
+                start_editing(pick.path, pick.anchor);
             }
         }
     };

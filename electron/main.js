@@ -69,9 +69,16 @@ const template = [
            role: 'toggledevtools'
         },
         {
+          label: 'Close object',
+          accelerator: 'CmdOrCtrl+W',
+          click: function() {
+            mainWindow.webContents.send('close-object');
+          }
+        },        
+        {
           label: 'Show unset values',
           type: 'checkbox',
-          accelerator: 'CmdOrCtrl+W',                  
+          accelerator: 'CmdOrCtrl+U',                  
           checked: true,
           click: function(mi) {
             mainWindow.webContents.send('show-unset', mi.checked);
