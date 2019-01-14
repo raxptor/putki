@@ -71,12 +71,12 @@ function ask_with_filter(make_contents, on_done, accept_any)
     filter.focus();
 }
 
-function compatible_types(alltypes, type_name_root)
+function compatible_types(alltypes, type_name_root, only_assets)
 {
     var list = [];
     for (var tp in alltypes)
     {
-        if (!alltypes[tp].PermitAsAsset)
+        if (only_assets && !alltypes[tp].PermitAsAsset)
             continue;
         var pr = tp;
         while (pr)
@@ -94,12 +94,14 @@ function compatible_types(alltypes, type_name_root)
     return list;
 }
 
-exports.ask_type = function(alltypes, type_name_root, on_done)
+exports.ask_type = function(alltypes, type_name_root, on_done, only_assets)
 {
-    var types = compatible_types(alltypes, type_name_root);
+    var types = compatible_types(alltypes, type_name_root, only_assets);
     ask_with_filter(function(fstr) {        
         var filtered = [];
         var lower = fstr.toLowerCase();
+        if (lower.startsWith("@"))
+            lower = lower.substr(1);
         for (var idx in types)
         {
             var tp = types[idx];

@@ -43,6 +43,7 @@ var Primitive = {
 function on_change(ed)
 {
     ipcRenderer.send("change");
+    document.title = Configuration.data["title"] + " [unsaved changes]";
 }
 
 function clone(src) {
@@ -186,6 +187,8 @@ function create_pointer_preview(object, default_type)
     var descs = [];
     if (object instanceof Object)
     {
+        var root = document.createElement('div');
+
         if (object._type !== undefined) {
             // only add type if it has parent, otherwise it is implied.
             var type = resolve_type(object._type);
@@ -195,7 +198,8 @@ function create_pointer_preview(object, default_type)
         if (object._path !== undefined)
             descs.push(object._path);
         descs.push(create_object_preview_txt(object, resolve_type(object._type || default_type)));
-        return document.createTextNode(descs.join(' '));
+        root.appendChild(document.createTextNode(descs.join(' ')));
+        return root;
     }
     else    
     {
@@ -373,7 +377,16 @@ function create_pointer_editor(ed)
         }, function (new_path) {
             iv._path = new_path;
         });
-        ptrval.appendChild(inl);
+
+        if (iv.hasOwnProperty("_anchor")) {
+            var anch = document.createElement('a');
+            anch.name = iv._anchor;
+            ptrval.appendChild(inl);
+            anch.appendChild(inl);
+            ptrval.appendChild(anch);            
+        } else {
+            ptrval.appendChild(inl);
+        }
     } else {
         var ph = document.createElement('div');
         ph.style.display = 'none';
@@ -612,7 +625,11 @@ function create_property(parent, row, objdesc, is_array_element, expanded)
     if (!is_array_element)
     {
         var _prop_name = document.createElement('x-prop-name');
-        _prop_name.appendChild(document.createTextNode(objdesc.field.PrettyName));
+        var disp_prop_name = objdesc.field.PrettyName;
+        if (objdesc.field.LocalizationCategory) {
+            disp_prop_name = disp_prop_name + "\u00A0{loc}";
+        }
+        _prop_name.appendChild(document.createTextNode(disp_prop_name));
         _prop_name.style.gridRow = row;
         parent.appendChild(_prop_name);
         update_label = function() {
@@ -729,11 +746,11 @@ function build_properties(objdesc)
     var row = 1;
     var insert_fn = function(typename) {
         var type = resolve_type(typename);
-        if (type.Fields)
+        if (type.ExpandedFields)
         {
-            for (var i=0;i<type.Fields.length;i++)
+            for (var i=0;i<type.ExpandedFields.length;i++)
             {
-                var f = type.Fields[i];
+                var f = type.ExpandedFields[i];
                 row = create_property(_properties, row, {
                     data: objdesc.data,
                     field: f,
@@ -741,8 +758,6 @@ function build_properties(objdesc)
                     parent: objdesc
                 }); 
             }
-            if (type.Parent !== undefined)
-                insert_fn(type.Parent);
         }
     }
     insert_fn(objdesc.type);
@@ -773,7 +788,7 @@ function build_full_entry(objdesc, on_new_path, editor_func)
         _entry.appendChild(editor_func(plugin_config(), objdesc));
     } else {
         _entry.appendChild(build_properties(objdesc));
-    }    
+    }
     _path.addEventListener("click", function() {
         dialogs.prompt("Enter new path", objdesc.path, function (p) {
             if (p != null)
@@ -860,6 +875,8 @@ function activateTab(tab)
         else
         {
             cn[x]._x_page.style.display = "block";
+            if (cn[x]._x_page._x_on_activate)
+                cn[x]._x_page._x_on_activate();
             cn[x].classList.add('active');
         }
     }
@@ -881,11 +898,16 @@ function add_tab(title, page, on_close)
         var close = document.createElement('x-tab-close');
         close.appendChild(document.createTextNode("[X]"));
         tab.appendChild(close);
-        close.addEventListener('click', function() {
+        tab._x_close = function() {
             if (on_close == null || on_close()) {
                 tab.parentNode.removeChild(tab);
                 page.parentNode.removeChild(page);
-            }
+            };
+            var els = document.getElementById('tabs').childNodes;            
+            activateTab(els[els.length-1]);
+        };
+        close.addEventListener('click', function() {
+            setTimeout(tab._x_close, 0);
         })
     }
     activateTab(tab);
@@ -895,16 +917,40 @@ function add_tab(title, page, on_close)
 function add_page(title, make, on_close)
 {
     var page = document.createElement('x-page');
-    make(page);
     document.getElementById('content').appendChild(page);
+    make(page);    
     return add_tab(title, page, on_close);
 }
 
-function open_editor(path, editor)
-{
-    if (!Data.hasOwnProperty(path))
-        return;
+ipcRenderer.on('close-object', function() {
+    var els = document.getElementById('tabs').childNodes;
+    for (var i=1;i<els.length;i++) {
+        if (els[i].classList.contains('active')) {
+            els[i]._x_close();
+            break;
+        }
+    }
+});
 
+function goto_anchor(anchor)
+{
+    location.hash = '#';
+    var els = document.getElementsByName(anchor);
+    els.forEach(node => {
+        while (node) {
+            if (node.classList)
+                node.classList.remove('collapsed');
+            node = node.parentNode;
+        }
+    });
+    location.hash = '#' + anchor;
+}
+
+function open_editor(path, editor, anchor)
+{
+    console.log("opening editor", path, editor, anchor);
+    if (!Data.hasOwnProperty(path))
+        return;        
     if (!Editing.hasOwnProperty(path))
     {        
         Editing[path] = add_page(path, function(page) {
@@ -913,8 +959,14 @@ function open_editor(path, editor)
             delete Editing[path];
             return true;
         });
+        if (anchor) {
+            goto_anchor(anchor);
+        }
     } else {
         activateTab(Editing[path]);
+        if (anchor) {
+            goto_anchor(anchor);
+        }
     }
 }
 
@@ -982,6 +1034,7 @@ ipcRenderer.on('save', function(event) {
             console.log("Writing game export bundle to", Configuration.data["game-export"]);
             datawriter.write(root, UserTypes, Data, Configuration.data["game-export"]);
         }
+        document.title = Configuration.data["title"];
         event.sender.send("saved");
     }, 50);
 });
@@ -1019,9 +1072,9 @@ ipcRenderer.on('configuration', function(evt, config) {
         (function (x) {
             var all = [];
             var add = function(tn) {
-                all = all.concat(UserTypes[tn].Fields);
                 if (UserTypes[tn].Parent !== undefined)
                     add(UserTypes[tn].Parent);
+                all = all.concat(UserTypes[tn].Fields);
             };
             if (UserTypes[x].Fields !== undefined)
             {
@@ -1067,8 +1120,8 @@ ipcRenderer.on('configuration', function(evt, config) {
             if (d.hasOwnProperty('name'))
                 return d['name'];
             return '';
-        }, function(path) {
-            open_editor(path);
+        }, function(path, anchor) {
+            open_editor(path, null, anchor);
         });
         reload_browser = function() { browser._x_reload(); }
     });
