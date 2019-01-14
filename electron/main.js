@@ -80,9 +80,6 @@ const template = [
   }
 ]
 
-const menu = Menu.buildFromTemplate(template)
-Menu.setApplicationMenu(menu);
-
 // Keep a global reference of the window object, if you don't, the window will
 // be closed automatically when the JavaScript object is garbage collected.
 let mainWindow
@@ -169,6 +166,8 @@ ipcMain.on('request-configuration', function(evt, ed) {
 });
   
 app.on('ready', function() {
+  const menu = Menu.buildFromTemplate(template)
+  Menu.setApplicationMenu(menu);
   createWindow();
 });
 
