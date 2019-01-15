@@ -506,7 +506,7 @@ function create_type_editor(ed, is_array_element)
                 else
                     ip.value = default_value(ed.field, is_array_element);
                 ip.addEventListener("change", function() {
-                    ed.data[ed.datafield] = ip.value.replace(/\n/g, "\n");
+                    ed.data[ed.datafield] = ip.value.replace(/\\n/g, "\n");
                     on_inline_changed(ip);
                     on_change();
                 });
