@@ -25,6 +25,7 @@ namespace Mixki
 		Dictionary<String, object> m_raw;
 		Dictionary<String, object> m_parsed;
 		Dictionary<String, ParseFn> m_parsers;
+		List<String> m_pathStack = new List<string>();
 
         public Dictionary<String, object> AllParsed()
         {
@@ -75,7 +76,16 @@ namespace Mixki
 		{
 			if (value is Dictionary<string, object>)
 			{
-				string ipath = "##inline" + ((m_inlineCounter++).ToString());
+				string ipath;
+				if (m_pathStack.Count > 0)
+				{
+					ipath = "!" + m_pathStack[m_pathStack.Count - 1] + "/" + (m_inlineCounter++);
+				}
+				else
+				{
+					ipath = "##inline" + ((m_inlineCounter++).ToString());
+				}
+
 				object parsed = inlineFn(this, ipath, value as Dictionary<string, object>, inlineFn(this, null, null, null));
 				m_parsed.Add(ipath, parsed);
 				Putki.PackageManager.RegisterLoaded(ipath, parsed);
@@ -107,7 +117,7 @@ namespace Mixki
 			else
 			{
 				object raw;
-				if (!m_raw.TryGetValue(path, out raw))
+				if (m_raw.TryGetValue(path, out raw))
 				{
 					LoadJson(assetPath);
 					if (!m_raw.TryGetValue(path, out raw))
@@ -145,7 +155,9 @@ namespace Mixki
 				{
 					object prep = p(null, null, null, null);
 					m_parsed.Add(path, prep);
+					m_pathStack.Add(path);
 					p(this, assetPath, datas, prep);
+					m_pathStack.RemoveAt(m_pathStack.Count - 1);
 					Putki.PackageManager.RegisterLoaded(path, prep);
 					return (Type) prep;
 				}
