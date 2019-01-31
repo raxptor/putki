@@ -189,7 +189,12 @@ impl<T> Ptr<T> where T : 'static
 pub fn ptr_from_data<T>(resolver : &Arc<source::InkiResolver>, ld:&lexer::LexedData) -> Ptr<T> where T : source::ParseFromKV {
     match ld {
         &lexer::LexedData::Value(ref path) => Ptr::new(resolver.clone(), path),
-        &lexer::LexedData::StringLiteral(ref path) => Ptr::new(resolver.clone(), path),
+        &lexer::LexedData::StringLiteral(ref path) => 
+            if path.len() > 0  {
+                Ptr::new(resolver.clone(), path)
+            } else {
+                Ptr::null()
+            }
         &lexer::LexedData::Object { ref type_name, ref kv, ref id } => {
             if id.len() == 0 {
                 let mut n_id = String::from(":anon:");

@@ -113,6 +113,7 @@ public class RustGenerator
 				return "String";
 			case STRING:
 			case PATH:
+			case HASH:
 				return "String";
 			case INT32:
 				return "i32";
@@ -158,6 +159,7 @@ public class RustGenerator
 		{
 			case FILE:
 				return "String";
+			case HASH:
 			case STRING:
 			case PATH:
 				return "String";
@@ -214,7 +216,7 @@ public class RustGenerator
 			return "putki::Ptr::null()";
 		if (pf.type == FieldType.STRING && pf.defValue != null)
 			return pf.defValue + ".to_string()";
-		else if (pf.type == FieldType.STRING)
+		else if (pf.type == FieldType.STRING || pf.type == FieldType.HASH)
 			return "String::new()";
 		else if (pf.defValue != null)
 			return pf.defValue;
@@ -410,6 +412,15 @@ public class RustGenerator
 	                sb.append(pfx).append("}");
                 }
                 
+                if (structNameWrap(struct).length() > 0 || struct.isTypeRoot || struct.possibleChildren.size() > 0) 
+                {
+	                sb.append(pfx).append("impl putki::WriteAsText for " + structName(struct) + " {");
+	                sb.append(pfx).append("\tfn write_text(&self, _output: &mut String) -> Result<(), putki::PutkiError> { Ok(()) }");
+	                sb.append(pfx).append("}");
+	                sb.append(pfx);
+	                sb.append(pfx).append("impl putki::InkiObj for " + structName(struct) + " { }");
+                }
+                
                 if (struct.isTypeRoot || struct.possibleChildren.size() > 0) 
                 {
                     sb.append("\n");                 	
@@ -555,8 +566,8 @@ public class RustGenerator
 	                sb.append(pfx).append("\t\tOk(())");
 	                sb.append(pfx).append("\t}");	 
 	                sb.append(pfx).append("}");
-                }     
-
+	                sb.append(pfx);
+                }  
     		}
         }           
         
@@ -660,6 +671,7 @@ public class RustGenerator
                         	case BOOL: 
                         		sb.append("putki::get_bool(data, " + defaultValue(field) + ")");
                         		break;
+                        	case HASH:
                         	case STRING:
                         		sb.append("putki::get_string(data, " + (field.defValue != null ? field.defValue : "\"\"") + ")");
                         		break;
