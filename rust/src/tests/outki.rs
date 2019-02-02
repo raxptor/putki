@@ -30,13 +30,6 @@ impl outki::BinReader for PointedTo {
             value2: i32::read(stream)
         }
     }
-    fn resolve(&mut self, context: &mut outki::BinResolverContext) { 
-        let w: *const PointedTo = self;
-        unsafe {
-            println!("resolev {} {} {}", (*w).value1, (*w).value2, w as usize);
-        }
-    }
- 
 }
 
 impl outki::BinReader for PtrStruct {
@@ -46,9 +39,10 @@ impl outki::BinReader for PtrStruct {
             sib: outki::NullablePtr::<PtrStruct>::read(stream)
         }
     }
-    fn resolve(&mut self, context: &mut outki::BinResolverContext) { 
-        context.resolve(&mut self.ptr);
-        context.resolve(&mut self.sib);
+    fn resolve(&mut self, context: &mut outki::BinResolverContext) -> outki::OutkiResult<()> { 
+        try!(context.resolve(&mut self.ptr));
+        try!(context.resolve(&mut self.sib));
+        Ok(())
     }
 }
 
@@ -59,9 +53,10 @@ impl outki::BinReader for PtrStructNotNull {
             sib: outki::Ptr::<PtrStructNotNull>::read(stream)
         }
     }
-    fn resolve(&mut self, context: &mut outki::BinResolverContext) { 
-        context.resolve_not_null(&mut self.ptr);
-        context.resolve_not_null(&mut self.sib);
+    fn resolve(&mut self, context: &mut outki::BinResolverContext) -> outki::OutkiResult<()> { 
+        try!(context.resolve_not_null(&mut self.ptr));
+        try!(context.resolve_not_null(&mut self.sib));
+        Ok(())
     }
 }
 
@@ -91,9 +86,10 @@ pub fn unpack_simple()
     pm.insert(pkg);
     println!("RESOLVING!");
     let k = pm.resolve::<PointedTo>("pto1");
-    assert_eq!(k.is_some(), true);
-    assert_eq!(k.as_ref().unwrap().value1, 123);
-    assert_eq!(k.as_ref().unwrap().value2, 256*2+100);
+    assert_eq!(k.is_ok(), true);
+    let rf = k.unwrap();
+    assert_eq!(rf.value1, 123);
+    assert_eq!(rf.value2, 256*2+100);
 }
 
 #[test]
@@ -120,8 +116,8 @@ pub fn unpack_complex()
     pm.insert(pkg);
     {
         let k = pm.resolve::<PtrStruct>("ptr1");
-        assert_eq!(k.is_some(), true);
-        let w = k.as_ref().unwrap();
+        assert_eq!(k.is_ok(), true);
+        let w = k.unwrap();
         assert_eq!(w.ptr.get().unwrap().value1, 123);
         assert_eq!(w.ptr.get().unwrap().value2, 256*2+100);
         assert_eq!(w.sib.get().unwrap().ptr.get().unwrap().value1, 124);
@@ -130,9 +126,9 @@ pub fn unpack_complex()
         assert_eq!(w.sib.get().unwrap().sib.get().unwrap().ptr.get().unwrap().value2, 256*2+100);
     }
     {
-        let k:Option<outki::Ref<PtrStruct>> = pm.resolve("ptr2");
-        assert_eq!(k.is_some(), true);  
-        let w = k.as_ref().unwrap();
+        let k:outki::OutkiResult<outki::Ref<PtrStruct>> = pm.resolve("ptr2");
+        assert_eq!(k.is_ok(), true);  
+        let w = k.unwrap();
         assert_eq!(w.ptr.get().unwrap().value1, 124);
         assert_eq!(w.ptr.get().unwrap().value2, 256*3+100);
     }    
@@ -162,8 +158,8 @@ pub fn unpack_not_null_complex()
     pm.insert(pkg);
     {
         let k = pm.resolve::<PtrStructNotNull>("ptr1");
-        assert_eq!(k.is_some(), true);
-        let w = k.as_ref().unwrap();
+        assert_eq!(k.is_ok(), true);
+        let w = k.unwrap();
         assert_eq!(w.ptr.value1, 123);
         assert_eq!(w.ptr.value2, 256*2+100);
         assert_eq!(w.sib.ptr.value1, 124);
@@ -171,13 +167,32 @@ pub fn unpack_not_null_complex()
         assert_eq!(w.sib.sib.ptr.value1, 123);
         assert_eq!(w.sib.sib.ptr.value2, 256*2+100);
     }
-    /*
+}
+
+#[test]
+pub fn unpack_not_null_complex_failure()
+{
+    let mut pm = outki::BinPackageManager::new();
+    let mut pkg = outki::Package::new();
     {
-        let k:Option<outki::Ref<PtrStruct>> = pm.resolve("ptr2");
-        assert_eq!(k.is_some(), true);  
-        let w = k.as_ref().unwrap();
-        assert_eq!(w.ptr.get().unwrap().value1, 124);
-        assert_eq!(w.ptr.get().unwrap().value2, 256*3+100);
+        let data:[u8;8] = [255, 255, 255, 255, 1, 0, 0, 0];
+        pkg.insert(Some("ptr1"), tag_of::<PtrStructNotNull>(), &data);
+    } 
+    {
+        let data:[u8;8] = [3, 0, 0, 0, 0, 0, 0, 0];
+        pkg.insert(Some("ptr2"), tag_of::<PtrStructNotNull>(), &data);
     }    
-    */
+    {
+        let data:[u8;5] = [123, 100, 2, 0, 0];
+        pkg.insert(Some("pto1"), tag_of::<PointedTo>(), &data);
+    }
+    {
+        let data:[u8;5] = [124, 100, 3, 0, 0];
+        pkg.insert(Some("pto1"), tag_of::<PointedTo>(), &data);
+    }
+    pm.insert(pkg);
+    {
+        let k = pm.resolve::<PtrStructNotNull>("ptr1");
+        assert_eq!(k.is_err(), true);
+    }
 }
