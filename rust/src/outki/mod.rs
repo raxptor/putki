@@ -3,6 +3,7 @@ use std::ops::Deref;
 use std::marker::PhantomData;
 use std::num::NonZeroUsize;
 use std::collections::HashMap;
+use std::mem::forget;
 use shared;
 
 pub trait OutkiObj : BinReader + shared::TypeDescriptor
@@ -14,34 +15,71 @@ struct Pin
 
 }
 
-pub struct RawPtr<T>
+pub struct NullablePtr<T>
 {
     ptr: Option<NonZeroUsize>,
     _ph: PhantomData<T>
 }
 
+pub struct Ptr<T>
+{
+    ptr: NonZeroUsize,
+    _ph: PhantomData<T>
+}
+
 pub struct Ref<T>
 {
-    ptr: RawPtr<T>,
+    ptr: Ptr<T>,
     pin: Rc<Pin>
 }
 
-impl<T> Deref for RawPtr<T>
+impl<T> Deref for Ref<T>
 {
     type Target = T;
-    fn deref<'a>(&'a self) -> Option<&'a T> {
-        unimplemented!{}
-        /*
+    fn deref<'a>(&'a self) -> &'a T {
         unsafe {
-            &(*(self.ptr.get() as (*const T)))
+            println!("deref {}", self.ptr.ptr.get());
+            &(*(self.ptr.ptr.get() as (*const T)))
         }
-        */
     }
 }
 
+impl<'a, T> NullablePtr<T>
+{
+    pub fn get(&self) -> Option<&'a T>
+    {
+        unsafe {
+            self.ptr.map(|x| {
+                &(*(x.get() as (*const T)))
+            })
+        }
+    }
+}
 
-impl<T> shared::TypeDescriptor for RawPtr<T> {
-    const TAG : &'static str = "RawPtr<T>> placeholder";
+impl<T> Ref<T>
+{
+    pub fn get_pointer(&self) -> *const T {
+        self.ptr.ptr.get() as (*const T)
+    }
+}
+
+impl<T> Deref for Ptr<T>
+{
+    type Target = T;
+    fn deref<'a>(&'a self) -> &'a T {
+        unsafe {
+            println!("deref {}", self.ptr.get());
+            &(*(self.ptr.get() as (*const T)))
+        }
+    }
+}
+
+impl<T> shared::TypeDescriptor for NullablePtr<T> {
+    const TAG : &'static str = "NullablePtr<T>> placeholder";
+}
+
+impl<T> shared::TypeDescriptor for Ptr<T> {
+    const TAG : &'static str = "NullablePtr<T>> placeholder";
 }
 
 impl shared::TypeDescriptor for i32 {
@@ -71,7 +109,7 @@ pub struct BinResolverContext<'a> {
 type Loader = fn(i32) -> usize;
 
 impl<'a> BinResolverContext<'a> {
-    pub fn resolve<T>(&mut self, ptr: &mut RawPtr<T>) -> bool where T : OutkiObj {
+    pub fn resolve<T>(&mut self, ptr: &mut NullablePtr<T>) -> bool where T : OutkiObj {
         match ptr.ptr {
             Some(slot) => {
                 let rslot = usize::from(slot);
@@ -107,8 +145,8 @@ impl<'a> BinResolverContext<'a> {
         }
 
 /*
-        let p : *mut RawPtr<T> = ptr;
-        let q = p as *mut RawPtr<i32>;
+        let p : *mut NullablePtr<T> = ptr;
+        let q = p as *mut NullablePtr<i32>;
         
         
 
@@ -160,15 +198,10 @@ impl<'a> BinReader for i32 {
     }
 }
 
-impl<T> BinReader for RawPtr<T> where T : BinReader {
+impl<T> BinReader for NullablePtr<T> where T : BinReader {
     fn read(ctx: &mut BinDataStream) -> Self {
-        let slot:u32 = u32::read(ctx);
-        if slot == 0 {
-            RawPtr { ptr: None, _ph: PhantomData { } }
-        } else {
-            RawPtr { ptr: None, _ph: PhantomData { } }
-        }
-        //return BinPackageManager::obj_from_slot(ctx.context, u32::read(ctx))
+        let slotplusone:i32 = i32::read(ctx) + 1;
+        NullablePtr { ptr: NonZeroUsize::new(slotplusone as usize), _ph: PhantomData { } }
     }
 }
 
@@ -254,15 +287,19 @@ impl BinPackageManager
             context: &context
         };
     
-        let mut ptr : RawPtr<T> = RawPtr {
+        let mut ptr : NullablePtr<T> = NullablePtr {
             ptr: NonZeroUsize::new(slot as usize),
             _ph: PhantomData { }
         };
 
         if rctx.resolve(&mut ptr) {
-            Some(Ref {
-                ptr: ptr,
-                pin: Rc::new(Pin { })
+            ptr.ptr.map(|addr| { Ref {
+                    ptr: Ptr {
+                        ptr: addr,
+                        _ph: PhantomData { }
+                    },
+                    pin: Rc::new(Pin { })
+                }
             })
         } else {
             None
@@ -287,6 +324,7 @@ impl BinPackageManager
             let objptr : *mut T = &mut *obj;
             res.loaded.insert(slot as usize, objptr as usize);
             obj.resolve(res);
+            forget(obj);
             return true;
         }
         false

@@ -12,6 +12,7 @@ use std::path::Path;
 
 use putki::PutkiError;
 use putki::FieldWriter;
+use putki::Ptr;
 
 #[derive(Debug, Clone, Default)]
 struct TestValues {
