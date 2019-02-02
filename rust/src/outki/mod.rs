@@ -109,6 +109,20 @@ pub struct BinResolverContext<'a> {
 type Loader = fn(i32) -> usize;
 
 impl<'a> BinResolverContext<'a> {
+
+    pub fn resolve_not_null<T>(&mut self, ptr: &mut Ptr<T>) -> bool where T : OutkiObj {
+        let mut tmp_ptr : NullablePtr<T> = NullablePtr {
+            ptr: Some(ptr.ptr),
+            _ph: PhantomData { }
+        };
+        if self.resolve(&mut tmp_ptr) {
+            ptr.ptr = tmp_ptr.ptr.unwrap();
+            true
+        } else {
+            false
+        }
+    }
+ 
     pub fn resolve<T>(&mut self, ptr: &mut NullablePtr<T>) -> bool where T : OutkiObj {
         match ptr.ptr {
             Some(slot) => {
@@ -202,6 +216,13 @@ impl<T> BinReader for NullablePtr<T> where T : BinReader {
     fn read(ctx: &mut BinDataStream) -> Self {
         let slotplusone:i32 = i32::read(ctx) + 1;
         NullablePtr { ptr: NonZeroUsize::new(slotplusone as usize), _ph: PhantomData { } }
+    }
+}
+
+impl<T> BinReader for Ptr<T> where T : BinReader {
+    fn read(ctx: &mut BinDataStream) -> Self {
+        let slotplusone:i32 = i32::read(ctx) + 1;
+        Ptr { ptr: NonZeroUsize::new(slotplusone as usize).unwrap(), _ph: PhantomData { } }
     }
 }
 
