@@ -1,5 +1,5 @@
-#![feature(get_type_id)]
 #![allow(unused_imports)]
+#![allow(unused_must_use)]
 extern crate putki;
 
 use std::collections::HashMap;
@@ -61,13 +61,13 @@ impl putki::BuildFields for Pointer {
 impl putki::BuildCandidate for TestValues {
     fn as_any_ref(&mut self) -> &mut any::Any { return self; }    
     fn build(&mut self, p:&putki::Pipeline, br: &mut putki::BuildRecord) -> Result<(), putki::PutkiError> { p.build(br, self) }
-	fn scan_deps(&self, p:&putki::Pipeline, br: &mut putki::BuildRecord) { }
+	fn scan_deps(&self, _p:&putki::Pipeline, _br: &mut putki::BuildRecord) { }
 }
 
 impl putki::BuildCandidate for Multi {
     fn as_any_ref(&mut self) -> &mut any::Any { return self; }    
     fn build(&mut self, p:&putki::Pipeline, br: &mut putki::BuildRecord) -> Result<(), putki::PutkiError> { p.build(br, self) }
-	fn scan_deps(&self, p:&putki::Pipeline, br: &mut putki::BuildRecord) { }
+	fn scan_deps(&self, _p:&putki::Pipeline, _br: &mut putki::BuildRecord) { }
 }
 
 impl putki::BuildCandidate for Pointer {

@@ -2,7 +2,6 @@
 #![allow(dead_code)]
 
 use std::borrow::BorrowMut;
-use std::intrinsics;
 use std::rc::Rc;
 use std::any;
 use std::any::TypeId;
@@ -148,7 +147,6 @@ impl PipelineDesc {
             builder: Arc::new(bld),
             object_type: any::TypeId::of::<K>()
         }));
-        unsafe {println!("adding with {}", intrinsics::type_name::<K>()); }
         self
     }
 }

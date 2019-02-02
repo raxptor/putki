@@ -10,9 +10,9 @@ struct PointedTo {
     value2: i32    
 }
 
-#[derive(Debug)]
+//#[derive(Debug)]
 struct PtrStruct {
-    pub ptr: Option<Rc<PointedTo>>
+    pub ptr: outki::RawPtr<PointedTo>
 }
 
 use outki::BinReader;
@@ -29,8 +29,11 @@ impl outki::BinReader for PointedTo {
 impl outki::BinReader for PtrStruct {
     fn read(stream:&mut outki::BinDataStream) -> Self {
         Self {
-            ptr: <Option<Rc<PointedTo>> as outki::BinReader>::read(stream)
+            ptr: outki::RawPtr::<PointedTo>::read(stream)
         }
+    }
+    fn resolve(&mut self, context: &mut outki::BinResolverContext) { 
+        context.resolve(&mut self.ptr);
     }
 }
 
@@ -42,6 +45,8 @@ impl shared::TypeDescriptor for PtrStruct {
     const TAG : &'static str = "PtrStruct";
 }
 
+impl outki::OutkiObj for PointedTo { }
+
 #[test]
 pub fn unpack_simple()
 {
@@ -50,10 +55,13 @@ pub fn unpack_simple()
     let data:[u8;5] = [123, 100, 2, 0, 0];
     pkg.insert(Some("pto1"), tag_of::<PointedTo>(), &data);
     pm.insert(pkg);
-    let k:Option<Rc<PointedTo>> = pm.resolve("pto1");
+    println!("RESOLVING!");
+    let k = pm.resolve::<PointedTo>("pto1");
     assert_eq!(k.is_some(), true);
-    assert_eq!(k.clone().unwrap().value1, 123);
+    assert_eq!(k.ptr.unwrap().value1, 123);
+    /*
     assert_eq!(k.clone().unwrap().value2, 256*2+100);
+    */
 }
 
 #[test]
@@ -76,8 +84,9 @@ pub fn unpack_complex()
     {
         let data:[u8;5] = [124, 100, 3, 0, 0];
         pkg.insert(Some("pto1"), tag_of::<PointedTo>(), &data);
-    }
+    }    
     pm.insert(pkg);
+    /*
     {
         let k:Option<Rc<PtrStruct>> = pm.resolve("ptr1");
         assert_eq!(k.is_some(), true);  
@@ -90,4 +99,5 @@ pub fn unpack_complex()
         assert_eq!(k.clone().unwrap().ptr.clone().unwrap().value1, 124);
         assert_eq!(k.clone().unwrap().ptr.clone().unwrap().value2, 256*3+100);
     }    
+    */
 }

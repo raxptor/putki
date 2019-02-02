@@ -1,7 +1,3 @@
-#![feature(get_type_id)]
-#![feature(core_intrinsics)]
-#![feature(rc_downcast)] 
-
 extern crate seahash;
 
 mod inki;
