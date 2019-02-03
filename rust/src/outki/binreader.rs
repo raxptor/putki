@@ -1,3 +1,5 @@
+use outki::{BinLoader, BinResolverContext, OutkiResult};
+
 pub struct BinDataStream<'a> {
     slice: &'a [u8]
 }
@@ -56,3 +58,32 @@ impl<'a> BinReader for String {
     }
 }
 
+impl<T> BinReader for Vec<T> where T : BinReader
+{    
+    fn read(stream: &mut BinDataStream) -> Vec<T> {
+        let len = usize::read(stream);
+        let mut vec = Vec::with_capacity(len);
+        for _i in 0..len {
+            vec.push(<T as BinReader>::read(stream));
+        }
+        return vec;
+    }        
+}
+
+
+impl<T> BinLoader for Vec<T> where T : BinLoader {
+    fn read(stream: &mut BinDataStream) -> Self {
+        let len = usize::read(stream);
+        let mut vec = Vec::with_capacity(len);
+        for _i in 0..len {
+            vec.push(<T as BinLoader>::read(stream));
+        }
+        return vec;        
+    }
+    fn resolve(&mut self, context: &mut BinResolverContext) -> OutkiResult<()> {
+        for x in self.iter_mut() {
+            x.resolve(context)?;
+        }
+        Ok(())
+    }    
+}

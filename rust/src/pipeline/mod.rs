@@ -205,6 +205,27 @@ impl<T> BinSaver for PtrBox<T> where T : 'static + InkiObj
         } else {
             Err(PutkiError::ObjectNotFound)
         }
+    }    
+}
+
+impl<T> BinSaver for Vec<T> where T : 'static + BinSaver
+{    
+    fn write(&self, data: &mut Vec<u8>, refwriter: &PackageRefs) -> Result<(), PutkiError> {
+        self.len().write(data);
+        for x in self.iter() {
+            (*x).write(data, refwriter)?;
+        }
+        Ok(())
+    }
+}
+
+impl<T> BinWriter for Vec<T> where T : 'static + BinWriter
+{    
+    fn write(&self, data: &mut Vec<u8>) {
+        self.len().write(data);
+        for x in self.iter() {
+            (*x).write(data);
+        }
     }
 }
 

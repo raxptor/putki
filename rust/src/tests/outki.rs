@@ -14,6 +14,14 @@ struct PtrStruct {
     pub sib: outki::NullablePtr<PtrStruct>
 }
 
+struct ArrayPodStruct {
+    pub values: Vec<i32>
+}
+
+struct ArrayStruct {
+    pub values: Vec<PointedTo>
+}
+
 struct PtrStructNotNull {
     pub ptr: outki::Ptr<PointedTo>,
     pub sib: outki::Ptr<PtrStructNotNull>
@@ -28,6 +36,31 @@ impl outki::BinLoader for PointedTo {
     }
     fn resolve(&mut self, _context: &mut BinResolverContext) -> outki::OutkiResult<()> { Ok(()) }
 }
+
+impl outki::BinLoader for ArrayPodStruct {
+    fn read(stream:&mut outki::BinDataStream) -> Self {
+        Self {
+            values: outki::BinReader::read(stream)
+        }
+    }
+    fn resolve(&mut self, _context: &mut outki::BinResolverContext) -> outki::OutkiResult<()> {
+        Ok(())
+    }
+}
+
+impl outki::BinLoader for ArrayStruct {
+    fn read(stream:&mut outki::BinDataStream) -> Self {
+        Self {
+            values: outki::BinLoader::read(stream)
+        }
+    }
+    fn resolve(&mut self, _context: &mut outki::BinResolverContext) -> outki::OutkiResult<()> {
+        self.values.resolve(_context)?;
+        Ok(())
+    }
+}
+
+
 
 impl outki::BinLoader for PtrStruct {
     fn read(stream:&mut outki::BinDataStream) -> Self {
@@ -69,9 +102,19 @@ impl shared::TypeDescriptor for PtrStructNotNull {
     const TAG : &'static str = "PtrStructNotNull";
 }
 
+impl shared::TypeDescriptor for ArrayPodStruct {
+    const TAG : &'static str = "ArrayPodStruct";
+}
+
+impl shared::TypeDescriptor for ArrayStruct {
+    const TAG : &'static str = "ArrayPodStruct";
+}
+
 impl outki::OutkiObj for PointedTo { }
 impl outki::OutkiObj for PtrStruct { }
 impl outki::OutkiObj for PtrStructNotNull { }
+impl outki::OutkiObj for ArrayPodStruct { }
+impl outki::OutkiObj for ArrayStruct { }
 
 impl outki::PackageRandomAccess for Vec<u8>
 {
@@ -163,9 +206,49 @@ pub fn unpack_not_null_complex_failure()
     let mut pkg_data:Vec<u8> = Vec::new();
     let mut pkg = outki::PackageManifest::new();            
     pkg.add_obj::<PtrStructNotNull>(&mut pkg_data, Some("ptr1"), &[255, 255, 255, 255, 1, 0, 0, 0]);
-    let pm = outki::BinPackageManager::new();
+    let mut pm = outki::BinPackageManager::new();
+    pm.insert(Package::new(pkg, Box::new(pkg_data)));
     {
         let k = pm.resolve::<PtrStructNotNull>("ptr1");
         assert_eq!(k.is_err(), true);
+    }
+}
+
+#[test]
+pub fn unpack_array_pod()
+{
+    let mut pkg_data:Vec<u8> = Vec::new();
+    let mut pkg = outki::PackageManifest::new();            
+    pkg.add_obj::<ArrayPodStruct>(&mut pkg_data, Some("obj0"), &[3, 0, 0, 0, 0, 0, 0, 0, 111, 0, 0, 0, 222, 0, 0, 0, 123, 0, 0, 0]);
+    let mut pm = outki::BinPackageManager::new();    
+    pm.insert(Package::new(pkg, Box::new(pkg_data)));
+    {
+        let k = pm.resolve::<ArrayPodStruct>("obj0");
+        assert_eq!(k.is_err(), false);
+        let obj = k.unwrap();
+        assert_eq!(obj.values.len(), 3);
+        assert_eq!(obj.values[0], 111);
+        assert_eq!(obj.values[1], 222);
+        assert_eq!(obj.values[2], 123);
+    }
+}
+
+#[test]
+pub fn unpack_array_struct()
+{
+    let mut pkg_data:Vec<u8> = Vec::new();
+    let mut pkg = outki::PackageManifest::new();            
+    pkg.add_obj::<ArrayStruct>(&mut pkg_data, Some("obj0"), &[2, 0, 0, 0, 0, 0, 0, 0, 10, 11, 0, 0, 0, 12, 255, 255, 255, 255]);
+    let mut pm = outki::BinPackageManager::new();    
+    pm.insert(Package::new(pkg, Box::new(pkg_data)));
+    {
+        let k = pm.resolve::<ArrayStruct>("obj0");
+        assert_eq!(k.is_err(), false);
+        let obj = k.unwrap();
+        assert_eq!(obj.values.len(), 2);
+        assert_eq!(obj.values[0].value1, 10);
+        assert_eq!(obj.values[0].value2, 11);
+        assert_eq!(obj.values[1].value1, 12);
+        assert_eq!(obj.values[1].value2, -1);
     }
 }

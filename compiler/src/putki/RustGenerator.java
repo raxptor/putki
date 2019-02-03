@@ -143,9 +143,9 @@ public class RustGenerator
 		else if (pf.type == FieldType.POINTER)
 		{
 			if (pf.allowNull)
-				return "Option<rc::Rc<" + structName(pf.resolvedRefStruct) + ">>";
+				return "outki::NullablePtr<" + structName(pf.resolvedRefStruct) + ">";
 			else
-				return "rc::Rc<" + structName(pf.resolvedRefStruct) + ">";
+				return "outki::Ptr<" + structName(pf.resolvedRefStruct) + ">";
 		}		
 		else
 		{
@@ -245,9 +245,11 @@ public class RustGenerator
 	        sb.append("#![recursion_limit=\"128\"]");
 	        sb.append("\nextern crate putki;"); 	        
 	        sb.append("\npub mod inki;");
+	        sb.append("\npub mod outki;");
 	        writer.addOutput(fn, sb.toString().getBytes());	        
 	        generateInkiStructs(comp, tree, writer);
 	        generateInkiParsers(comp, tree, writer);
+	        generateOutkiStructs(comp, tree, writer);
         }
     }
     
@@ -418,6 +420,13 @@ public class RustGenerator
 	                sb.append(pfx).append("\tfn write_text(&self, _output: &mut String) -> Result<(), putki::PutkiError> { Ok(()) }");
 	                sb.append(pfx).append("}");
 	                sb.append(pfx);
+	                
+	                sb.append(pfx).append("impl putki::BinSaver for " + structName(struct) + " {");
+	                sb.append(pfx).append("\tfn write(&self, _data: &mut Vec<u8>, _refwriter: &putki::PackageRefs) -> Result<(), putki::PutkiError> {");
+	                sb.append(pfx).append("\t\tunimplemented!();");
+	                sb.append(pfx).append("\t}");
+	                sb.append(pfx).append("}");
+	                sb.append(pfx);	                
 	                sb.append(pfx).append("impl putki::InkiObj for " + structName(struct) + " { }");
                 }
                 
@@ -584,6 +593,157 @@ public class RustGenerator
         sb.append("[dependencies]\r\nputki = { path = \""  + tree.putkiPath.resolve("rust").toAbsolutePath().toString().replaceAll("\\\\",  "/") + "\" }");
         writer.addOutput(mfn, sb.toString().getBytes());
     }
+    
+    public static void generateOutkiStructs(Compiler comp, Compiler.ParsedTree tree, CodeWriter writer)
+    {
+        Path lib = tree.genCodeRoot.resolve("rust").resolve("src").resolve("outki");
+        Path fn = lib.resolve("mod.rs");
+        StringBuilder sb = new StringBuilder();
+        sb.append("#![allow(unused_imports)]");        
+        sb.append("\nuse std::any;");
+        sb.append("\nuse std::default;");            
+        sb.append("\nuse std::vec;");        
+        sb.append("\nuse putki::outki as outki;");
+
+        sb.append("\n");
+
+        for (Compiler.ParsedFile file : tree.parsedFiles)
+        {
+        	for (Compiler.ParsedEnum e : file.enums)
+        	{
+        		String prefix = "\n";
+    			sb.append("\n");
+        		sb.append(prefix).append("pub enum " + e.name + " {");
+        		boolean first = true;
+        		for (Compiler.EnumValue val : e.values)
+        		{
+        			if (!first) sb.append(",");
+        			sb.append(prefix).append("\t" + capsToCamelCase(val.name));
+        			first = false;
+        		}
+    			sb.append(prefix).append("}");
+    			sb.append("\n");
+        		sb.append(prefix).append("impl From<" + e.name + "> for i32 {");
+        		sb.append(prefix).append("\tfn from(val:" + e.name + ") -> i32 {");        		
+        		sb.append(prefix).append("\t\tmatch val {");
+        		for (Compiler.EnumValue val : e.values)
+        		{        		
+        			sb.append(prefix).append("\t\t\t" + e.name + "::" + capsToCamelCase(val.name) + " => " + val.value + ",");
+        		}
+        		sb.append(prefix).append("\t\t}");
+        		sb.append(prefix).append("\t}");
+        		sb.append(prefix).append("}");
+    			sb.append("\n");
+        		sb.append(prefix).append("impl From<i32> for " + e.name + " {");
+        		sb.append(prefix).append("\tfn from(val:i32) -> Self {");        		
+        		sb.append(prefix).append("\t\tmatch val {");
+        		for (Compiler.EnumValue val : e.values)
+        		{        		
+        			sb.append(prefix).append("\t\t\t" + val.value + " => " + e.name + "::" + capsToCamelCase(val.name) + ",");
+        		}
+    			sb.append(prefix).append("\t\t\t_ => " + e.name + "::" + capsToCamelCase(e.values.get(0).name));
+        		sb.append(prefix).append("\t\t}");
+        		sb.append(prefix).append("\t}");
+        		sb.append(prefix).append("}");       
+    			sb.append("\n");          		
+        	}
+
+    		for (Compiler.ParsedStruct struct : file.structs)
+    		{
+            	String pfx = "\n";
+                if ((struct.domains & Compiler.DOMAIN_OUTPUT) == 0)
+                    continue;                    
+                
+                if (struct.isTypeRoot || struct.possibleChildren.size() > 0)
+                {
+                	sb.append("\n");                	
+                	sb.append(pfx).append("pub enum " + structName(struct) + " {");
+                	if (structNameWrap(struct).length() == 0)
+                    	sb.append(pfx).append("\t" + structName(struct));
+                	else
+                		sb.append(pfx).append("\t" + structName(struct) + "(" + structNameWrap(struct) + ")");
+                	for (Compiler.ParsedStruct ch : struct.possibleChildren)
+                	{
+                		sb.append(",").append(pfx).append("\t" + structName(ch) + "(" + structName(ch) + ")");
+                	}
+                	sb.append(pfx).append("}");
+                }
+  
+                // Pure enum roots have type ()
+                if (structNameWrap(struct).length() > 0) 
+                {                
+	            	sb.append("\n");
+	            	sb.append(pfx).append("pub struct " + structNameWrap(struct) + " {");
+	                
+	                boolean first = true;                
+	                String spfx = pfx + "\t";           
+	                for (Compiler.ParsedField field : struct.fields)
+	                {	                	
+	                    if ((field.domains & Compiler.DOMAIN_OUTPUT) == 0)
+	                        continue;
+                    	if (field.isParentField && field.resolvedRefStruct != null && structNameWrap(field.resolvedRefStruct).length() == 0)
+                    		continue;
+	                    
+	                    if (!first)
+	                    	sb.append(",");
+	                    first = false;
+	                    
+	                    
+	                	sb.append(spfx).append("pub " + fieldName(field) + " : ");
+	                    if (field.isArray) sb.append("vec::Vec<");
+	                	sb.append(outkiFieldType(field));
+	                    if (field.isArray) sb.append(">");
+	                }
+	            
+	                sb.append(pfx).append("}");
+                }
+                
+                if (structNameWrap(struct).length() > 0 || struct.isTypeRoot || struct.possibleChildren.size() > 0) 
+                {
+                	/*
+	                sb.append(pfx).append("impl putki::WriteAsText for " + structName(struct) + " {");
+	                sb.append(pfx).append("\tfn write_text(&self, _output: &mut String) -> Result<(), putki::PutkiError> { Ok(()) }");
+	                sb.append(pfx).append("}");
+	                sb.append(pfx);
+	                
+	                sb.append(pfx).append("impl putki::BinSaver for " + structName(struct) + " {");
+	                sb.append(pfx).append("\tfn write(&self, _data: &mut Vec<u8>, _refwriter: &putki::PackageRefs) -> Result<(), putki::PutkiError> {");
+	                sb.append(pfx).append("\t\tunimplemented!();");
+	                sb.append(pfx).append("\t}");
+	                sb.append(pfx).append("}");
+	                sb.append(pfx);	                
+	                sb.append(pfx).append("impl putki::InkiObj for " + structName(struct) + " { }");
+	                */
+                }
+                
+                if (struct.isTypeRoot || struct.possibleChildren.size() > 0) 
+                {
+                    sb.append("\n");                 	
+                	sb.append(pfx).append("impl putki::TypeDescriptor for " + structName(struct) + " { const TAG: &'static str = \"" + struct.name + "\"; }");                    
+                }                
+
+                if (structNameWrap(struct).length() > 0)
+                {
+                    sb.append("\n");                                            	
+                	sb.append(pfx).append("impl putki::TypeDescriptor for " + structNameWrap(struct) + " { const TAG: &'static str = \"" + struct.name + "\"; }");
+                }
+    		}
+        }           
+        
+        writer.addOutput(fn, sb.toString().getBytes());
+        
+        Path manifest = tree.genCodeRoot.resolve("rust");
+        Path mfn = manifest.resolve("Cargo.toml");
+        sb = new StringBuilder();
+        sb.append("[package]\n");
+        sb.append("name = \"putki_gen\"\n");
+        sb.append("version = \"0.1.0\"\n");
+        sb.append("[lib]\n");
+        sb.append("name = \"" + moduleName(tree.moduleName) + "\"\n");
+        sb.append("[dependencies]\r\nputki = { path = \""  + tree.putkiPath.resolve("rust").toAbsolutePath().toString().replaceAll("\\\\",  "/") + "\" }");
+        writer.addOutput(mfn, sb.toString().getBytes());
+    }
+    
     
     public static void generateInkiParsers(Compiler comp, Compiler.ParsedTree tree, CodeWriter writer)
     {

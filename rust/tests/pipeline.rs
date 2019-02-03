@@ -21,7 +21,7 @@ use outki::BinReader;
 #[derive(Debug, Clone, Default)]
 struct TestValues {
 	value1: i32,
-	value2: i32
+	value2: i32	
 }
 
 #[derive(Debug, Clone, Default)]

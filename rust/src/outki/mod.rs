@@ -66,7 +66,6 @@ impl<T> BinReader for Ptr<T> where T : BinLoader {
     }
 }
 
-
 struct MemoryPin 
 {
     destructors: HashMap<usize, Destructor>
