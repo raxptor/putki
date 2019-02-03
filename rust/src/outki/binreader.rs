@@ -46,3 +46,13 @@ impl<'a> BinReader for i32 {
         u32::read(ctx) as i32
     }
 }
+
+impl<'a> BinReader for String {
+    fn read(stream: &mut BinDataStream) -> String {
+        let len = usize::read(stream);
+        let res = String::from_utf8((&stream.slice[0..len]).to_vec());
+        stream.slice = &stream.slice[len..];
+        res.unwrap()
+    }
+}
+

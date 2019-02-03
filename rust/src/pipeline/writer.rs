@@ -71,7 +71,7 @@ impl BinWriter for u8 {
 impl BinWriter for &str {
     fn write(&self, data: &mut Vec<u8>) {
         let b = self.as_bytes();
-        (b.len() as u32).write(data);
+        b.len().write(data);
         data.extend_from_slice(self.as_bytes());
     }
 }
@@ -139,7 +139,7 @@ pub fn write_package(p:&pipeline::Pipeline, recipe:&PackageRecipe) -> Result<Vec
     let mut type_rev:HashMap<&'static str, usize> = HashMap::new();
 
     (0 as usize).write(&mut manifest);
-    (types.len() as u32).write(&mut manifest);
+    types.len().write(&mut manifest);
     let mut tindex = 0;
     for t in types.iter() {
         t.write(&mut manifest);
@@ -157,7 +157,7 @@ pub fn write_package(p:&pipeline::Pipeline, recipe:&PackageRecipe) -> Result<Vec
     }
 
     // slot count
-    (items.len() as u32).write(&mut manifest);
+    items.len().write(&mut manifest);
 
     let k = p.peek_build_records().unwrap();    
     for i in 0..items.len() {        
@@ -165,6 +165,7 @@ pub fn write_package(p:&pipeline::Pipeline, recipe:&PackageRecipe) -> Result<Vec
         let mut flags:u32 = outki::SLOTFLAG_HAS_PATH | outki::SLOTFLAG_INTERNAL;
         let type_id:usize = *k.get(path).and_then(|x| type_rev.get(x.type_tag)).unwrap_or(&0);
         flags.write(&mut manifest);
+        path.write(&mut manifest);
         type_id.write(&mut manifest);
         let begin = manifest.len();
         (0 as usize).write(&mut manifest);

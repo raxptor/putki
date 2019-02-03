@@ -5,6 +5,7 @@ use std::marker::PhantomData;
 use std::num::NonZeroUsize;
 use std::collections::HashMap;
 use std::mem::forget;
+use std::ops::DerefMut;
 use std::io;
 use shared;
 mod binreader;
@@ -29,6 +30,10 @@ impl From<io::Error> for OutkiError {
     fn from(e_ : io::Error) -> OutkiError {
         OutkiError::IOError
     }
+}
+
+pub trait PackageRandomAccess {    
+    fn read_chunk(&self, begin:usize, into:&mut [u8]) -> OutkiResult<()>;
 }
 
 pub type OutkiResult<T> = Result<T, OutkiError>;
@@ -219,43 +224,17 @@ pub struct BinReaderContext<'a> {
     package: i32
 }
 
-
-pub struct Slot {
-    path: Option<String>,
-    type_name: String,
-    _package_ref:u32, // 0 = self, otherwise external package mapping table.
-    begin: usize,
-    end: usize
-}
-
 pub struct Package {
-    content: Option<Vec<u8>>,
-    slots: Vec<Slot>    
+    manifest: PackageManifest,
+    reader: Box<dyn PackageRandomAccess>
 }
 
-impl Package {
-    pub fn new() -> Self {
+impl Package {    
+    pub fn new(mf:PackageManifest, rdr:Box<dyn PackageRandomAccess>) -> Self {
         Package { 
-            content: None,
-            slots: Vec::new()
+            manifest: mf,
+            reader: rdr
         }
-    }
-    pub fn insert(&mut self, path: Option<&str>, type_name:&str, data:&[u8]) {
-        let begin;
-        if let Some(ref mut d) = self.content {
-            begin = d.len();
-            d.extend_from_slice(data);
-        } else {
-            begin = 0;
-            self.content = Some(Vec::from(data));
-        }
-        self.slots.push(Slot {
-            path: path.and_then(|x| { return Some(String::from(x)) }),
-            type_name: String::from(type_name),
-            _package_ref: 0,
-            begin: begin,
-            end: begin + data.len()             
-        });
     }
 }
 
@@ -274,12 +253,12 @@ impl BinPackageManager
     pub fn new() -> BinPackageManager { BinPackageManager {
         packages: Vec::new()        
     }}
-
+    
     pub fn insert(&mut self, p:Package) { self.packages.push(p); }
     pub fn resolve<'a, T>(&'a self, path:&str) -> OutkiResult<Ref<T>> where T : OutkiObj { 
         for ref p in &self.packages {
-            for idx in 0 .. p.slots.len() {
-                let s = &p.slots[idx];
+            for idx in 0 .. p.manifest.slots.len() {
+                let s = &p.manifest.slots[idx];
                 if let &Some(ref pth) = &s.path {
                     if pth == path {
                         let rs = BinReaderContext {
@@ -336,23 +315,24 @@ impl BinPackageManager
     fn load_and_try_resolve<T>(res: &mut BinResolverContext, slot:u32) -> OutkiResult<()> where T : OutkiObj {
         let pkg = &res.context.mgr.packages[res.context.package as usize];
         let slotidx = (slot-1) as usize;
-        if slotidx >= pkg.slots.len() {
+        if slotidx >= pkg.manifest.slots.len() {
             return Err(OutkiError::SlotNotFound);
         }
-        if let &Some(ref data) = &pkg.content {
-            let s = &pkg.slots[slotidx];
-            println!("Unpacking object at slot {}, byte range [{}..{}] in package {} with type {}", slot, s.begin, s.end, slotidx, s.type_name);
-            let mut stream = BinDataStream::new(&data[s.begin .. s.end]);
-            let mut obj:Box<T> = Box::new(BinLoader::read(&mut stream));
-            let objptr : *mut T = &mut *obj;
-            res.loaded.insert(slot as usize, objptr as usize);
-            res.pindata.destructors.insert(objptr as usize, Self::destruct::<T>);
-            let r = obj.resolve(res);
-            forget(obj); // need to forget before try! or we will have stored double references.
-            r?;
-            Ok(())
-        } else {
-            Err(OutkiError::DataMissing)
-        }
+
+        let s = &pkg.manifest.slots[slotidx];
+        let size = s.end - s.begin;
+        let mut tmp_buf = vec![0 as u8; size];
+        pkg.reader.read_chunk(s.begin, tmp_buf.deref_mut())?;
+            
+        println!("Unpacking object at slot {}, byte range [{}..{}] in package {} with type {}", slot, s.begin, s.end, slotidx, s.type_id);
+        let mut stream = BinDataStream::new(tmp_buf.deref());
+        let mut obj:Box<T> = Box::new(BinLoader::read(&mut stream));
+        let objptr : *mut T = &mut *obj;
+        res.loaded.insert(slot as usize, objptr as usize);
+        res.pindata.destructors.insert(objptr as usize, Self::destruct::<T>);
+        let r = obj.resolve(res);
+        forget(obj); // need to forget before try! or we will have stored double references.
+        r?;
+        Ok(())
     }
 }

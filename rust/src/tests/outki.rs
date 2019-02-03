@@ -75,44 +75,46 @@ impl outki::OutkiObj for PointedTo { }
 impl outki::OutkiObj for PtrStruct { }
 impl outki::OutkiObj for PtrStructNotNull { }
 
+impl outki::PackageRandomAccess for Vec<u8>
+{
+    fn read_chunk(&self, begin:usize, into:&mut [u8]) -> OutkiResult<()> {
+        for i in 0..into.len() {
+            into[i] = self[begin + i];
+        }
+        Ok(())
+    }
+}
+
 #[test]
 pub fn unpack_simple()
-{
+{    
+    let mut pkg_data:Vec<u8> = Vec::new();
+    let mut pkg = outki::PackageManifest::new();        
+    pkg.add_obj::<PointedTo>(&mut pkg_data, Some("pto1"), &[123, 100, 2, 0, 0]);
+
     let mut pm = outki::BinPackageManager::new();
-    let mut pkg = outki::Package::new();
-    let data:[u8;5] = [123, 100, 2, 0, 0];
-    pkg.insert(Some("pto1"), tag_of::<PointedTo>(), &data);
-    pm.insert(pkg);
+    pm.insert(Package::new(pkg, Box::new(pkg_data)));
+
     println!("RESOLVING!");
     let k = pm.resolve::<PointedTo>("pto1");
     assert_eq!(k.is_ok(), true);
     let rf = k.unwrap();
     assert_eq!(rf.value1, 123);
-    assert_eq!(rf.value2, 256*2+100);
+    assert_eq!(rf.value2, 256*2+100);    
 }
 
 #[test]
 pub fn unpack_complex()
 {
+    let mut pkg_data:Vec<u8> = Vec::new();
+    let mut pkg = outki::PackageManifest::new();            
+    pkg.add_obj::<PtrStruct>(&mut pkg_data, Some("ptr1"), &[2, 0, 0, 0, 1, 0, 0, 0]);
+    pkg.add_obj::<PtrStruct>(&mut pkg_data, Some("ptr2"), &[3, 0, 0, 0, 0, 0, 0, 0]);
+    pkg.add_obj::<PointedTo>(&mut pkg_data, Some("pto1"), &[123, 100, 2, 0, 0]);
+    pkg.add_obj::<PointedTo>(&mut pkg_data, Some("pto2"), &[124, 100, 3, 0, 0]);
     let mut pm = outki::BinPackageManager::new();
-    let mut pkg = outki::Package::new();
-    {
-        let data:[u8;8] = [2, 0, 0, 0, 1, 0, 0, 0];
-        pkg.insert(Some("ptr1"), tag_of::<PtrStruct>(), &data);
-    } 
-    {
-        let data:[u8;8] = [3, 0, 0, 0, 0, 0, 0, 0];
-        pkg.insert(Some("ptr2"), tag_of::<PtrStruct>(), &data);
-    }    
-    {
-        let data:[u8;5] = [123, 100, 2, 0, 0];
-        pkg.insert(Some("pto1"), tag_of::<PointedTo>(), &data);
-    }
-    {
-        let data:[u8;5] = [124, 100, 3, 0, 0];
-        pkg.insert(Some("pto1"), tag_of::<PointedTo>(), &data);
-    }
-    pm.insert(pkg);
+    pm.insert(Package::new(pkg, Box::new(pkg_data)));
+
     {
         let k = pm.resolve::<PtrStruct>("ptr1");
         assert_eq!(k.is_ok(), true);
@@ -136,25 +138,14 @@ pub fn unpack_complex()
 #[test]
 pub fn unpack_not_null_complex()
 {
+    let mut pkg_data:Vec<u8> = Vec::new();
+    let mut pkg = outki::PackageManifest::new();            
+    pkg.add_obj::<PtrStructNotNull>(&mut pkg_data, Some("ptr1"), &[2, 0, 0, 0, 1, 0, 0, 0]);
+    pkg.add_obj::<PtrStructNotNull>(&mut pkg_data, Some("ptr2"), &[3, 0, 0, 0, 0, 0, 0, 0]);
+    pkg.add_obj::<PointedTo>(&mut pkg_data, Some("pto1"), &[123, 100, 2, 0, 0]);
+    pkg.add_obj::<PointedTo>(&mut pkg_data, Some("pto2"), &[124, 100, 3, 0, 0]);
     let mut pm = outki::BinPackageManager::new();
-    let mut pkg = outki::Package::new();
-    {
-        let data:[u8;8] = [2, 0, 0, 0, 1, 0, 0, 0];
-        pkg.insert(Some("ptr1"), tag_of::<PtrStructNotNull>(), &data);
-    } 
-    {
-        let data:[u8;8] = [3, 0, 0, 0, 0, 0, 0, 0];
-        pkg.insert(Some("ptr2"), tag_of::<PtrStructNotNull>(), &data);
-    }    
-    {
-        let data:[u8;5] = [123, 100, 2, 0, 0];
-        pkg.insert(Some("pto1"), tag_of::<PointedTo>(), &data);
-    }
-    {
-        let data:[u8;5] = [124, 100, 3, 0, 0];
-        pkg.insert(Some("pto1"), tag_of::<PointedTo>(), &data);
-    }
-    pm.insert(pkg);
+    pm.insert(Package::new(pkg, Box::new(pkg_data)));
     {
         let k = pm.resolve::<PtrStructNotNull>("ptr1");
         assert_eq!(k.is_ok(), true);
@@ -171,25 +162,10 @@ pub fn unpack_not_null_complex()
 #[test]
 pub fn unpack_not_null_complex_failure()
 {
+    let mut pkg_data:Vec<u8> = Vec::new();
+    let mut pkg = outki::PackageManifest::new();            
+    pkg.add_obj::<PtrStructNotNull>(&mut pkg_data, Some("ptr1"), &[255, 255, 255, 255, 1, 0, 0, 0]);
     let mut pm = outki::BinPackageManager::new();
-    let mut pkg = outki::Package::new();
-    {
-        let data:[u8;8] = [255, 255, 255, 255, 1, 0, 0, 0];
-        pkg.insert(Some("ptr1"), tag_of::<PtrStructNotNull>(), &data);
-    } 
-    {
-        let data:[u8;8] = [3, 0, 0, 0, 0, 0, 0, 0];
-        pkg.insert(Some("ptr2"), tag_of::<PtrStructNotNull>(), &data);
-    }    
-    {
-        let data:[u8;5] = [123, 100, 2, 0, 0];
-        pkg.insert(Some("pto1"), tag_of::<PointedTo>(), &data);
-    }
-    {
-        let data:[u8;5] = [124, 100, 3, 0, 0];
-        pkg.insert(Some("pto1"), tag_of::<PointedTo>(), &data);
-    }
-    pm.insert(pkg);
     {
         let k = pm.resolve::<PtrStructNotNull>("ptr1");
         assert_eq!(k.is_err(), true);

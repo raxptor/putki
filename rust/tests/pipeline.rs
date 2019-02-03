@@ -15,6 +15,7 @@ use putki::FieldWriter;
 use putki::Ptr;
 use putki::BinWriter;
 use putki::outki::PackageManifest;
+use putki::outki::BinReader;
 
 #[derive(Debug, Clone, Default)]
 struct TestValues {
@@ -53,6 +54,26 @@ impl putki::BuildFields for Multi {
 		Ok(())
 	}
 }
+
+impl putki::outki::BinLoader for Multi {
+   fn read(stream:&mut putki::outki::BinDataStream) -> Self {
+        Self {
+			contained: TestValues::read(stream)
+		}
+   }
+}
+
+impl putki::outki::BinLoader for TestValues {
+   fn read(stream:&mut putki::outki::BinDataStream) -> Self {
+        Self {
+			value1: i32::read(stream),
+			value2: i32::read(stream)
+		}
+   }
+}
+
+impl putki::outki::OutkiObj for Multi { }
+impl putki::outki::OutkiObj for TestValues { }
 
 impl putki::BuildFields for Pointer {
 	fn build_fields(&mut self, pipeline:&putki::Pipeline, br:&mut putki::BuildRecord) -> Result<(), putki::PutkiError> {
@@ -138,7 +159,7 @@ impl putki::WriteAsText for TestValues {
 impl putki::BinSaver for TestValues {
 	fn write(&self, data: &mut Vec<u8>, refwriter: &mut putki::SavedRefs) -> Result<(), PutkiError> {
 		self.value1.write(data);
-		self.value1.write(data);
+		self.value2.write(data);
 		Ok(())
 	}	
 }
@@ -190,6 +211,20 @@ impl putki::WriteAsText for Pointer {
 impl putki::InkiObj for TestValues { }
 impl putki::InkiObj for Multi { }
 impl putki::InkiObj for Pointer { }
+
+struct ReadFromVec {
+	data: Vec<u8>
+}
+
+impl putki::outki::PackageRandomAccess for ReadFromVec
+{
+    fn read_chunk(&self, begin:usize, into:&mut [u8]) -> putki::outki::OutkiResult<()> {
+        for i in 0..into.len() {
+            into[i] = self.data[begin + i];
+        }
+        Ok(())
+    }
+}
 
 #[test]
 fn test_pipeline() {
@@ -261,7 +296,22 @@ fn test_pipeline() {
 
 	let data = putki::write_package(&(*pipeline), &rcp).expect("It should have worked");
 
-	let mut slice = data.as_slice();
-	putki::outki::PackageManifest::parse(&mut slice);
-	panic!("what");
+	let mfest;
+	{
+		let mut slice = data.as_slice();
+		mfest = putki::outki::PackageManifest::parse(&mut slice).expect("Could not parse manifest");
+	}
+	
+    let mut mgr = putki::outki::BinPackageManager::new();
+	let rfv = ReadFromVec { data: data };
+    mgr.insert(putki::outki::Package::new(mfest, Box::new(rfv)));
+
+	{
+		let obj_maybe = mgr.resolve::<Multi>("multi");
+		assert_eq!(obj_maybe.is_ok(), true);  	
+		let obj = obj_maybe.unwrap();
+		assert_eq!(obj.contained.value1, 321 + 1000);
+		assert_eq!(obj.contained.value2, 654 + 2000);
+	}
+	
 }
