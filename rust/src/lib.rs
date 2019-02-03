@@ -3,8 +3,8 @@ extern crate seahash;
 mod inki;
 mod pipeline;
 mod shared;
-
 pub mod outki;
+
 pub use shared::*;
 pub use pipeline::*;
 pub use writer::*;

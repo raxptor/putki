@@ -3,6 +3,7 @@ use outki;
 use std::rc::Rc;
 use shared::tag_of;
 use pipeline::writer::BinWriter;
+use outki::*;
 
 #[derive(Debug)]
 struct PointedTo {
@@ -21,9 +22,7 @@ struct PtrStructNotNull {
     pub sib: outki::Ptr<PtrStructNotNull>
 }
 
-use outki::BinReader;
-
-impl outki::BinReader for PointedTo {
+impl outki::BinLoader for PointedTo {
     fn read(stream:&mut outki::BinDataStream) -> Self {
         Self {            
             value1: u8::read(stream),
@@ -32,7 +31,7 @@ impl outki::BinReader for PointedTo {
     }
 }
 
-impl outki::BinReader for PtrStruct {
+impl outki::BinLoader for PtrStruct {
     fn read(stream:&mut outki::BinDataStream) -> Self {
         Self {
             ptr: outki::NullablePtr::<PointedTo>::read(stream),
@@ -46,7 +45,7 @@ impl outki::BinReader for PtrStruct {
     }
 }
 
-impl outki::BinReader for PtrStructNotNull {
+impl outki::BinLoader for PtrStructNotNull {
     fn read(stream:&mut outki::BinDataStream) -> Self {
         Self {
             ptr: outki::Ptr::<PointedTo>::read(stream),

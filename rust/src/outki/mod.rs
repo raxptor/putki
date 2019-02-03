@@ -6,6 +6,9 @@ use std::num::NonZeroUsize;
 use std::collections::HashMap;
 use std::mem::forget;
 use shared;
+mod binreader;
+
+pub use self::binreader::*;
 
 #[derive(Debug)]
 pub enum OutkiError {
@@ -16,13 +19,28 @@ pub enum OutkiError {
 }
 
 pub type OutkiResult<T> = Result<T, OutkiError>;
+pub trait OutkiObj : BinLoader + shared::TypeDescriptor { }
+type Destructor = fn(usize);
 
-pub trait OutkiObj : BinReader + shared::TypeDescriptor
-{
-
+pub trait BinLoader {
+    fn read(stream:&mut BinDataStream) -> Self;
+    fn resolve(&mut self, context: &mut BinResolverContext) -> OutkiResult<()> { Ok(()) }
 }
 
-type Destructor = fn(usize);
+impl<T> BinReader for NullablePtr<T> where T : BinLoader {
+    fn read(stream: &mut BinDataStream) -> Self {
+        let slotplusone:i32 = i32::read(stream) + 1;
+        NullablePtr { ptr: NonZeroUsize::new(slotplusone as usize), _ph: PhantomData { } }
+    }
+}
+
+impl<T> BinReader for Ptr<T> where T : BinLoader {
+    fn read(stream: &mut BinDataStream) -> Self {
+        let slotplusone:i32 = i32::read(stream) + 1;
+        Ptr { ptr: slotplusone as usize, _ph: PhantomData { } }
+    }
+}
+
 
 struct MemoryPin 
 {
@@ -115,11 +133,6 @@ impl shared::TypeDescriptor for u32 {
     const TAG : &'static str = "u32";
 }
 
-pub struct BinReaderContext<'a> {
-    mgr: &'a BinPackageManager,
-    package: i32
-}
-
 pub struct UnresolvedEntry {
     tag: &'static str,
     slot: usize    
@@ -145,7 +158,7 @@ impl<'a> BinResolverContext<'a> {
             ptr: Some(NonZeroUsize::new(ptr.ptr).unwrap()),
             _ph: PhantomData { }
         };
-        try!(self.resolve(&mut tmp_ptr));
+        self.resolve(&mut tmp_ptr)?;
         if let Some(x) = tmp_ptr.ptr {
             ptr.ptr = x.get();
             Ok(())
@@ -163,7 +176,7 @@ impl<'a> BinResolverContext<'a> {
                     ptr.ptr = NonZeroUsize::new(addr);
                     Ok(())
                 } else {
-                    try!(BinPackageManager::load_and_try_resolve::<T>(self, rslot as u32));
+                    BinPackageManager::load_and_try_resolve::<T>(self, rslot as u32)?;
                     let get_res = self.loaded.get(&rslot).map(|x| x.clone());
                     if let Some(addr) = get_res {
                         println!("PTR! Loaded and reslovede Resolved rslot to addr {} {}", rslot, addr);
@@ -188,56 +201,11 @@ impl<'a> BinResolverContext<'a> {
     }
 }
 
-
-pub struct BinDataStream<'a> {
-    context: &'a BinReaderContext<'a>,
-    data: &'a [u8],
-    pos: usize
+pub struct BinReaderContext<'a> {
+    mgr: &'a BinPackageManager,
+    package: i32
 }
 
-pub trait BinReader {
-    fn read(stream:&mut BinDataStream) -> Self;
-    fn resolve(&mut self, context: &mut BinResolverContext) -> OutkiResult<()> { Ok(()) }
-}
-
-impl BinReader for u32 {
-    fn read(stream:&mut BinDataStream) -> Self {
-        let pos = stream.pos;
-        stream.pos = stream.pos + 4;
-        let v = (stream.data[pos] as u32) |
-        ((stream.data[pos+1] as u32) << 8) | 
-        ((stream.data[pos+2] as u32) << 16) | 
-        ((stream.data[pos+3] as u32) << 24);
-        return v as u32;
-    }
-}
-
-impl BinReader for u8 {
-    fn read(stream:&mut BinDataStream) -> Self {
-        stream.pos = stream.pos + 1;
-        stream.data[stream.pos-1]
-    }
-}
-
-impl<'a> BinReader for i32 {
-    fn read(ctx: &mut BinDataStream) -> i32 {
-        u32::read(ctx) as i32
-    }
-}
-
-impl<T> BinReader for NullablePtr<T> where T : BinReader {
-    fn read(ctx: &mut BinDataStream) -> Self {
-        let slotplusone:i32 = i32::read(ctx) + 1;
-        NullablePtr { ptr: NonZeroUsize::new(slotplusone as usize), _ph: PhantomData { } }
-    }
-}
-
-impl<T> BinReader for Ptr<T> where T : BinReader {
-    fn read(ctx: &mut BinDataStream) -> Self {
-        let slotplusone:i32 = i32::read(ctx) + 1;
-        Ptr { ptr: slotplusone as usize, _ph: PhantomData { } }
-    }
-}
 
 pub struct Slot {
     path: Option<String>,
@@ -327,7 +295,7 @@ impl BinPackageManager
             _ph: PhantomData { }
         };
 
-        try!(rctx.resolve(&mut ptr));
+        rctx.resolve(&mut ptr)?;
         if let Some(addr) = ptr.ptr {
             Ok(Ref {
                 ptr: Ptr {
@@ -361,18 +329,14 @@ impl BinPackageManager
         if let &Some(ref data) = &pkg.content {
             let s = &pkg.slots[slotidx];
             println!("Unpacking object at slot {}, byte range [{}..{}] in package {} with type {}", slot, s.begin, s.end, slotidx, s.type_name);
-            let mut stream = BinDataStream {
-                context: res.context,
-                data: &data[s.begin .. s.end],
-                pos: 0
-            };
-            let mut obj:Box<T> = Box::new(BinReader::read(&mut stream));
+            let mut stream = BinDataStream::new(&data[s.begin .. s.end]);
+            let mut obj:Box<T> = Box::new(BinLoader::read(&mut stream));
             let objptr : *mut T = &mut *obj;
             res.loaded.insert(slot as usize, objptr as usize);
             res.pindata.destructors.insert(objptr as usize, Self::destruct::<T>);
             let r = obj.resolve(res);
             forget(obj); // need to forget before try! or we will have stored double references.
-            try!(r);
+            r?;
             Ok(())
         } else {
             Err(OutkiError::DataMissing)
