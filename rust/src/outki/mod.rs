@@ -27,7 +27,7 @@ pub enum OutkiError {
 }
 
 impl From<io::Error> for OutkiError {
-    fn from(e_ : io::Error) -> OutkiError {
+    fn from(_e : io::Error) -> OutkiError {
         OutkiError::IOError
     }
 }
@@ -45,7 +45,7 @@ const UNRESOLVED_VALUE:usize = 0xcd00000000000000;
 
 pub trait BinLoader {
     fn read(stream:&mut BinDataStream) -> Self;
-    fn resolve(&mut self, context: &mut BinResolverContext) -> OutkiResult<()> { Ok(()) }
+    fn resolve(&mut self, context: &mut BinResolverContext) -> OutkiResult<()>;
 }
 
 impl<T> BinReader for NullablePtr<T> where T : BinLoader {
@@ -82,7 +82,7 @@ impl Drop for MemoryPin {
 
 struct PinTag
 {
-    mempin: Arc<MemoryPin>
+    _mempin: Arc<MemoryPin>
 }
 
 pub struct NullablePtr<T>
@@ -100,7 +100,7 @@ pub struct Ptr<T>
 pub struct Ref<T>
 {
     ptr: Ptr<T>,
-    pin: Rc<PinTag>
+    _pin: Rc<PinTag>
 }
 
 impl<T> Deref for Ref<T>
@@ -164,18 +164,16 @@ impl shared::TypeDescriptor for u32 {
 }
 
 pub struct UnresolvedEntry {
-    tag: &'static str,
-    slot: usize    
+//    tag: &'static str,
+//    slot: usize    
 }
 
 pub struct BinResolverContext<'a> {
     context:&'a BinReaderContext<'a>, 
-    unresolved: Vec<UnresolvedEntry>,
+    _unresolved: Vec<UnresolvedEntry>,
     loaded: HashMap<usize, usize>,      // slot to addr
     pindata: MemoryPin
 }
-
-type Loader = fn(i32) -> usize;
 
 impl<'a> BinResolverContext<'a> {
 
@@ -216,12 +214,13 @@ impl<'a> BinResolverContext<'a> {
                         ptr.ptr = NonZeroUsize::new(addr);
                         Ok(())
                     } else {
+                        /*
                         self.unresolved.push(
                             UnresolvedEntry {
                                 slot: rslot,
                                 tag: shared::tag_of::<T>()
                             }
-                        );                        
+                        );*/                        
                         Err(OutkiError::ResolveFailed)
                     }                    
                 }
@@ -257,10 +256,6 @@ pub struct BinPackageManager {
     packages: Vec<Package>    
 }
 
-pub struct ResolvedBunch {
-    addrs: HashMap<u32, usize>
-}
-
 // TypeResolver impl knows how map type name strings to unpack implementations
 // Layout defines how to serialize
 impl BinPackageManager
@@ -291,7 +286,7 @@ impl BinPackageManager
     fn tree_resolve<T>(&self, context:&BinReaderContext, slot:u32) -> OutkiResult<Ref<T>> where T : OutkiObj
     {
         let mut rctx = BinResolverContext {
-            unresolved: Vec::new(),
+            _unresolved: Vec::new(),
             loaded: HashMap::new(),
             pindata: MemoryPin { destructors: HashMap::new() },
             context: &context
@@ -309,8 +304,8 @@ impl BinPackageManager
                     ptr: addr.get(),
                     _ph: PhantomData { }
                 },
-                pin: Rc::new(PinTag { 
-                    mempin: Arc::new(rctx.pindata)
+                _pin: Rc::new(PinTag { 
+                    _mempin: Arc::new(rctx.pindata)
                 })
             })
         } else {

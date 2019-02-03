@@ -59,14 +59,14 @@ impl PackageManifest
         // Read types.
         let num_types  = usize::read(&mut content);
         let mut types:Vec<String> = Vec::new();
-        for i in 0..num_types {
+        for _i in 0..num_types {
             types.push(String::read(&mut content));
         }
 
         let num_slots  = usize::read(&mut content);
         let mut slots = Vec::new();
 
-        for i in 0..num_slots {
+        for _i in 0..num_slots {
             let flags = u32::read(&mut content);
             let mut path: Option<String> = None;
             if (flags & SLOTFLAG_HAS_PATH) != 0 {
