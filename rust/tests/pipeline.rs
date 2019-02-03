@@ -14,8 +14,9 @@ use putki::PutkiError;
 use putki::FieldWriter;
 use putki::Ptr;
 use putki::BinWriter;
-use putki::outki::PackageManifest;
-use putki::outki::BinReader;
+use putki::outki as outki;
+use outki::PackageManifest;
+use outki::BinReader;
 
 #[derive(Debug, Clone, Default)]
 struct TestValues {
@@ -36,7 +37,7 @@ struct Pointer {
 
 struct PointerOutki {
 	contained: TestValues,
-	next: putki::outki::NullablePtr<PointerOutki>
+	next: outki::NullablePtr<PointerOutki>
 }
 
 impl putki::TypeDescriptor for TestValues {
@@ -64,40 +65,42 @@ impl putki::BuildFields for Multi {
 	}
 }
 
-impl putki::outki::BinLoader for Multi {
-   fn read(stream:&mut putki::outki::BinDataStream) -> Self {
+impl outki::BinLoader for Multi {
+   fn read(stream:&mut outki::BinDataStream) -> Self {
         Self {
 			contained: TestValues::read(stream)
 		}
    }
+   fn resolve(&mut self, _context: &mut outki::BinResolverContext) -> outki::OutkiResult<()> { Ok(()) }
 }
 
-impl putki::outki::BinLoader for TestValues {
-   fn read(stream:&mut putki::outki::BinDataStream) -> Self {
+impl outki::BinLoader for TestValues {
+   fn read(stream:&mut outki::BinDataStream) -> Self {
         Self {
 			value1: i32::read(stream),
 			value2: i32::read(stream)
 		}
    }
+   fn resolve(&mut self, _context: &mut outki::BinResolverContext) -> outki::OutkiResult<()> { Ok(()) }
 }
 
-impl putki::outki::BinLoader for PointerOutki {
-   fn read(stream:&mut putki::outki::BinDataStream) -> Self {	   
+impl outki::BinLoader for PointerOutki {
+   fn read(stream:&mut outki::BinDataStream) -> Self {	   
         Self {
 			contained: TestValues::read(stream),
-			next: putki::outki::NullablePtr::<PointerOutki>::read(stream)
+			next: outki::NullablePtr::<PointerOutki>::read(stream)
 		}
-   }
-	fn resolve(&mut self, context: &mut putki::outki::BinResolverContext) -> putki::outki::OutkiResult<()> { 
+	}
+	fn resolve(&mut self, context: &mut outki::BinResolverContext) -> outki::OutkiResult<()> { 
         context.resolve(&mut self.next)
     }   
 }
 
 
 
-impl putki::outki::OutkiObj for Multi { }
-impl putki::outki::OutkiObj for TestValues { }
-impl putki::outki::OutkiObj for PointerOutki { }
+impl outki::OutkiObj for Multi { }
+impl outki::OutkiObj for TestValues { }
+impl outki::OutkiObj for PointerOutki { }
 
 impl putki::BuildFields for Pointer {
 	fn build_fields(&mut self, pipeline:&putki::Pipeline, br:&mut putki::BuildRecord) -> Result<(), putki::PutkiError> {
@@ -181,7 +184,7 @@ impl putki::WriteAsText for TestValues {
 }
 
 impl putki::BinSaver for TestValues {
-	fn write(&self, data: &mut Vec<u8>, refwriter: &putki::PackageRefs) -> Result<(), PutkiError> {
+	fn write(&self, data: &mut Vec<u8>, _refwriter: &putki::PackageRefs) -> Result<(), PutkiError> {
 		self.value1.write(data);
 		self.value2.write(data);
 		Ok(())
@@ -241,9 +244,9 @@ struct ReadFromVec {
 	data: Vec<u8>
 }
 
-impl putki::outki::PackageRandomAccess for ReadFromVec
+impl outki::PackageRandomAccess for ReadFromVec
 {
-    fn read_chunk(&self, begin:usize, into:&mut [u8]) -> putki::outki::OutkiResult<()> {
+    fn read_chunk(&self, begin:usize, into:&mut [u8]) -> outki::OutkiResult<()> {
         for i in 0..into.len() {
             into[i] = self.data[begin + i];
         }
@@ -324,12 +327,12 @@ fn test_pipeline() {
 	let mfest;
 	{
 		let mut slice = data.as_slice();
-		mfest = putki::outki::PackageManifest::parse(&mut slice).expect("Could not parse manifest");
+		mfest = outki::PackageManifest::parse(&mut slice).expect("Could not parse manifest");
 	}
 	
-    let mut mgr = putki::outki::BinPackageManager::new();
+    let mut mgr = outki::BinPackageManager::new();
 	let rfv = ReadFromVec { data: data };
-    mgr.insert(putki::outki::Package::new(mfest, Box::new(rfv)));
+    mgr.insert(outki::Package::new(mfest, Box::new(rfv)));
 
 	{
 		let obj_maybe = mgr.resolve::<Multi>("multi");

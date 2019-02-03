@@ -1,8 +1,5 @@
 use shared;
 use outki;
-use std::rc::Rc;
-use shared::tag_of;
-use pipeline::writer::BinWriter;
 use outki::*;
 
 #[derive(Debug)]
@@ -29,6 +26,7 @@ impl outki::BinLoader for PointedTo {
             value2: i32::read(stream)
         }
     }
+    fn resolve(&mut self, _context: &mut BinResolverContext) -> outki::OutkiResult<()> { Ok(()) }
 }
 
 impl outki::BinLoader for PtrStruct {
@@ -165,7 +163,7 @@ pub fn unpack_not_null_complex_failure()
     let mut pkg_data:Vec<u8> = Vec::new();
     let mut pkg = outki::PackageManifest::new();            
     pkg.add_obj::<PtrStructNotNull>(&mut pkg_data, Some("ptr1"), &[255, 255, 255, 255, 1, 0, 0, 0]);
-    let mut pm = outki::BinPackageManager::new();
+    let pm = outki::BinPackageManager::new();
     {
         let k = pm.resolve::<PtrStructNotNull>("ptr1");
         assert_eq!(k.is_err(), true);
