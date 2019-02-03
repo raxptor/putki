@@ -24,20 +24,20 @@ pub trait BinWriter {
     fn write(&self, data: &mut Vec<u8>);
 }
 
-pub struct SavedRefs {
+pub struct PackageRefs {
     path_to_slot: HashMap<String, usize>
 }
 
-impl<'a> SavedRefs {
-    pub fn new() -> SavedRefs {
-        SavedRefs {
+impl<'a> PackageRefs {
+    pub fn new() -> PackageRefs {
+        PackageRefs {
             path_to_slot : HashMap::new()
         }
     }
 }
 
 pub trait BinSaver where Self : Send + Sync {
-    fn write(&self, data: &mut Vec<u8>, refwriter: &mut SavedRefs) -> Result<(), PutkiError>;
+    fn write(&self, data: &mut Vec<u8>, refs: &PackageRefs) -> Result<(), PutkiError>;
 }
 
 impl BinWriter for i32 {
@@ -76,16 +76,13 @@ impl BinWriter for &str {
     }
 }
 
-/*
-impl<T> BinWriter for Option<ptr::Ptr<T>> {
-    fn write(&self, data: &mut Vec<u8>, refs: &mut RefsWriter) {
-        match self {            
-            &Some(ref ptr) => refs.write_ref(data, ptr.get_target_path().unwrap_or("")),
-            _ => refs.write_ref(data, "")
-        };
+impl<T> BinSaver for ptr::Ptr<T> where T : Send + Sync {
+    fn write(&self, data: &mut Vec<u8>, refs: &PackageRefs) -> Result<(), PutkiError> {                
+        let slot:i32 = self.get_target_path().and_then(|x| { refs.path_to_slot.get(x) }).map(|x| { (*x) as i32 }).unwrap_or(-1);
+        slot.write(data);
+        Ok(())        
     }
 }
-*/
 
 pub struct PackageRecipe { 
     paths: HashSet<String>,
@@ -149,7 +146,7 @@ pub fn write_package(p:&pipeline::Pipeline, recipe:&PackageRecipe) -> Result<Vec
 
     let mut items : Vec<&str> = Vec::new();
     let mut indices : HashMap<&str, usize> = HashMap::new();
-    let mut refs = SavedRefs::new();
+    let mut refs = PackageRefs::new();
     for path in recipe.paths.iter() {
         indices.insert(path, items.len());
         refs.path_to_slot.insert(path.to_string(), items.len());

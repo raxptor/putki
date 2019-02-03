@@ -199,7 +199,7 @@ impl<T> BuildResultObj for PtrBox<T> where T : 'static + InkiObj
 
 impl<T> BinSaver for PtrBox<T> where T : 'static + InkiObj
 {    
-    fn write(&self, data: &mut Vec<u8>, refwriter: &mut SavedRefs) -> Result<(), PutkiError> {
+    fn write(&self, data: &mut Vec<u8>, refwriter: &PackageRefs) -> Result<(), PutkiError> {
         if let Some(x) = self.ptr.get_owned_object() {
             <T as BinSaver>::write(&x, data, refwriter)
         } else {

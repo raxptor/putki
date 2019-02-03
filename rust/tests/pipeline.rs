@@ -34,6 +34,11 @@ struct Pointer {
 	next: putki::Ptr<Pointer>
 }
 
+struct PointerOutki {
+	contained: TestValues,
+	next: putki::outki::NullablePtr<PointerOutki>
+}
+
 impl putki::TypeDescriptor for TestValues {
 	const TAG : &'static str = "TestValues";
 }
@@ -43,6 +48,10 @@ impl putki::TypeDescriptor for Multi {
 }
 
 impl putki::TypeDescriptor for Pointer {
+	const TAG : &'static str = "Pointer";
+}
+
+impl putki::TypeDescriptor for PointerOutki {
 	const TAG : &'static str = "Pointer";
 }
   
@@ -72,8 +81,23 @@ impl putki::outki::BinLoader for TestValues {
    }
 }
 
+impl putki::outki::BinLoader for PointerOutki {
+   fn read(stream:&mut putki::outki::BinDataStream) -> Self {	   
+        Self {
+			contained: TestValues::read(stream),
+			next: putki::outki::NullablePtr::<PointerOutki>::read(stream)
+		}
+   }
+	fn resolve(&mut self, context: &mut putki::outki::BinResolverContext) -> putki::outki::OutkiResult<()> { 
+        context.resolve(&mut self.next)
+    }   
+}
+
+
+
 impl putki::outki::OutkiObj for Multi { }
 impl putki::outki::OutkiObj for TestValues { }
+impl putki::outki::OutkiObj for PointerOutki { }
 
 impl putki::BuildFields for Pointer {
 	fn build_fields(&mut self, pipeline:&putki::Pipeline, br:&mut putki::BuildRecord) -> Result<(), putki::PutkiError> {
@@ -157,7 +181,7 @@ impl putki::WriteAsText for TestValues {
 }
 
 impl putki::BinSaver for TestValues {
-	fn write(&self, data: &mut Vec<u8>, refwriter: &mut putki::SavedRefs) -> Result<(), PutkiError> {
+	fn write(&self, data: &mut Vec<u8>, refwriter: &putki::PackageRefs) -> Result<(), PutkiError> {
 		self.value1.write(data);
 		self.value2.write(data);
 		Ok(())
@@ -173,7 +197,7 @@ impl putki::ParseFromKV for Multi {
 }
 
 impl putki::BinSaver for Multi {
-	fn write(&self, data: &mut Vec<u8>, refwriter: &mut putki::SavedRefs) -> Result<(), PutkiError> {
+	fn write(&self, data: &mut Vec<u8>, refwriter: &putki::PackageRefs) -> Result<(), PutkiError> {
 		self.contained.write(data, refwriter);
 		Ok(())
 	}	
@@ -195,8 +219,9 @@ impl putki::ParseFromKV for Pointer {
 }
 
 impl putki::BinSaver for Pointer {
-	fn write(&self, data: &mut Vec<u8>, refwriter: &mut putki::SavedRefs) -> Result<(), PutkiError> {
-		//self.contained.write(&data)
+	fn write(&self, data: &mut Vec<u8>, refwriter: &putki::PackageRefs) -> Result<(), PutkiError> {
+		self.contained.write(data, refwriter)?;
+		self.next.write(data, refwriter)?;
 		Ok(())
 	}	
 }
@@ -313,5 +338,15 @@ fn test_pipeline() {
 		assert_eq!(obj.contained.value1, 321 + 1000);
 		assert_eq!(obj.contained.value2, 654 + 2000);
 	}
+
+	{
+		let obj_maybe = mgr.resolve::<PointerOutki>("ptr");
+		assert_eq!(obj_maybe.is_ok(), true);  	
+		let obj = obj_maybe.unwrap();
+		assert_eq!(obj.contained.value1, 1 + 1000);
+		assert_eq!(obj.contained.value2, 2 + 2000);
+		assert_eq!(obj.next.unwrap().contained.value1, 222 + 1000);
+		assert_eq!(obj.next.unwrap().contained.value2, 333 + 2000);
+	}	
 	
 }

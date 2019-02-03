@@ -40,6 +40,9 @@ pub type OutkiResult<T> = Result<T, OutkiError>;
 pub trait OutkiObj : BinLoader + shared::TypeDescriptor { }
 type Destructor = fn(usize);
 
+const UNRESOLVED_MASK:usize = 0xff00000000000000;
+const UNRESOLVED_VALUE:usize = 0xcd00000000000000;
+
 pub trait BinLoader {
     fn read(stream:&mut BinDataStream) -> Self;
     fn resolve(&mut self, context: &mut BinResolverContext) -> OutkiResult<()> { Ok(()) }
@@ -47,15 +50,19 @@ pub trait BinLoader {
 
 impl<T> BinReader for NullablePtr<T> where T : BinLoader {
     fn read(stream: &mut BinDataStream) -> Self {
-        let slotplusone:i32 = i32::read(stream) + 1;
-        NullablePtr { ptr: NonZeroUsize::new(slotplusone as usize), _ph: PhantomData { } }
+        let mut slotplusone:usize = (i32::read(stream) + 1) as usize;
+        if slotplusone != 0 {
+            slotplusone = slotplusone | UNRESOLVED_VALUE;
+            println!("and it is now {}", slotplusone);
+        }
+        NullablePtr { ptr: NonZeroUsize::new(slotplusone), _ph: PhantomData { } }
     }
 }
 
 impl<T> BinReader for Ptr<T> where T : BinLoader {
     fn read(stream: &mut BinDataStream) -> Self {
         let slotplusone:i32 = i32::read(stream) + 1;
-        Ptr { ptr: slotplusone as usize, _ph: PhantomData { } }
+        Ptr { ptr: (slotplusone as usize | UNRESOLVED_VALUE), _ph: PhantomData { } }
     }
 }
 
@@ -112,9 +119,13 @@ impl<'a, T> NullablePtr<T>
     {
         unsafe {
             self.ptr.map(|x| {
+                debug_assert!((x.get() & UNRESOLVED_MASK) != UNRESOLVED_VALUE);
                 &(*(x.get() as (*const T)))
             })
         }
+    }
+    pub fn unwrap(&self) -> &'a T {
+        self.get().unwrap()
     }
 }
 
@@ -129,6 +140,7 @@ impl<T> Deref for Ptr<T>
 {
     type Target = T;
     fn deref<'a>(&'a self) -> &'a T {
+        debug_assert!((self.ptr & UNRESOLVED_MASK) != UNRESOLVED_VALUE);
         unsafe {
             &(*(self.ptr as (*const T)))
         }
@@ -168,10 +180,11 @@ type Loader = fn(i32) -> usize;
 impl<'a> BinResolverContext<'a> {
 
     pub fn resolve_not_null<T>(&mut self, ptr: &mut Ptr<T>) -> OutkiResult<()> where T : OutkiObj {
-        let addr = ptr.ptr;
+        let addr = ptr.ptr & !UNRESOLVED_MASK;
         if addr == 0 {
             return Err(OutkiError::NonNullIsNull);
         }
+        debug_assert!((ptr.ptr & UNRESOLVED_MASK) == UNRESOLVED_VALUE);
         let mut tmp_ptr : NullablePtr<T> = NullablePtr {
             ptr: Some(NonZeroUsize::new(ptr.ptr).unwrap()),
             _ph: PhantomData { }
@@ -188,9 +201,11 @@ impl<'a> BinResolverContext<'a> {
     pub fn resolve<T>(&mut self, ptr: &mut NullablePtr<T>) -> OutkiResult<()> where T : OutkiObj {
         match ptr.ptr {
             Some(slot) => {
-                let rslot = usize::from(slot);
+                let rslot = usize::from(slot) & !UNRESOLVED_MASK;
+                println!("{} {}", usize::from(slot), rslot);
+                debug_assert!((usize::from(slot) & UNRESOLVED_MASK) == UNRESOLVED_VALUE);                
                 let get_res = self.loaded.get(&rslot).map(|x| x.clone());
-                if let Some(addr) = get_res {
+                if let Some(addr) = get_res {                
                     ptr.ptr = NonZeroUsize::new(addr);
                     Ok(())
                 } else {
@@ -283,7 +298,7 @@ impl BinPackageManager
         };
     
         let mut ptr : NullablePtr<T> = NullablePtr {
-            ptr: NonZeroUsize::new(slot as usize),
+            ptr: NonZeroUsize::new(slot as usize | UNRESOLVED_VALUE),
             _ph: PhantomData { }
         };
 
