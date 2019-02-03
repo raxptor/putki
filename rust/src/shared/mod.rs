@@ -4,6 +4,7 @@ use std::any::Any;
 use std::error::Error;
 use std::io;
 
+#[derive(Debug)]
 pub enum PutkiError {
     Test,
     BuilderError(Box<Error>),

@@ -13,6 +13,8 @@ use std::path::Path;
 use putki::PutkiError;
 use putki::FieldWriter;
 use putki::Ptr;
+use putki::BinWriter;
+use putki::outki::PackageManifest;
 
 #[derive(Debug, Clone, Default)]
 struct TestValues {
@@ -75,7 +77,6 @@ impl putki::BuildCandidate for Pointer {
     fn as_any_ref(&mut self) -> &mut any::Any { return self; }    
     fn build(&mut self, p:&putki::Pipeline, br: &mut putki::BuildRecord) -> Result<(), putki::PutkiError> { p.build(br, self) }
 	fn scan_deps(&self, p:&putki::Pipeline, br: &mut putki::BuildRecord) { 
-		println!("Adding output dependencies...");
 		p.add_output_dependency(br, &self.next);
 	}
 }
@@ -104,7 +105,6 @@ impl putki::Builder<Pointer> for PointerBuilder {
 		}
 	}
 	fn build(&self, br:&mut putki::BuildRecord, input:&mut Pointer) -> Result<(), putki::PutkiError> {		
-		println!("building pointer!");		
 		let ptr = br.create_object("n", Pointer {
 			next: putki::Ptr::null(),
 			contained: TestValues {
@@ -135,12 +135,27 @@ impl putki::WriteAsText for TestValues {
 	}
 }
 
+impl putki::BinSaver for TestValues {
+	fn write(&self, data: &mut Vec<u8>, refwriter: &mut putki::SavedRefs) -> Result<(), PutkiError> {
+		self.value1.write(data);
+		self.value1.write(data);
+		Ok(())
+	}	
+}
+
 impl putki::ParseFromKV for Multi {
 	fn parse(kv : &putki::lexer::LexedKv, _pctx: &Arc<putki::InkiResolver>) -> Self {
 		return Self {
 			contained : putki::lexer::get_object(kv.get("Contained")).map(|v| { putki::ParseFromKV::parse(v.0, &_pctx) }).unwrap_or_default()
 		}
 	}
+}
+
+impl putki::BinSaver for Multi {
+	fn write(&self, data: &mut Vec<u8>, refwriter: &mut putki::SavedRefs) -> Result<(), PutkiError> {
+		self.contained.write(data, refwriter);
+		Ok(())
+	}	
 }
 
 impl putki::WriteAsText for Multi {
@@ -156,6 +171,13 @@ impl putki::ParseFromKV for Pointer {
 			next: kv.get("Next").map(|v| { putki::ptr_from_data(_pctx, v) }).unwrap_or_default()
 		}
 	}
+}
+
+impl putki::BinSaver for Pointer {
+	fn write(&self, data: &mut Vec<u8>, refwriter: &mut putki::SavedRefs) -> Result<(), PutkiError> {
+		//self.contained.write(&data)
+		Ok(())
+	}	
 }
 
 impl putki::WriteAsText for Pointer {
@@ -225,9 +247,7 @@ fn test_pipeline() {
 		for (ref k, ref v) in recs.iter() {						
 			let mut r = String::new();
 			if let Some(bo) = v.built_object() {
-				println!("i got {}", k);
 				bo.write_object(&mut r);
-				println!("{}", r);
 			} else {
 				panic!("Failed somehow with {}", k);
 			}
@@ -237,4 +257,11 @@ fn test_pipeline() {
 	println!("Building package");
 	let mut rcp = putki::PackageRecipe::new();
 	rcp.add_object(&(*pipeline), "ptr", true);
+	rcp.add_object(&(*pipeline), "multi", true);
+
+	let data = putki::write_package(&(*pipeline), &rcp).expect("It should have worked");
+
+	let mut slice = data.as_slice();
+	putki::outki::PackageManifest::parse(&mut slice);
+	panic!("what");
 }

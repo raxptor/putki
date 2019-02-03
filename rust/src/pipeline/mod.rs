@@ -30,6 +30,7 @@ use source::WriteAsText;
 use shared::PutkiError;
 
 pub mod writer;
+use writer::*;
 
 pub struct BuilderDesc {
     pub description: &'static str    
@@ -81,7 +82,8 @@ struct ObjEntry
 // One per object and per builder.
 pub struct BuildRecord
 {
-    path: String,
+    path: String,    
+    type_tag: &'static str,
     res_base: path::PathBuf,
     built_obj: Option<Box<BuildResultObj>>,
     visited: HashSet<String>,
@@ -100,7 +102,6 @@ impl BuildRecord
     }
     pub fn create_object<T>(&mut self, tag:&str, obj:T) -> ptr::Ptr<T> where T:BuildCandidate + Send + Sync + Default + source::ParseFromKV {
         let tmp_path = format!("{}!{}", &self.path, tag);
-        println!("Created object with path [{}]!", tmp_path);
         ptr::Ptr::new_temp_object(tmp_path.as_str(), Arc::new(obj))
     }
     pub fn load_file(&mut self, res_path:&str) -> Result<Vec<u8>, shared::PutkiError> {
@@ -165,7 +166,7 @@ pub struct Pipeline
     built: RwLock<HashMap<String, BuildRecord>>
 }
 
-pub trait InkiObj : source::WriteAsText + Send + Sync + BuildCandidate + shared::TypeDescriptor + source::ParseFromKV + Default
+pub trait InkiObj : source::WriteAsText + Send + Sync + BuildCandidate + shared::TypeDescriptor + source::ParseFromKV + writer::BinSaver + Default
 {
 }
 
@@ -179,7 +180,7 @@ trait BuildInvoke where Self : Send + Sync
     fn build(&self, p:&Pipeline, br:&BuildRequest);
 }
 
-pub trait BuildResultObj where Self : Send + Sync {
+pub trait BuildResultObj where Self : Send + Sync + BinSaver {
     fn write_object(&self, output:&mut String) -> Result<(), PutkiError>;
 }
 
@@ -190,6 +191,17 @@ impl<T> BuildResultObj for PtrBox<T> where T : 'static + InkiObj
     fn write_object(&self, output:&mut String) -> Result<(), PutkiError> {
         if let Some(x) = self.ptr.get_owned_object() {
             <T as WriteAsText>::write_text(&x, output)
+        } else {
+            Err(PutkiError::ObjectNotFound)
+        }
+    }
+}
+
+impl<T> BinSaver for PtrBox<T> where T : 'static + InkiObj
+{    
+    fn write(&self, data: &mut Vec<u8>, refwriter: &mut SavedRefs) -> Result<(), PutkiError> {
+        if let Some(x) = self.ptr.get_owned_object() {
+            <T as BinSaver>::write(&x, data, refwriter)
         } else {
             Err(PutkiError::ObjectNotFound)
         }
@@ -208,6 +220,7 @@ impl<T> BuildInvoke for PtrBox<T> where T : 'static + InkiObj
         if let Some(obj) = inki::ptr::PtrInkiResolver::resolve_notrack(&self.ptr) {
             let mut br = BuildRecord {
                 error: None,
+                type_tag: <T as shared::TypeDescriptor>::TAG,
                 success: true,
                 path: br.path.clone(),
                 deps: HashMap::new(),

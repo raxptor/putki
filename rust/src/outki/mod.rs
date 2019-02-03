@@ -5,17 +5,30 @@ use std::marker::PhantomData;
 use std::num::NonZeroUsize;
 use std::collections::HashMap;
 use std::mem::forget;
+use std::io;
 use shared;
 mod binreader;
+mod pkmanifest;
 
 pub use self::binreader::*;
+pub use self::pkmanifest::*;
+
+pub const SLOTFLAG_HAS_PATH:u32   = 1;
+pub const SLOTFLAG_INTERNAL:u32   = 2;
 
 #[derive(Debug)]
 pub enum OutkiError {
     SlotNotFound,
     ResolveFailed,
     DataMissing,
-    NonNullIsNull
+    NonNullIsNull,
+    IOError
+}
+
+impl From<io::Error> for OutkiError {
+    fn from(e_ : io::Error) -> OutkiError {
+        OutkiError::IOError
+    }
 }
 
 pub type OutkiResult<T> = Result<T, OutkiError>;
