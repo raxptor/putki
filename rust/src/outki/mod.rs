@@ -126,25 +126,30 @@ impl<T> Ref<T> {
             _pin: self._pin.clone()            
         }
     }
-    pub fn subref<U>(&self, obj: &Ptr<U>) -> Ref<U> {
+    /* 
+    fn subref<U>(&self, obj: &Ptr<U>) -> Ref<U> {
         assert!(self._pin._mempin.destructors.contains_key(&obj.ptr));
         Ref {
             ptr: Ptr { ptr: obj.ptr, _ph: PhantomData { } },
             _pin: self._pin.clone()
         }
     }
-    pub fn pin(&self) -> &DataPin {
+    */
+    fn pin(&self) -> &DataPin {
         return &self._pin;
     }
 }
 
 impl<T> Ptr<T> {
-    pub fn as_ref(&self, pin: &DataPin) -> Ref<T> {
+    fn as_ref(&self, pin: &DataPin) -> Ref<T> {
         assert!(pin._mempin.destructors.contains_key(&self.ptr));
         Ref {
             ptr: Ptr { ptr: self.ptr, _ph: PhantomData { } },
             _pin: pin.clone()
         }
+    }
+    pub fn make_ref<K>(&self, r:&Ref<K>) -> Ref<T> {
+        self.as_ref(r.pin())
     }
 }
 
@@ -360,7 +365,6 @@ impl BinPackageManager
         if slotidx >= pkg.manifest.slots.len() {
             return Err(OutkiError::SlotNotFound);
         }
-
         let s = &pkg.manifest.slots[slotidx];
         let size = s.end - s.begin;
         let mut tmp_buf = vec![0 as u8; size];
