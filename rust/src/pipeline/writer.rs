@@ -49,6 +49,13 @@ impl BinWriter for i32 {
     }
 }
 
+impl BinWriter for u16 {
+    fn write(&self, data: &mut Vec<u8>) {
+        data.push((self & 0xff) as u8);
+        data.push((self >> 8) as u8);
+    }
+}
+
 impl BinWriter for u32 {
     fn write(&self, data: &mut Vec<u8>) {
         i32::write(&(*self as i32), data);
@@ -179,8 +186,7 @@ pub fn write_package(p:&pipeline::Pipeline, recipe:&PackageRecipe) -> Result<Vec
     }
 
     let manifest_size = manifest.len();
-    insert_value(&mut manifest, 0, manifest_size);
-    println!("Wrote manifest, {} bytes with {} slots.", manifest_size, items.len());
+    insert_value(&mut manifest, 0, manifest_size);    
 
     // All the data.
     for i in 0..items.len() {        

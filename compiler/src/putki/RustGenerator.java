@@ -97,6 +97,7 @@ public class RustGenerator
 		if (fn.equals("type")) return "type_";
 		if (fn.equals("self")) return "self_";		
 		if (fn.equals("bool")) return "bool_";
+		if (fn.equals("mod")) return "mod_";
 		return fn;
 	}
 
@@ -134,7 +135,7 @@ public class RustGenerator
 	{		
 		if (pf.type == FieldType.STRUCT_INSTANCE)
 		{
-			return structName(pf.resolvedRefStruct);
+			return structNameWrap(pf.resolvedRefStruct);
 		}
 		else if (pf.type == FieldType.ENUM)
 		{
@@ -415,14 +416,14 @@ public class RustGenerator
 	                sb.append(pfx).append("}");
                 }
                 
-                if (structNameWrap(struct).length() > 0 || struct.isTypeRoot || struct.possibleChildren.size() > 0) 
+                if (structNameWrap(struct).length() > 0) 
                 {
-	                sb.append(pfx).append("impl putki::WriteAsText for " + structName(struct) + " {");
+                	sb.append("\n");
+	                sb.append(pfx).append("impl putki::WriteAsText for " + structNameWrap(struct) + " {");
 	                sb.append(pfx).append("\tfn write_text(&self, _output: &mut String) -> Result<(), putki::PutkiError> { Ok(()) }");
 	                sb.append(pfx).append("}");
-	                sb.append(pfx);
-	                
-	                sb.append(pfx).append("impl putki::BinSaver for " + structName(struct) + " {");
+	                sb.append("\n");                
+	                sb.append(pfx).append("impl putki::BinSaver for " + structNameWrap(struct) + " {");
 	                sb.append(pfx).append("\tfn write(&self, _data: &mut Vec<u8>, _refwriter: &putki::PackageRefs) -> Result<(), putki::PutkiError> {");
 	                String spfx = pfx + "\t\t";           
 	                for (Compiler.ParsedField field : struct.fields)
@@ -441,23 +442,64 @@ public class RustGenerator
 	                }	                
 	                sb.append(spfx).append("Ok(())");
 	                sb.append(pfx).append("\t}");
+	                sb.append(pfx).append("}");	               
+                }
+	                
+                if (struct.isTypeRoot || struct.possibleChildren.size() > 0) 
+                {
+                	sb.append("\n");
+	                sb.append(pfx).append("impl putki::WriteAsText for " + structName(struct) + " {");
+	                sb.append(pfx).append("\tfn write_text(&self, _output: &mut String) -> Result<(), putki::PutkiError> { Ok(()) }");
 	                sb.append(pfx).append("}");
-	                sb.append(pfx);	                
-	                sb.append(pfx).append("impl putki::InkiObj for " + structName(struct) + " { }");
+	                sb.append("\n");
+	                sb.append(pfx).append("impl putki::BinSaver for " + structName(struct) + " {");
+	                sb.append(pfx).append("\tfn write(&self, data: &mut Vec<u8>, refwriter: &putki::PackageRefs) -> Result<(), putki::PutkiError> {");
+	                String spfx = pfx + "\t\t";
+	                sb.append(spfx).append("match self {");
+	                for (int i=0;i<=struct.possibleChildren.size();i++)
+	                {
+	                	if (i > 0)
+	                		sb.append(",");
+	                	Compiler.ParsedStruct s = (i == 0) ? struct : struct.possibleChildren.get(i-1);
+	                	if (structNameWrap(s).length() > 0)
+	                		sb.append(spfx).append("\t" + structName(struct) + "::" + structName(s) + "(x) => { (" + i + " as u16).write(data); x.write(data, refwriter) }");
+	                	else
+	                		sb.append(spfx).append("\t" + structName(struct) + "::" + structName(s) + " => { (" + i + " as u16).write(data); Ok(()) }");
+	                }
+	                sb.append(spfx).append("}");
+	                sb.append(pfx).append("\t}");
+	                sb.append(pfx).append("}");
+	                /*
+	                for (Compiler.ParsedField field : struct.fields)
+	                {
+	                    if ((field.domains & Compiler.DOMAIN_OUTPUT) == 0)
+	                        continue;
+                    	if (field.isParentField && field.resolvedRefStruct != null && structNameWrap(field.resolvedRefStruct).length() == 0)
+                    		continue;
+	                    if (field.type == FieldType.ENUM) {
+	                    	sb.append(spfx).append("i32::from(&self." + fieldName(field) + ").write(_data);");
+	                    } else if (field.type == FieldType.STRUCT_INSTANCE || field.type == FieldType.POINTER) {
+	                    	sb.append(spfx).append("self." + fieldName(field) + ".write(_data, _refwriter)?;");	                    
+	                    } else {
+	                    	sb.append(spfx).append("self." + fieldName(field) + ".write(_data);");
+	                    }
+	                }	        
+	                */
                 }
                 
                 if (struct.isTypeRoot || struct.possibleChildren.size() > 0) 
                 {
                     sb.append("\n");                 	
-                	sb.append(pfx).append("impl putki::TypeDescriptor for " + structName(struct) + " { const TAG: &'static str = \"" + struct.name + "\"; }");                    
+                	sb.append(pfx).append("impl putki::TypeDescriptor for " + structName(struct) + " { const TAG: &'static str = \"" + struct.name + "\"; }");
+	                sb.append(pfx).append("impl putki::InkiObj for " + structName(struct) + " { }");               	
                 }                
 
                 if (structNameWrap(struct).length() > 0)
                 {
                     sb.append("\n");                                            	
                 	sb.append(pfx).append("impl putki::TypeDescriptor for " + structNameWrap(struct) + " { const TAG: &'static str = \"" + struct.name + "\"; }");
+                	sb.append(pfx).append("impl putki::InkiObj for " + structNameWrap(struct) + " { }");
                 }
-
                                
                 if (struct.isTypeRoot || struct.possibleChildren.size() > 0)
                 {          
@@ -500,7 +542,8 @@ public class RustGenerator
                 
                 
                 if (struct.isTypeRoot || struct.possibleChildren.size() > 0)
-                {          
+                {
+                	sb.append("\n");
 	            	sb.append(pfx).append("impl putki::BuildCandidate for " + structName(struct) + " {");
 	                sb.append(pfx).append("\tfn as_any_ref(&mut self) -> &mut any::Any { return self; }");
 	                sb.append(pfx).append("\tfn build(&mut self, p:&putki::Pipeline, br: &mut putki::BuildRecord) -> Result<(), putki::PutkiError> { p.build(br, self) }");
@@ -519,7 +562,8 @@ public class RustGenerator
                 }
                 
                 if (struct.isTypeRoot || struct.possibleChildren.size() > 0)
-                {          
+                {       
+                	sb.append("\n");
 	            	sb.append(pfx).append("impl putki::BuildFields for " + structName(struct) + " {");
 	            	sb.append(pfx).append("\tfn build_fields(&mut self, _p:&putki::Pipeline, _br:&mut putki::BuildRecord) -> Result<(), putki::PutkiError> {");
 	                sb.append(pfx).append("\t\tmatch self {");
@@ -714,10 +758,10 @@ public class RustGenerator
 	                sb.append(pfx).append("}");
                 }
                 
-                if (structNameWrap(struct).length() > 0 || struct.isTypeRoot || struct.possibleChildren.size() > 0) 
+                if (structNameWrap(struct).length() > 0) 
                 {                	               
 	                sb.append(pfx);	                
-	                sb.append(pfx).append("impl outki::BinLoader for " + structName(struct) + " {");
+	                sb.append(pfx).append("impl outki::BinLoader for " + structNameWrap(struct) + " {");
 	                sb.append(pfx).append("\tfn read(_stream:&mut outki::BinDataStream) -> Self {");
 	                sb.append(pfx).append("\t\tSelf {");
 	                boolean	first = true;	                
@@ -741,7 +785,7 @@ public class RustGenerator
 	                }	                
 	                sb.append(pfx).append("\t\t}");
 	                sb.append(pfx).append("\t}");
-	                	                
+	                	                	                
 	                sb.append(pfx).append("\tfn resolve(&mut self, _context: &mut outki::BinResolverContext) -> outki::OutkiResult<()> {");
 	                spfx = pfx + "\t\t";
 	                for (Compiler.ParsedField field : struct.fields)
@@ -757,20 +801,62 @@ public class RustGenerator
 	                sb.append(spfx).append("Ok(())");
 	                sb.append(pfx).append("\t}");
 	                sb.append(pfx).append("}");
-	                sb.append(pfx);	                
-	                sb.append(pfx).append("impl outki::OutkiObj for " + structName(struct) + " { }");
+	            	                          	               
                 }
+                
+                if (struct.isTypeRoot || struct.possibleChildren.size() > 0)
+                {
+                    sb.append(pfx);
+	                sb.append(pfx).append("impl outki::BinLoader for " + structName(struct) + " {");
+	                sb.append(pfx).append("\tfn read(_stream:&mut outki::BinDataStream) -> Self {");
+	                String spfx = pfx + "\t\t";
+	                sb.append(spfx).append("match <u16 as outki::BinReader>::read(_stream) {");
+	                for (int i=struct.possibleChildren.size();i>=0;i--)
+	                {		        
+	                	Compiler.ParsedStruct s = (i == 0) ? struct : struct.possibleChildren.get(i-1);
+	                	if (i == 0)
+	                		sb.append(spfx).append("\t_");
+	                	else
+	                		sb.append(spfx).append("\t" + i);
+	                	if (structNameWrap(s).length() > 0)	                		
+	                		sb.append(" => " + structName(struct) + "::" + structName(s) + "(outki::BinLoader::read(_stream))");
+	                	else
+	                		sb.append(" => " + structName(struct) + "::" + structName(s));
+	                	if (i != 0)
+	                		sb.append(",");
+	                }
+	                sb.append(spfx).append("}");
+	                sb.append(pfx).append("\t}");
+	                sb.append(pfx).append("\tfn resolve(&mut self, _context: &mut outki::BinResolverContext) -> outki::OutkiResult<()> {");
+	                sb.append(spfx).append("match self {");
+	                for (int i=0;i<=struct.possibleChildren.size();i++)
+	                {		        
+	                	if (i > 0)
+	                		sb.append(",");
+	                	Compiler.ParsedStruct s = (i == 0) ? struct : struct.possibleChildren.get(i-1);
+	                	if (structNameWrap(s).length() > 0)	                		
+	                		sb.append(spfx).append("\t" + structName(struct) + "::" + structName(s) + "(x) => x.resolve(_context)");
+	                	else
+	                		sb.append(spfx).append("\t" + structName(struct) + "::" + structName(s) + " => Ok(())");
+	                }	                
+	                sb.append(spfx).append("}");
+	                sb.append(pfx).append("\t}");
+	                sb.append(pfx).append("}");
+	                sb.append(pfx);
+                }	                 
                 
                 if (struct.isTypeRoot || struct.possibleChildren.size() > 0) 
                 {
                     sb.append("\n");                 	
-                	sb.append(pfx).append("impl putki::TypeDescriptor for " + structName(struct) + " { const TAG: &'static str = \"" + struct.name + "\"; }");                    
+                	sb.append(pfx).append("impl putki::TypeDescriptor for " + structName(struct) + " { const TAG: &'static str = \"" + struct.name + "\"; }");
+                	sb.append(pfx).append("impl outki::OutkiObj for " + structName(struct) + " { }");
                 }                
 
                 if (structNameWrap(struct).length() > 0)
                 {
-                    sb.append("\n");                                            	
+                    sb.append("\n");                    
                 	sb.append(pfx).append("impl putki::TypeDescriptor for " + structNameWrap(struct) + " { const TAG: &'static str = \"" + struct.name + "\"; }");
+                	sb.append(pfx).append("impl outki::OutkiObj for " + structNameWrap(struct) + " { }");
                 }
     		}
         }           
@@ -788,7 +874,14 @@ public class RustGenerator
         sb.append("[dependencies]\r\nputki = { path = \""  + tree.putkiPath.resolve("rust").toAbsolutePath().toString().replaceAll("\\\\",  "/") + "\" }");
         writer.addOutput(mfn, sb.toString().getBytes());
     }
-    
+
+    static void allChildrenTags(StringBuilder sb, Compiler.ParsedStruct struct)
+    {
+    	for (Compiler.ParsedStruct s : struct.possibleChildren) {
+    		sb.append(" | <inki::" + structName(s) + " as putki::TypeDescriptor>::TAG");
+    		allChildrenTags(sb, s);
+    	}    	
+    }
     
     public static void generateInkiParsers(Compiler comp, Compiler.ParsedTree tree, CodeWriter writer)
     {
@@ -824,7 +917,9 @@ public class RustGenerator
                 	
                 	for (Compiler.ParsedStruct child : struct.possibleChildren)
                 	{                		
-                    	sb.append(pfx).append("\t\t\t<inki::" + structName(child) + " as putki::TypeDescriptor>::TAG => inki::" + structName(struct) + "::" + structName(child) + "(<inki::" + structName(child) + " as putki::ParseFromKV>::parse(_kv, _resolver)),");                		
+                    	sb.append(pfx).append("\t\t\t<inki::" + structName(child) + " as putki::TypeDescriptor>::TAG");
+                    	allChildrenTags(sb, child);
+                    	sb.append(" => inki::" + structName(struct) + "::" + structName(child) + "(<inki::" + structName(child) + " as putki::ParseFromKV>::parse_with_type(_kv, _resolver, type_name)),");                		
                 	}                	
                 	sb.append(pfx).append("\t\t\t_ => Default::default()");
                 	sb.append(pfx).append("\t\t}");

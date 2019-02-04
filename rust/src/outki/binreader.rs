@@ -27,6 +27,14 @@ impl BinReader for u32 {
     }
 }
 
+impl BinReader for u16 {
+    fn read(stream:&mut BinDataStream) -> Self {
+        let v = (stream.slice[0] as u16) | ((stream.slice[1] as u16) << 8);
+        stream.slice = &stream.slice[2..];
+        return v as u16;
+    }
+}
+
 impl BinReader for usize {
     fn read(stream:&mut BinDataStream) -> Self {
         let v0 = u32::read(stream) as usize;

@@ -48,7 +48,7 @@ fn process_jsony_obj(base:&Path, file:&Path, idx: &mut LoadAll, ld:&lexer::Lexed
 		&lexer::LexedData::Object { ref kv, .. } => {
 			if let Ok(ref_) = file.strip_prefix(base) {
 				let mut bp = String::from(ref_.to_string_lossy());				
-				let mut obj_ref = bp.trim_right_matches(".json").replace('\\', "/");
+				let mut obj_ref = bp.trim_end_matches(".json").replace('\\', "/");
 				if let Some(refval) = kv.get("ref") {
 					if let &lexer::LexedData::StringLiteral(ref path_piece) = refval {
 						obj_ref.push_str(path_piece);
