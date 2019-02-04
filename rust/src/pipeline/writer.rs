@@ -75,6 +75,25 @@ impl BinWriter for u8 {
     }
 }
 
+impl BinWriter for f32 {
+    fn write(&self, data: &mut Vec<u8>) {
+        unsafe {
+            u32::write(&std::mem::transmute::<f32, u32>(*self), data);
+        }
+    }
+}
+
+impl BinWriter for bool {
+    fn write(&self, data: &mut Vec<u8>) {
+        if *self {
+            data.push(1);
+        } else {
+            data.push(0);
+        }
+    }
+}
+
+
 impl BinWriter for &str {
     fn write(&self, data: &mut Vec<u8>) {
         let b = self.as_bytes();
