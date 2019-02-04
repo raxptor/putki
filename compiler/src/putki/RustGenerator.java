@@ -458,7 +458,7 @@ public class RustGenerator
 	                sb.append(pfx).append("}");
 	                sb.append("\n");
 	                sb.append(pfx).append("impl putki::BinSaver for " + structName(struct) + " {");
-	                sb.append(pfx).append("\tfn write(&self, data: &mut Vec<u8>, refwriter: &putki::PackageRefs) -> Result<(), putki::PutkiError> {");
+	                sb.append(pfx).append("\tfn write(&self, data: &mut Vec<u8>, _refwriter: &putki::PackageRefs) -> Result<(), putki::PutkiError> {");
 	                String spfx = pfx + "\t\t";
 	                sb.append(spfx).append("match self {");
 	                for (int i=0;i<=struct.possibleChildren.size();i++)
@@ -467,7 +467,7 @@ public class RustGenerator
 	                		sb.append(",");
 	                	Compiler.ParsedStruct s = (i == 0) ? struct : struct.possibleChildren.get(i-1);
 	                	if (structNameWrap(s).length() > 0)
-	                		sb.append(spfx).append("\t" + structName(struct) + "::" + structName(s) + "(x) => { (" + i + " as u16).write(data); x.write(data, refwriter) }");
+	                		sb.append(spfx).append("\t" + structName(struct) + "::" + structName(s) + "(x) => { (" + i + " as u16).write(data); x.write(data, _refwriter) }");
 	                	else
 	                		sb.append(spfx).append("\t" + structName(struct) + "::" + structName(s) + " => { (" + i + " as u16).write(data); Ok(()) }");
 	                }
