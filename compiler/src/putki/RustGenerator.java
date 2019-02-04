@@ -304,7 +304,7 @@ public class RustGenerator
         	{
         		String prefix = "\n";
     			sb.append("\n");
-    			sb.append("#[derive(Clone)]\n");
+    			sb.append("#[derive(Clone, Debug)]");
         		sb.append(prefix).append("pub enum " + e.name + " {");
         		boolean first = true;
         		for (Compiler.EnumValue val : e.values)
@@ -433,7 +433,12 @@ public class RustGenerator
                     	if (field.isParentField && field.resolvedRefStruct != null && structNameWrap(field.resolvedRefStruct).length() == 0)
                     		continue;
 	                    if (field.type == FieldType.ENUM) {
-	                    	sb.append(spfx).append("i32::from(&self." + fieldName(field) + ").write(_data);");
+	                    	if (field.isArray) {
+	                    		sb.append(spfx).append("self." + fieldName(field) + ".len().write(_data);");
+	                    		sb.append(spfx).append("for item in self." + fieldName(field) + ".iter() { i32::from(item).write(_data); }");
+	                    	} else {
+	                    		sb.append(spfx).append("i32::from(&self." + fieldName(field) + ").write(_data);");
+	                    	}
 	                    } else if (field.type == FieldType.STRUCT_INSTANCE || field.type == FieldType.POINTER) {
 	                    	sb.append(spfx).append("self." + fieldName(field) + ".write(_data, _refwriter)?;");	                    
 	                    } else {
@@ -673,6 +678,7 @@ public class RustGenerator
         	{
         		String prefix = "\n";
     			sb.append("\n");
+    			sb.append("#[derive(Clone, Debug)]");
         		sb.append(prefix).append("pub enum " + e.name + " {");
         		boolean first = true;
         		for (Compiler.EnumValue val : e.values)
@@ -704,8 +710,12 @@ public class RustGenerator
     			sb.append(prefix).append("\t\t\t_ => " + e.name + "::" + capsToCamelCase(e.values.get(0).name));
         		sb.append(prefix).append("\t\t}");
         		sb.append(prefix).append("\t}");
-        		sb.append(prefix).append("}");       
-    			sb.append("\n");          		
+        		sb.append(prefix).append("}");             		  
+                sb.append("\n");    			          		
+                sb.append(prefix).append("impl outki::BinReader for " + e.name + " {");
+                sb.append(prefix).append("\tfn read(_stream:&mut outki::BinDataStream) -> Self { Self::from(i32::read(_stream)) }");
+                sb.append(prefix).append("}");                
+                sb.append("\n");    			
         	}
 
     		for (Compiler.ParsedStruct struct : file.structs)
@@ -775,9 +785,10 @@ public class RustGenerator
 	                    if (!first)
 	                    	sb.append(",");
 	                    first = false;
-	                    if (field.type == FieldType.ENUM) {
+	                    /*
+	                    if (field.type == FieldType.ENUM) {	                    
 	                    	sb.append(spfx).append(fieldName(field) + " : " + outkiFieldType(field) + "::from(<i32 as outki::BinReader>::read(_stream))");
-	                    } else if (field.type == FieldType.STRUCT_INSTANCE || field.type == FieldType.POINTER) {
+	                    } else */if (field.type == FieldType.STRUCT_INSTANCE || field.type == FieldType.POINTER) {
 	                    	sb.append(spfx).append(fieldName(field) + " : outki::BinLoader::read(_stream)");	                    
 	                    } else {
 	                    	sb.append(spfx).append(fieldName(field) + " : outki::BinReader::read(_stream)");
