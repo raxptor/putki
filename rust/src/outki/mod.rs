@@ -48,21 +48,26 @@ pub trait BinLoader {
     fn resolve(&mut self, context: &mut BinResolverContext) -> OutkiResult<()>;
 }
 
-impl<T> BinReader for NullablePtr<T> where T : BinLoader {
+impl<T> BinLoader for NullablePtr<T> where T : OutkiObj {
     fn read(stream: &mut BinDataStream) -> Self {
         let mut slotplusone:usize = (i32::read(stream) + 1) as usize;
         if slotplusone != 0 {
             slotplusone = slotplusone | UNRESOLVED_VALUE;
-            println!("and it is now {}", slotplusone);
         }
-        NullablePtr { ptr: NonZeroUsize::new(slotplusone), _ph: PhantomData { } }
+        NullablePtr { ptr: NonZeroUsize::new(slotplusone), _ph: PhantomData { } }        
+    }
+    fn resolve(&mut self, context: &mut BinResolverContext) -> OutkiResult<()> {
+        context.resolve(self)        
     }
 }
 
-impl<T> BinReader for Ptr<T> where T : BinLoader {
+impl<T> BinLoader for Ptr<T> where T : OutkiObj {
     fn read(stream: &mut BinDataStream) -> Self {
         let slotplusone:i32 = i32::read(stream) + 1;
         Ptr { ptr: (slotplusone as usize | UNRESOLVED_VALUE), _ph: PhantomData { } }
+    }
+    fn resolve(&mut self, context: &mut BinResolverContext) -> OutkiResult<()> {
+        context.resolve_not_null(self)        
     }
 }
 
@@ -79,7 +84,9 @@ impl Drop for MemoryPin {
     }
 }
 
-struct PinTag
+pub type DataPin = Rc<PinTag>;
+
+pub struct PinTag
 {
     _mempin: Arc<MemoryPin>
 }
@@ -99,15 +106,44 @@ pub struct Ptr<T>
 pub struct Ref<T>
 {
     ptr: Ptr<T>,
-    _pin: Rc<PinTag>
+    _pin: DataPin
 }
 
 impl<T> Deref for Ref<T>
 {
     type Target = T;
-    fn deref<'a>(&'a self) -> &'a T {
+    fn deref(&self) -> &T {
         unsafe {
             &(*(self.ptr.ptr as (*const T)))
+        }
+    }
+}
+
+impl<T> Ref<T> {
+    pub fn clone(&self) -> Self {
+        Self {
+            ptr: Ptr { ptr: self.ptr.ptr, _ph: PhantomData { } },
+            _pin: self._pin.clone()            
+        }
+    }
+    pub fn subref<U>(&self, obj: &Ptr<U>) -> Ref<U> {
+        assert!(self._pin._mempin.destructors.contains_key(&obj.ptr));
+        Ref {
+            ptr: Ptr { ptr: obj.ptr, _ph: PhantomData { } },
+            _pin: self._pin.clone()
+        }
+    }
+    pub fn pin(&self) -> &DataPin {
+        return &self._pin;
+    }
+}
+
+impl<T> Ptr<T> {
+    pub fn as_ref(&self, pin: &DataPin) -> Ref<T> {
+        assert!(pin._mempin.destructors.contains_key(&self.ptr));
+        Ref {
+            ptr: Ptr { ptr: self.ptr, _ph: PhantomData { } },
+            _pin: pin.clone()
         }
     }
 }
@@ -128,7 +164,7 @@ impl<'a, T> NullablePtr<T>
     }
 }
 
-impl<T> Ref<T>
+impl<'a, T> Ref<T>
 {
     pub fn get_pointer(&self) -> *const T {
         self.ptr.ptr as (*const T)
@@ -199,7 +235,6 @@ impl<'a> BinResolverContext<'a> {
         match ptr.ptr {
             Some(slot) => {
                 let rslot = usize::from(slot) & !UNRESOLVED_MASK;
-                println!("{} {}", usize::from(slot), rslot);
                 debug_assert!((usize::from(slot) & UNRESOLVED_MASK) == UNRESOLVED_VALUE);                
                 let get_res = self.loaded.get(&rslot).map(|x| x.clone());
                 if let Some(addr) = get_res {                
@@ -209,7 +244,6 @@ impl<'a> BinResolverContext<'a> {
                     BinPackageManager::load_and_try_resolve::<T>(self, rslot as u32)?;
                     let get_res = self.loaded.get(&rslot).map(|x| x.clone());
                     if let Some(addr) = get_res {
-                        println!("PTR! Loaded and reslovede Resolved rslot to addr {} {}", rslot, addr);
                         ptr.ptr = NonZeroUsize::new(addr);
                         Ok(())
                     } else {
@@ -314,7 +348,6 @@ impl BinPackageManager
 
     fn destruct<T>(objptr:usize)
     {
-        println!("destructing {}", objptr);
         unsafe {
             let bx : Box<T> = Box::from_raw(objptr as *mut T);
             drop(bx);
@@ -333,7 +366,6 @@ impl BinPackageManager
         let mut tmp_buf = vec![0 as u8; size];
         pkg.reader.read_chunk(s.begin, tmp_buf.deref_mut())?;
             
-        println!("Unpacking object at slot {}, byte range [{}..{}] in package {} with type {}", slot, s.begin, s.end, slotidx, s.type_id);
         let mut stream = BinDataStream::new(tmp_buf.deref());
         let mut obj:Box<T> = Box::new(BinLoader::read(&mut stream));
         let objptr : *mut T = &mut *obj;

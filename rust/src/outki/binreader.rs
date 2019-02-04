@@ -70,7 +70,6 @@ impl<T> BinReader for Vec<T> where T : BinReader
     }        
 }
 
-
 impl<T> BinLoader for Vec<T> where T : BinLoader {
     fn read(stream: &mut BinDataStream) -> Self {
         let len = usize::read(stream);

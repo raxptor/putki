@@ -70,8 +70,8 @@ impl outki::BinLoader for PtrStruct {
         }
     }
     fn resolve(&mut self, context: &mut outki::BinResolverContext) -> outki::OutkiResult<()> { 
-        context.resolve(&mut self.ptr)?;
-        context.resolve(&mut self.sib)?;
+        self.ptr.resolve(context)?;
+        self.sib.resolve(context)?;
         Ok(())
     }
 }

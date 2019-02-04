@@ -76,6 +76,14 @@ impl BinWriter for &str {
     }
 }
 
+impl BinWriter for String {
+    fn write(&self, data: &mut Vec<u8>) {
+        let b = self.as_bytes();
+        b.len().write(data);
+        data.extend_from_slice(self.as_bytes());
+    }
+}
+
 impl<T> BinSaver for ptr::Ptr<T> where T : Send + Sync {
     fn write(&self, data: &mut Vec<u8>, refs: &PackageRefs) -> Result<(), PutkiError> {                
         let slot:i32 = self.get_target_path().and_then(|x| { refs.path_to_slot.get(x) }).map(|x| { (*x) as i32 }).unwrap_or(-1);
@@ -100,8 +108,7 @@ impl PackageRecipe {
         let k = p.peek_build_records().unwrap();
         if let Some(br) = k.get(path) {
             self.types.insert(br.type_tag);
-            if self.paths.insert(String::from(path)) {                
-                println!("adding path {}", path);
+            if self.paths.insert(String::from(path)) {
                 if recurse_deps {
                     for x in br.deps.keys() {
                         self.add_object(p, x.as_str(), true)?
@@ -186,7 +193,6 @@ pub fn write_package(p:&pipeline::Pipeline, recipe:&PackageRecipe) -> Result<Vec
                 let offsets  = slot_data_ofs[i];
                 insert_value(&mut manifest, offsets.0, begin);
                 insert_value(&mut manifest, offsets.1, end);
-                println!("Path {} wrote to {}-{}", path, begin, end);
             } else {
                 return Err(shared::PutkiError::ObjectNotFound);
             }
