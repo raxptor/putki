@@ -43,6 +43,20 @@ impl BinReader for usize {
     }
 }
 
+impl BinReader for f32 {
+    fn read(stream:&mut BinDataStream) -> Self {
+        unsafe {
+            std::mem::transmute::<u32, f32>(u32::read(stream))
+        }
+    }
+}
+
+impl BinReader for bool {
+    fn read(stream:&mut BinDataStream) -> Self {
+        u8::read(stream) != 1
+    }
+}
+
 impl BinReader for u8 {
     fn read(stream:&mut BinDataStream) -> Self {
         let v = stream.slice[0];
