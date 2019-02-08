@@ -106,7 +106,17 @@ pub struct Ptr<T>
 pub struct Ref<T>
 {
     ptr: Ptr<T>,
-    _pin: DataPin
+    pin: DataPin
+}
+
+impl<T> Clone for Ref<T>
+{
+    fn clone(&self) -> Self {
+        Ref {
+            ptr: Ptr { ptr: self.ptr.ptr, _ph: PhantomData { } },
+            pin: self.pin.clone()
+        }
+    }
 }
 
 impl<T> Deref for Ref<T>
@@ -123,20 +133,11 @@ impl<T> Ref<T> {
     pub fn clone(&self) -> Self {
         Self {
             ptr: Ptr { ptr: self.ptr.ptr, _ph: PhantomData { } },
-            _pin: self._pin.clone()            
+            pin: self.pin.clone()            
         }
     }
-    /* 
-    fn subref<U>(&self, obj: &Ptr<U>) -> Ref<U> {
-        assert!(self._pin._mempin.destructors.contains_key(&obj.ptr));
-        Ref {
-            ptr: Ptr { ptr: obj.ptr, _ph: PhantomData { } },
-            _pin: self._pin.clone()
-        }
-    }
-    */
     fn pin(&self) -> &DataPin {
-        return &self._pin;
+        return &self.pin;
     }
 }
 
@@ -145,7 +146,7 @@ impl<T> Ptr<T> {
         assert!(pin._mempin.destructors.contains_key(&self.ptr));
         Ref {
             ptr: Ptr { ptr: self.ptr, _ph: PhantomData { } },
-            _pin: pin.clone()
+            pin: pin.clone()
         }
     }
     pub fn make_ref<K>(&self, r:&Ref<K>) -> Ref<T> {
@@ -342,7 +343,7 @@ impl BinPackageManager
                     ptr: addr.get(),
                     _ph: PhantomData { }
                 },
-                _pin: Rc::new(PinTag { 
+                pin: Rc::new(PinTag { 
                     _mempin: Arc::new(rctx.pindata)
                 })
             })
