@@ -109,6 +109,32 @@ pub struct Ref<T>
     pin: DataPin
 }
 
+pub struct ArcRef<T>
+{
+    ptr: Ptr<T>,
+    pin: Arc<MemoryPin>
+}
+
+impl<T> From<&Ref<T>> for ArcRef<T>
+{    
+    fn from(src:&Ref<T>) -> ArcRef<T> {
+        ArcRef {
+            ptr: Ptr { ptr: src.ptr.ptr, _ph:PhantomData{} },
+            pin: src.pin._mempin.clone()
+        }
+    }
+}
+
+impl<T> From<&ArcRef<T>> for Ref<T>
+{    
+    fn from(src:&ArcRef<T>) -> Ref<T> {
+        Ref {
+            ptr: Ptr { ptr: src.ptr.ptr, _ph:PhantomData{} },
+            pin: Rc::new(PinTag { _mempin: src.pin.clone() })
+        }
+    }
+}
+
 impl<T> Clone for Ref<T>
 {
     fn clone(&self) -> Self {
@@ -138,7 +164,7 @@ impl<T> Ref<T> {
     }
     fn pin(&self) -> &DataPin {
         return &self.pin;
-    }
+    }    
 }
 
 impl<T> Ptr<T> {
