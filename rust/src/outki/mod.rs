@@ -5,7 +5,6 @@ use std::marker::PhantomData;
 use std::num::NonZeroUsize;
 use std::collections::HashMap;
 use std::mem::forget;
-use std::ops::DerefMut;
 use std::io;
 use shared;
 mod binreader;
@@ -33,7 +32,7 @@ impl From<io::Error> for OutkiError {
 }
 
 pub trait PackageRandomAccess {    
-    fn read_chunk(&self, begin:usize, into:&mut [u8]) -> OutkiResult<()>;
+    fn read_chunk(&self, begin:usize, end:usize, f:&mut FnMut(OutkiResult<&[u8]>) -> OutkiResult<()>) -> OutkiResult<()>;
 }
 
 pub type OutkiResult<T> = Result<T, OutkiError>;
@@ -386,6 +385,16 @@ impl BinPackageManager
         }
     }
 
+    fn insert_resolved_object<T>(res: &mut BinResolverContext, slot:u32, mut obj:Box<T>) -> OutkiResult<()> where T : OutkiObj
+    {
+        let objptr : *mut T = &mut *obj;
+        res.loaded.insert(slot as usize, objptr as usize);
+        res.pindata.destructors.insert(objptr as usize, Self::destruct::<T>);
+        let r = obj.resolve(res);
+        forget(obj); 
+        r
+    }
+
     fn load_and_try_resolve<T>(res: &mut BinResolverContext, slot:u32) -> OutkiResult<()> where T : OutkiObj {
         let pkg = &res.context.mgr.packages[res.context.package as usize];
         let slotidx = (slot-1) as usize;
@@ -393,18 +402,12 @@ impl BinPackageManager
             return Err(OutkiError::SlotNotFound);
         }
         let s = &pkg.manifest.slots[slotidx];
-        let size = s.end - s.begin;
-        let mut tmp_buf = vec![0 as u8; size];
-        pkg.reader.read_chunk(s.begin, tmp_buf.deref_mut())?;
-            
-        let mut stream = BinDataStream::new(tmp_buf.deref());
-        let mut obj:Box<T> = Box::new(BinLoader::read(&mut stream));
-        let objptr : *mut T = &mut *obj;
-        res.loaded.insert(slot as usize, objptr as usize);
-        res.pindata.destructors.insert(objptr as usize, Self::destruct::<T>);
-        let r = obj.resolve(res);
-        forget(obj); // need to forget before try! or we will have stored double references.
-        r?;
-        Ok(())
+        pkg.reader.read_chunk(s.begin, s.end, &mut |result:OutkiResult<&[u8]>| {
+            result.and_then(|chunk| {
+                let mut stream = BinDataStream::new(chunk);
+                let obj:Box<T> = Box::new(BinLoader::read(&mut stream));                
+                BinPackageManager::insert_resolved_object(res, slot, obj)
+            })
+        })
     }
 }
