@@ -24,15 +24,14 @@ pub trait BinWriter {
     fn write(&self, data: &mut Vec<u8>);
 }
 
+#[derive(Default)]
 pub struct PackageRefs {
     path_to_slot: HashMap<String, usize>
 }
 
 impl<'a> PackageRefs {
     pub fn new() -> PackageRefs {
-        PackageRefs {
-            path_to_slot : HashMap::new()
-        }
+        Default::default()
     }
 }
 
@@ -118,6 +117,7 @@ impl<T> BinSaver for ptr::Ptr<T> where T : Send + Sync {
     }
 }
 
+#[derive(Default)]
 pub struct PackageRecipe { 
     paths: HashSet<String>,
     types: HashSet<&'static str>
@@ -125,20 +125,15 @@ pub struct PackageRecipe {
 
 impl PackageRecipe {
     pub fn new() -> PackageRecipe {
-        PackageRecipe {
-            paths: HashSet::new(),
-            types: HashSet::new()
-        }
+        Default::default()
     }
     pub fn add_object(&mut self, p:&pipeline::Pipeline, path:&str, recurse_deps:bool) -> Result<(), shared::PutkiError> {
         let k = p.peek_build_records().unwrap();
         if let Some(br) = k.get(path) {
             self.types.insert(br.type_tag);
-            if self.paths.insert(String::from(path)) {
-                if recurse_deps {
-                    for x in br.deps.keys() {
-                        self.add_object(p, x.as_str(), true)?
-                    }
+            if self.paths.insert(String::from(path)) && recurse_deps {
+                for x in br.deps.keys() {
+                    self.add_object(p, x.as_str(), true)?
                 }
             }
             Ok(())
@@ -152,9 +147,7 @@ pub fn insert_value<T>(data: &mut Vec<u8>, offset:usize, value: T) where T : Bin
 {
     let mut tmp = Vec::new();
     value.write(&mut tmp);
-    for j in 0..tmp.len() {
-        data[offset + j] = tmp[j];
-    }        
+    data[offset..(tmp.len() + offset)].clone_from_slice(&tmp[..]);
 }
 
 pub fn write_package(p:&pipeline::Pipeline, recipe:&PackageRecipe) -> Result<Vec<u8>, shared::PutkiError>
@@ -169,12 +162,10 @@ pub fn write_package(p:&pipeline::Pipeline, recipe:&PackageRecipe) -> Result<Vec
     let mut type_rev:HashMap<&'static str, usize> = HashMap::new();
 
     (0 as usize).write(&mut manifest);
-    types.len().write(&mut manifest);
-    let mut tindex = 0;
-    for t in types.iter() {
-        t.write(&mut manifest);
-        type_rev.insert(t, tindex);
-        tindex = tindex + 1;
+    types.len().write(&mut manifest);    
+    for (tindex, t) in types.iter().enumerate() {
+        (*t).write(&mut manifest);
+        type_rev.insert(*t, tindex);
     }
 
     let mut items : Vec<&str> = Vec::new();
@@ -190,10 +181,9 @@ pub fn write_package(p:&pipeline::Pipeline, recipe:&PackageRecipe) -> Result<Vec
     items.len().write(&mut manifest);
 
     let k = p.peek_build_records().unwrap();    
-    for i in 0..items.len() {        
-        let path = items[i];
+    for path in items.iter() {          
         let mut flags:u32 = outki::SLOTFLAG_HAS_PATH | outki::SLOTFLAG_INTERNAL;
-        let type_id:usize = *k.get(path).and_then(|x| type_rev.get(x.type_tag)).unwrap_or(&0);
+        let type_id:usize = *k.get(*path).and_then(|x| type_rev.get(x.type_tag)).unwrap_or(&0);
         flags.write(&mut manifest);
         path.write(&mut manifest);
         type_id.write(&mut manifest);
@@ -213,7 +203,7 @@ pub fn write_package(p:&pipeline::Pipeline, recipe:&PackageRecipe) -> Result<Vec
         if let Some(br) = k.get(path) {
             if let Some(ref obj) = br.built_obj {
                 let begin = manifest.len();
-                obj.write(&mut manifest, &mut refs)?;
+                obj.write(&mut manifest, &refs)?;
                 let end = manifest.len();
                 let offsets  = slot_data_ofs[i];
                 insert_value(&mut manifest, offsets.0, begin);

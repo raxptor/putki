@@ -7,7 +7,7 @@ pub struct BinDataStream<'a> {
 impl<'a> BinDataStream<'a> {
     pub fn new(slice: &'a [u8]) -> Self {
         BinDataStream {
-            slice: slice
+            slice
         }
     }
 }
@@ -18,20 +18,20 @@ pub trait BinReader {
 
 impl BinReader for u32 {
     fn read(stream:&mut BinDataStream) -> Self {
-        let v = (stream.slice[0] as u32) |
-        ((stream.slice[1] as u32) << 8) | 
-        ((stream.slice[2] as u32) << 16) | 
-        ((stream.slice[3] as u32) << 24);
+        let v = u32::from(stream.slice[0]) |
+        (u32::from(stream.slice[1]) << 8) | 
+        (u32::from(stream.slice[2]) << 16) | 
+        (u32::from(stream.slice[3]) << 24);
         stream.slice = &stream.slice[4..];
-        return v as u32;
+        v
     }
 }
 
 impl BinReader for u16 {
     fn read(stream:&mut BinDataStream) -> Self {
-        let v = (stream.slice[0] as u16) | ((stream.slice[1] as u16) << 8);
+        let v = u16::from(stream.slice[0]) | (u16::from(stream.slice[1]) << 8);
         stream.slice = &stream.slice[2..];
-        return v as u16;
+        v
     }
 }
 
@@ -39,15 +39,13 @@ impl BinReader for usize {
     fn read(stream:&mut BinDataStream) -> Self {
         let v0 = u32::read(stream) as usize;
         let v1 = u32::read(stream) as usize;
-        return v0 | (v1 << 32);
+        v0 | (v1 << 32)
     }
 }
 
 impl BinReader for f32 {
     fn read(stream:&mut BinDataStream) -> Self {
-        unsafe {
-            std::mem::transmute::<u32, f32>(u32::read(stream))
-        }
+        f32::from_bits(u32::read(stream))
     }
 }
 
@@ -61,7 +59,7 @@ impl BinReader for u8 {
     fn read(stream:&mut BinDataStream) -> Self {
         let v = stream.slice[0];
         stream.slice = &stream.slice[1..];
-        return v;
+        v
     }
 }
 
@@ -88,7 +86,7 @@ impl<T> BinReader for Vec<T> where T : BinReader
         for _i in 0..len {
             vec.push(<T as BinReader>::read(stream));
         }
-        return vec;
+        vec
     }        
 }
 
@@ -99,7 +97,7 @@ impl<T> BinLoader for Vec<T> where T : BinLoader {
         for _i in 0..len {
             vec.push(<T as BinLoader>::read(stream));
         }
-        return vec;        
+        vec
     }
     fn resolve(&mut self, context: &mut BinResolverContext) -> OutkiResult<()> {
         for x in self.iter_mut() {

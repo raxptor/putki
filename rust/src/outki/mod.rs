@@ -39,8 +39,8 @@ pub type OutkiResult<T> = Result<T, OutkiError>;
 pub trait OutkiObj : BinLoader + shared::TypeDescriptor { }
 type Destructor = fn(usize);
 
-const UNRESOLVED_MASK:usize = 0xff00000000000000;
-const UNRESOLVED_VALUE:usize = 0xcd00000000000000;
+const UNRESOLVED_MASK:usize = 0xff00_0000_0000_0000;
+const UNRESOLVED_VALUE:usize = 0xcd00_0000_0000_0000;
 
 pub trait BinLoader {
     fn read(stream:&mut BinDataStream) -> Self;
@@ -51,7 +51,7 @@ impl<T> BinLoader for NullablePtr<T> where T : OutkiObj {
     fn read(stream: &mut BinDataStream) -> Self {
         let mut slotplusone:usize = (i32::read(stream) + 1) as usize;
         if slotplusone != 0 {
-            slotplusone = slotplusone | UNRESOLVED_VALUE;
+            slotplusone |= UNRESOLVED_VALUE;
         }
         NullablePtr { ptr: NonZeroUsize::new(slotplusone), _ph: PhantomData { } }        
     }
@@ -155,14 +155,8 @@ impl<T> Deref for Ref<T>
 }
 
 impl<T> Ref<T> {
-    pub fn clone(&self) -> Self {
-        Self {
-            ptr: Ptr { ptr: self.ptr.ptr, _ph: PhantomData { } },
-            pin: self.pin.clone()            
-        }
-    }
     fn pin(&self) -> &DataPin {
-        return &self.pin;
+        &self.pin
     }    
 }
 
@@ -205,7 +199,7 @@ impl<'a, T> Ref<T>
 impl<T> Deref for Ptr<T>
 {
     type Target = T;
-    fn deref<'a>(&'a self) -> &'a T {
+    fn deref(&self) -> &T {
         debug_assert!((self.ptr & UNRESOLVED_MASK) != UNRESOLVED_VALUE);
         unsafe {
             &(*(self.ptr as (*const T)))
@@ -266,15 +260,13 @@ impl<'a> BinResolverContext<'a> {
         match ptr.ptr {
             Some(slot) => {
                 let rslot = usize::from(slot) & !UNRESOLVED_MASK;
-                debug_assert!((usize::from(slot) & UNRESOLVED_MASK) == UNRESOLVED_VALUE);                
-                let get_res = self.loaded.get(&rslot).map(|x| x.clone());
-                if let Some(addr) = get_res {                
+                debug_assert!((usize::from(slot) & UNRESOLVED_MASK) == UNRESOLVED_VALUE);
+                if let Some(addr) = self.loaded.get(&rslot).cloned() {
                     ptr.ptr = NonZeroUsize::new(addr);
                     Ok(())
                 } else {
-                    BinPackageManager::load_and_try_resolve::<T>(self, rslot as u32)?;
-                    let get_res = self.loaded.get(&rslot).map(|x| x.clone());
-                    if let Some(addr) = get_res {
+                    BinPackageManager::load_and_try_resolve::<T>(self, rslot as u32)?;                                        
+                    if let Some(addr) = self.loaded.get(&rslot).cloned() {
                         ptr.ptr = NonZeroUsize::new(addr);
                         Ok(())
                     } else {
@@ -316,6 +308,7 @@ impl Package {
     }
 }
 
+#[derive(Default)]
 pub struct BinPackageManager {
     packages: Vec<Package>    
 }
@@ -325,15 +318,15 @@ pub struct BinPackageManager {
 impl BinPackageManager
 {
     pub fn new() -> BinPackageManager { BinPackageManager {
-        packages: Vec::new()        
+        packages: Default::default()
     }}
     
     pub fn insert(&mut self, p:Package) { self.packages.push(p); }
     pub fn resolve<'a, T>(&'a self, path:&str) -> OutkiResult<Ref<T>> where T : OutkiObj { 
-        for ref p in &self.packages {
+        for p in &self.packages {
             for idx in 0 .. p.manifest.slots.len() {
                 let s = &p.manifest.slots[idx];
-                if let &Some(ref pth) = &s.path {
+                if let Some(ref pth) = s.path {
                     if pth == path {
                         let rs = BinReaderContext {
                             mgr: &self,

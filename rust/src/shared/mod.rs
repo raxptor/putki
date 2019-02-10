@@ -28,5 +28,5 @@ pub trait Resolver<ResolveContext> {
 
 pub fn tag_of<T>() -> &'static str where T : TypeDescriptor
 {
-    return <T as TypeDescriptor>::TAG;    
+    <T as TypeDescriptor>::TAG
 }

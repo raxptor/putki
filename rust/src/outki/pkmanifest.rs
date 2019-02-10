@@ -11,6 +11,7 @@ pub struct Slot
     pub type_id:usize,    
 }
 
+#[derive(Default)]
 pub struct PackageManifest
 {
     pub slots: Vec<Slot>,
@@ -21,11 +22,7 @@ pub struct PackageManifest
 impl PackageManifest 
 {
     pub fn new() -> PackageManifest {
-        PackageManifest {
-            slots: Vec::new(),
-            types: Vec::new(), 
-            manifest_size: 0
-        }
+        Default::default()
     }
 
     pub fn add_obj<T>(&mut self, output: &mut Vec<u8>, path:Option<&str>, data:&[u8]) where T : shared::TypeDescriptor
@@ -36,19 +33,18 @@ impl PackageManifest
         output.extend_from_slice(data);
         let end = output.len();
         self.slots.push(Slot {
-            begin: begin,
-            end: end,
+            begin,
+            end,
             flags: 0,
             path: path.map(|x| { x.to_string() }),
             type_id: ti
         });
     }
 
-
     pub fn parse(reader:&mut Read) -> OutkiResult<PackageManifest> {
         let mut buffer = [0; 8];
         reader.read_exact(&mut buffer)?;        
-        let mut tmp_ds = BinDataStream::new(&mut buffer);
+        let mut tmp_ds = BinDataStream::new(&buffer);
         let mfs:usize = usize::read(&mut tmp_ds);
         println!("Package manifest is {} bytes", mfs);
 
@@ -68,25 +64,26 @@ impl PackageManifest
 
         for _i in 0..num_slots {
             let flags = u32::read(&mut content);
-            let mut path: Option<String> = None;
-            if (flags & SLOTFLAG_HAS_PATH) != 0 {
-                path = Some(String::read(&mut content));
-            }
+            let mut path: Option<String> = if (flags & SLOTFLAG_HAS_PATH) != 0 {
+                Some(String::read(&mut content))
+            } else {
+                None
+            };
             let type_id = usize::read(&mut content);
             let begin = usize::read(&mut content);
             let end = usize::read(&mut content);
             slots.push(Slot {
-                begin: begin,
-                end: end,
-                path: path,
-                type_id: type_id,
-                flags: flags
+                begin,
+                end,
+                path,
+                type_id,
+                flags
             });
         }
         
         Ok(PackageManifest {
-            slots: slots,
-            types: types,
+            slots,
+            types,
             manifest_size: mfs
         })
     }
