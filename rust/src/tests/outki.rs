@@ -116,14 +116,12 @@ impl outki::OutkiObj for PtrStructNotNull { }
 impl outki::OutkiObj for ArrayPodStruct { }
 impl outki::OutkiObj for ArrayStruct { }
 
-/*
 impl outki::PackageRandomAccess for Vec<u8>
 {
-    fn read_chunk<F:FnOnce(OutkiResult<&[u8]>)>(&self, begin:usize, end:usize, f:F) {
-        f(Ok(self[begin..(end-begin)]));
+   fn read_chunk(&self, begin:usize, end:usize, f:&mut FnMut(outki::OutkiResult<&[u8]>) -> outki::OutkiResult<()>) -> outki::OutkiResult<()> {       
+        (*f)(Ok(&self[begin..end]))
     }
 }
-*/
 
 #[test]
 pub fn unpack_simple()

@@ -246,11 +246,8 @@ struct ReadFromVec {
 
 impl outki::PackageRandomAccess for ReadFromVec
 {
-    fn read_chunk(&self, begin:usize, into:&mut [u8]) -> outki::OutkiResult<()> {
-        for i in 0..into.len() {
-            into[i] = self.data[begin + i];
-        }
-        Ok(())
+   fn read_chunk(&self, begin:usize, end:usize, f:&mut FnMut(outki::OutkiResult<&[u8]>) -> outki::OutkiResult<()>) -> outki::OutkiResult<()> {
+        (*f)(Ok(&self.data[begin..end]))
     }
 }
 
