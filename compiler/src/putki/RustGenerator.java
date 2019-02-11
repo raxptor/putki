@@ -82,14 +82,30 @@ public class RustGenerator
 		return s.name;
 	}
 	
+	public static int countFields(Compiler.ParsedStruct s) {
+		int count = 0;
+		for (int i=0;i<s.fields.size();i++) {			
+			 if (s.fields.get(i).isParentField)
+			 	count += countFields(s.fields.get(i).resolvedRefStruct);
+			 else
+			 	count++;
+		}
+		return count;	
+	}
+	
 	public static String structNameWrap(Compiler.ParsedStruct s)
 	{
-		if (s.isTypeRoot && s.possibleChildren.size() == 0 || s.fields.size() == 0)
+		if ((s.isTypeRoot && s.possibleChildren.size() == 0) || countFields(s) == 0)			
 			return "";
 		if (s.possibleChildren.size() > 0 || s.isTypeRoot)
 			return s.name + "Data";
 		return s.name;
 	}
+	
+	public static boolean isEnumVariant(Compiler.ParsedStruct s) 
+	{
+		return structNameWrap(s).length() == 0;
+	}	
 
 	public static String fieldName(Compiler.ParsedField s)
 	{
@@ -133,10 +149,18 @@ public class RustGenerator
 	}
 	
 	static String outkiFieldType(Compiler.ParsedField pf)
-	{		
+	{
+		return outkiFieldType(pf, false);
+	}	
+	
+	static String outkiFieldType(Compiler.ParsedField pf, boolean wrapped)
+	{			
 		if (pf.type == FieldType.STRUCT_INSTANCE)
 		{
-			return structName(pf.resolvedRefStruct);
+			if (wrapped && structNameWrap(pf.resolvedRefStruct).length() > 0)
+				return structNameWrap(pf.resolvedRefStruct);
+			else
+				return structName(pf.resolvedRefStruct);
 		}
 		else if (pf.type == FieldType.ENUM)
 		{
@@ -181,10 +205,18 @@ public class RustGenerator
 	}
 	
 	static String inkiFieldType(Compiler.ParsedField pf)
-	{		
+	{
+		return inkiFieldType(pf, false);
+	}
+	
+	static String inkiFieldType(Compiler.ParsedField pf, boolean wrapped)
+	{			
 		if (pf.type == FieldType.STRUCT_INSTANCE)
 		{
-			return structName(pf.resolvedRefStruct);
+			if (wrapped && structNameWrap(pf.resolvedRefStruct).length() > 0)
+				return structNameWrap(pf.resolvedRefStruct);
+			else
+				return structName(pf.resolvedRefStruct);
 		}
 		else if (pf.type == FieldType.ENUM)
 		{
@@ -230,12 +262,6 @@ public class RustGenerator
 	{
 		return "gen_" + withUnderscore(in);
 	}
-	
-	/*
-	public static String enumValue(Compiler.EnumValue s)
-	{
-		return enumValue(s.name);
-	}*/	
 	
     public static void generateCrate(Compiler comp, CodeWriter writer)
     {
@@ -376,14 +402,18 @@ public class RustGenerator
                 	sb.append("\n");       
                 	sb.append(pfx).append("#[derive(Clone, Debug)]");
                 	sb.append(pfx).append("pub enum " + structName(struct) + " {");
-                	if (structNameWrap(struct).length() == 0)
+                	if (isEnumVariant(struct))
                     	sb.append(pfx).append("\t" + structName(struct));
                 	else
                 		sb.append(pfx).append("\t" + structName(struct) + "(" + structNameWrap(struct) + ")");
+                	                
                 	for (Compiler.ParsedStruct ch : struct.possibleChildren)
                 	{
-                		sb.append(",").append(pfx).append("\t" + structName(ch) + "(" + structName(ch) + ")");
-                	}
+                		if (isEnumVariant(ch))
+                			sb.append(",").append(pfx).append("\t" + structName(ch));
+                		else
+                			sb.append(",").append(pfx).append("\t" + structName(ch) + "(" + structName(ch) + ")");
+                	}                	
                 	sb.append(pfx).append("}");
                 }
   
@@ -410,7 +440,7 @@ public class RustGenerator
 	                    
 	                	sb.append(spfx).append("pub " + fieldName(field) + " : ");
 	                    if (field.isArray) sb.append("vec::Vec<");
-	                	sb.append(inkiFieldType(field));
+	                	sb.append(inkiFieldType(field, true));
 	                    if (field.isArray) sb.append(">");
 	                }
 	            
@@ -555,12 +585,15 @@ public class RustGenerator
 	                sb.append(pfx).append("\tfn build(&mut self, p:&putki::Pipeline, br: &mut putki::BuildRecord) -> Result<(), putki::PutkiError> { p.build(br, self) }");
 	                sb.append(pfx).append("\tfn scan_deps(&self, _p:&putki::Pipeline, _br: &mut putki::BuildRecord) {");
 	                sb.append(pfx).append("\t\tmatch self {");
-                	if (structNameWrap(struct).length() == 0)
+                	if (isEnumVariant(struct))
                     	sb.append(pfx).append("\t\t\t&" + structName(struct) + "::" + structName(struct) + " => { }");
                 	else
                 		sb.append(pfx).append("\t\t\t&" + structName(struct) + "::" + structName(struct) + "(ref c) => { c.scan_deps(_p, _br); }");                			                
 	                for (Compiler.ParsedStruct s : struct.possibleChildren) {
-	                	sb.append(pfx).append("\t\t\t&" + structName(struct) + "::" + structName(s) + "(ref c) => { c.scan_deps(_p, _br); },");	
+	                	if (isEnumVariant(s))
+	                		sb.append(pfx).append("\t\t\t&" + structName(struct) + "::" + structName(s) + " => { },");
+	                	else
+	                		sb.append(pfx).append("\t\t\t&" + structName(struct) + "::" + structName(s) + "(ref c) => { c.scan_deps(_p, _br); },");	
 	                }	                
 	                sb.append(pfx).append("\t\t}");
 	                sb.append(pfx).append("\t}");
@@ -573,12 +606,15 @@ public class RustGenerator
 	            	sb.append(pfx).append("impl putki::BuildFields for " + structName(struct) + " {");
 	            	sb.append(pfx).append("\tfn build_fields(&mut self, _p:&putki::Pipeline, _br:&mut putki::BuildRecord) -> Result<(), putki::PutkiError> {");
 	                sb.append(pfx).append("\t\tmatch self {");
-                	if (structNameWrap(struct).length() == 0)
+                	if (isEnumVariant(struct))
                     	sb.append(pfx).append("\t\t\t" + structName(struct) + "::" + structName(struct) + " => Ok(()),");
                 	else
                 		sb.append(pfx).append("\t\t\t" + structName(struct) + "::" + structName(struct) + "(ref mut c) => c.build_fields(_p, _br),");                			                
 	                for (Compiler.ParsedStruct s : struct.possibleChildren) {
-	                	sb.append(pfx).append("\t\t\t" + structName(struct) + "::" + structName(s) + "(ref mut c) => c.build_fields(_p, _br),");	
+	                	if (isEnumVariant(s))
+	                		sb.append(pfx).append("\t\t\t" + structName(struct) + "::" + structName(s) + " => Ok(()),");
+	                	else
+	                		sb.append(pfx).append("\t\t\t" + structName(struct) + "::" + structName(s) + "(ref mut c) => c.build_fields(_p, _br),");	
 	                }	                
 	                sb.append(pfx).append("\t\t}");
 	                sb.append(pfx).append("\t}");
@@ -730,13 +766,16 @@ public class RustGenerator
                 	sb.append("\n");     
                 	sb.append(pfx).append("#[derive(Debug)]");           	
                 	sb.append(pfx).append("pub enum " + structName(struct) + " {");
-                	if (structNameWrap(struct).length() == 0)
+                	if (isEnumVariant(struct))
                     	sb.append(pfx).append("\t" + structName(struct));
                 	else
                 		sb.append(pfx).append("\t" + structName(struct) + "(" + structNameWrap(struct) + ")");
                 	for (Compiler.ParsedStruct ch : struct.possibleChildren)
                 	{
-                		sb.append(",").append(pfx).append("\t" + structName(ch) + "(" + structName(ch) + ")");
+                		if (isEnumVariant(ch))
+                			sb.append(",").append(pfx).append("\t" + structName(ch));
+                		else
+                			sb.append(",").append(pfx).append("\t" + structName(ch) + "(" + structName(ch) + ")");
                 	}
                 	sb.append(pfx).append("}");
                 }
@@ -764,7 +803,7 @@ public class RustGenerator
 	                    
 	                	sb.append(spfx).append("pub " + fieldName(field) + " : ");
 	                    if (field.isArray) sb.append("vec::Vec<");
-	                	sb.append(outkiFieldType(field));
+	                	sb.append(outkiFieldType(field, true));
 	                    if (field.isArray) sb.append(">");
 	                }
 	            
@@ -832,10 +871,11 @@ public class RustGenerator
 	                		sb.append(spfx).append("\t_");
 	                	else
 	                		sb.append(spfx).append("\t" + i);
-	                	if (structNameWrap(s).length() > 0)	                		
-	                		sb.append(" => " + structName(struct) + "::" + structName(s) + "(outki::BinLoader::read(_stream))");
-	                	else
+	                	if (isEnumVariant(s))
 	                		sb.append(" => " + structName(struct) + "::" + structName(s));
+	                	else	                		
+	                		sb.append(" => " + structName(struct) + "::" + structName(s) + "(outki::BinLoader::read(_stream))");
+	                		
 	                	if (i != 0)
 	                		sb.append(",");
 	                }
@@ -848,10 +888,10 @@ public class RustGenerator
 	                	if (i > 0)
 	                		sb.append(",");
 	                	Compiler.ParsedStruct s = (i == 0) ? struct : struct.possibleChildren.get(i-1);
-	                	if (structNameWrap(s).length() > 0)	                		
-	                		sb.append(spfx).append("\t" + structName(struct) + "::" + structName(s) + "(x) => x.resolve(_context)");
-	                	else
+	                	if (isEnumVariant(s))
 	                		sb.append(spfx).append("\t" + structName(struct) + "::" + structName(s) + " => Ok(())");
+	                	else	                		
+	                		sb.append(spfx).append("\t" + structName(struct) + "::" + structName(s) + "(x) => x.resolve(_context)");
 	                }	                
 	                sb.append(spfx).append("}");
 	                sb.append(pfx).append("\t}");
@@ -924,14 +964,19 @@ public class RustGenerator
                 	sb.append(pfx).append("\tfn parse_with_type(_kv : &putki::LexedKv, _resolver: &Arc<putki::InkiResolver>, type_name:&str) -> Self {");
                 	sb.append(pfx).append("\t\tmatch type_name {");
                 	
-                	if (structNameWrap(struct).length() > 0)
-                		sb.append(pfx).append("\t\t\t<inki::" + structName(struct) + " as putki::TypeDescriptor>::TAG => inki::" + structName(struct) + "::" + structName(struct) + "(<inki::" + structNameWrap(struct) + " as putki::ParseFromKV>::parse(_kv, _resolver)),");
-                	else
-                		sb.append(pfx).append("\t\t\t<inki::" + structName(struct) + " as putki::TypeDescriptor>::TAG => inki::" + structName(struct) + "::" + structName(struct) + ",");
+                	if (isEnumVariant(struct))
+                		sb.append(pfx).append("\t\t\t\"" + struct.name + "\" => inki::" + structName(struct) + "::" + structName(struct) + ",");
+               		else
+                		sb.append(pfx).append("\t\t\t<inki::" + structName(struct) + " as putki::TypeDescriptor>::TAG => inki::" + structName(struct) + "::" + structName(struct) + "(<inki::" + structNameWrap(struct) + " as putki::ParseFromKV>::parse(_kv, _resolver)),");               		
                 	
                 	for (Compiler.ParsedStruct child : struct.possibleChildren)
-                	{                		
-                    	sb.append(pfx).append("\t\t\t<inki::" + structName(child) + " as putki::TypeDescriptor>::TAG");
+                	{
+						if (isEnumVariant(child)) 
+						{
+                    		sb.append(pfx).append("\t\t\t\"" + child.name + "\" => inki::" + structName(struct) + "::" + structName(child) + ",");
+                    		continue;
+                    	}
+						sb.append(pfx).append("\t\t\t<inki::" + structName(child) + " as putki::TypeDescriptor>::TAG");
                     	allChildrenTags(sb, child);
                     	sb.append(" => inki::" + structName(struct) + "::" + structName(child) + "(<inki::" + structName(child) + " as putki::ParseFromKV>::parse_with_type(_kv, _resolver, type_name)),");                		
                 	}                	
