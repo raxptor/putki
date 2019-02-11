@@ -94,6 +94,7 @@ public class RustGenerator
 	public static String fieldName(Compiler.ParsedField s)
 	{
 		String fn = withUnderscore(s.name);
+		if (fn.equals("move")) return "move_";
 		if (fn.equals("type")) return "type_";
 		if (fn.equals("self")) return "self_";		
 		if (fn.equals("bool")) return "bool_";
@@ -135,7 +136,7 @@ public class RustGenerator
 	{		
 		if (pf.type == FieldType.STRUCT_INSTANCE)
 		{
-			return structNameWrap(pf.resolvedRefStruct);
+			return structName(pf.resolvedRefStruct);
 		}
 		else if (pf.type == FieldType.ENUM)
 		{
@@ -157,7 +158,7 @@ public class RustGenerator
 	static String inkiFieldtypePod(Compiler.FieldType f)
 	{
 		switch (f)
-		{
+		{			
 			case FILE:
 				return "String";
 			case HASH:
@@ -183,7 +184,7 @@ public class RustGenerator
 	{		
 		if (pf.type == FieldType.STRUCT_INSTANCE)
 		{
-			return structNameWrap(pf.resolvedRefStruct);
+			return structName(pf.resolvedRefStruct);
 		}
 		else if (pf.type == FieldType.ENUM)
 		{
@@ -304,7 +305,7 @@ public class RustGenerator
         	{
         		String prefix = "\n";
     			sb.append("\n");
-    			sb.append("#[derive(Clone, Debug)]");
+    			sb.append("#[derive(Clone, Debug, Copy)]");
         		sb.append(prefix).append("pub enum " + e.name + " {");
         		boolean first = true;
         		for (Compiler.EnumValue val : e.values)
@@ -373,7 +374,7 @@ public class RustGenerator
                 if (struct.isTypeRoot || struct.possibleChildren.size() > 0)
                 {
                 	sb.append("\n");       
-                	sb.append(pfx).append("#[derive(Clone)]");
+                	sb.append(pfx).append("#[derive(Clone, Debug)]");
                 	sb.append(pfx).append("pub enum " + structName(struct) + " {");
                 	if (structNameWrap(struct).length() == 0)
                     	sb.append(pfx).append("\t" + structName(struct));
@@ -390,7 +391,7 @@ public class RustGenerator
                 if (structNameWrap(struct).length() > 0) 
                 {                
 	            	sb.append("\n");
-	            	sb.append(pfx).append("#[derive(Clone)]");
+	            	sb.append(pfx).append("#[derive(Clone, Debug)]");
 	            	sb.append(pfx).append("pub struct " + structNameWrap(struct) + " {");
 	                
 	                boolean first = true;                
@@ -726,7 +727,8 @@ public class RustGenerator
                 
                 if (struct.isTypeRoot || struct.possibleChildren.size() > 0)
                 {
-                	sb.append("\n");                	
+                	sb.append("\n");     
+                	sb.append(pfx).append("#[derive(Debug)]");           	
                 	sb.append(pfx).append("pub enum " + structName(struct) + " {");
                 	if (structNameWrap(struct).length() == 0)
                     	sb.append(pfx).append("\t" + structName(struct));
@@ -743,6 +745,7 @@ public class RustGenerator
                 if (structNameWrap(struct).length() > 0) 
                 {                
 	            	sb.append("\n");
+	            	sb.append(pfx).append("#[derive(Debug)]");
 	            	sb.append(pfx).append("pub struct " + structNameWrap(struct) + " {");
 	                
 	                boolean first = true;                
@@ -988,7 +991,7 @@ public class RustGenerator
                         		break;
                         	case STRUCT_INSTANCE:
                         		if (!field.isParentField && (field.resolvedRefStruct.isTypeRoot || field.resolvedRefStruct.possibleChildren.size() > 0))
-                            		sb.append("<inki::" + structName(field.resolvedRefStruct) + " as putki::ParseFromKV>::parse(_resolver, data)");
+                            		sb.append("let tn = putki::get_object(data).map(|x| { x.1 }).unwrap_or(\"" + structName(field.resolvedRefStruct) + "\"); <inki::" + structName(field.resolvedRefStruct) + " as putki::ParseFromKV>::parse_with_type(putki::get_kv(data).unwrap_or(_src), _resolver, tn)");
                         		else if (field.isParentField)
                         			sb.append("<inki::" + structNameWrap(field.resolvedRefStruct) + " as putki::ParseFromKV>::parse(putki::get_kv(data).unwrap_or(_src), _resolver)");
                        			else

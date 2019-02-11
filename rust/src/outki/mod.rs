@@ -6,6 +6,7 @@ use std::num::NonZeroUsize;
 use std::collections::HashMap;
 use std::mem::forget;
 use std::io;
+use std::fmt;
 use shared;
 mod binreader;
 mod pkmanifest;
@@ -159,6 +160,19 @@ impl<T> Ref<T> {
         &self.pin
     }    
 }
+
+impl<T> fmt::Debug for Ptr<T> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {                
+        write!(f, "<ptr:{}>", self.ptr)
+    }    
+}
+
+impl<T> fmt::Debug for NullablePtr<T> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {                
+        write!(f, "<ptr {:?}>", self.ptr)
+    }    
+}
+
 
 impl<T> Ptr<T> {
     fn as_ref(&self, pin: &DataPin) -> Ref<T> {
