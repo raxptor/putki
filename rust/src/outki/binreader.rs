@@ -51,7 +51,7 @@ impl BinReader for f32 {
 
 impl BinReader for bool {
     fn read(stream:&mut BinDataStream) -> Self {
-        u8::read(stream) != 1
+        u8::read(stream) == 1
     }
 }
 

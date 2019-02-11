@@ -124,7 +124,7 @@ pub fn get_bool(data: Option<&LexedData>, default: bool) -> bool
 					"True" => Some(true),
 					"true" => Some(true),
 					"1" => Some(true),
-					_ => None
+					_ => Some(false)
 				}
 			}
 			_ => None
