@@ -1,3 +1,4 @@
+#[allow(unused_imports)]
 use std::rc::Rc;
 use std::ops::Deref;
 use std::sync::Arc;
@@ -84,7 +85,10 @@ impl Drop for MemoryPin {
     }
 }
 
+#[cfg(not(feature="outki-leak-memory"))]
 pub type DataPin = Rc<PinTag>;
+#[cfg(feature="outki-leak-memory")]
+pub type DataPin = PhantomData<i32>;
 
 pub struct PinTag
 {
@@ -112,27 +116,43 @@ pub struct Ref<T>
 pub struct ArcRef<T>
 {
     ptr: Ptr<T>,
+    #[cfg(not(feature="outki-leak-memory"))]
     pin: Arc<MemoryPin>
 }
 
 impl<T> From<&Ref<T>> for ArcRef<T>
 {    
+    #[cfg(not(feature="outki-leak-memory"))]
     fn from(src:&Ref<T>) -> ArcRef<T> {
         ArcRef {
             ptr: Ptr { ptr: src.ptr.ptr, _ph:PhantomData{} },
             pin: src.pin._mempin.clone()
         }
     }
+    #[cfg(feature="outki-leak-memory")]
+    fn from(src:&Ref<T>) -> ArcRef<T> {
+        ArcRef {
+            ptr: Ptr { ptr: src.ptr.ptr, _ph:PhantomData{} },
+        }
+    }    
 }
 
 impl<T> From<&ArcRef<T>> for Ref<T>
 {    
+    #[cfg(not(feature="outki-leak-memory"))]
     fn from(src:&ArcRef<T>) -> Ref<T> {
         Ref {
             ptr: Ptr { ptr: src.ptr.ptr, _ph:PhantomData{} },
             pin: Rc::new(PinTag { _mempin: src.pin.clone() })
         }
     }
+    #[cfg(feature="outki-leak-memory")]
+    fn from(src:&ArcRef<T>) -> Ref<T> {
+        Ref {
+            ptr: Ptr { ptr: src.ptr.ptr, _ph:PhantomData{} },
+            pin: PhantomData { }
+        }
+    }    
 }
 
 impl<T> Clone for Ref<T>
@@ -175,6 +195,7 @@ impl<T> fmt::Debug for NullablePtr<T> {
 
 
 impl<T> Ptr<T> {
+    #[cfg(not(feature="outki-leak-memory"))]
     fn as_ref(&self, pin: &DataPin) -> Ref<T> {
         assert!(pin._mempin.destructors.contains_key(&self.ptr));
         Ref {
@@ -182,6 +203,13 @@ impl<T> Ptr<T> {
             pin: pin.clone()
         }
     }
+    #[cfg(feature="outki-leak-memory")]
+    fn as_ref(&self, pin: &DataPin) -> Ref<T> {        
+        Ref {
+            ptr: Ptr { ptr: self.ptr, _ph: PhantomData { } },
+            pin: *pin
+        }
+    }    
     pub fn make_ref<K>(&self, r:&Ref<K>) -> Ref<T> {
         self.as_ref(r.pin())
     }
@@ -354,6 +382,32 @@ impl BinPackageManager
         Err(OutkiError::ResolveFailed)
     }
 
+    #[cfg(not(feature="outki-leak-memory"))]
+    fn root_ref_from_addr_pin<T>(addr:usize, pd:MemoryPin) -> Ref<T>
+    {
+        Ref {
+            ptr: Ptr {
+                ptr: addr,
+                _ph: PhantomData { }
+            },
+            pin: Rc::new(PinTag { 
+                _mempin: Arc::new(pd)
+            })
+        }
+    }
+
+    #[cfg(feature="outki-leak-memory")]
+    fn root_ref_from_addr_pin<T>(addr:usize, _pd:MemoryPin) -> Ref<T>
+    {
+        Ref {
+            ptr: Ptr {
+                ptr: addr,
+                _ph: PhantomData { }
+            },
+            pin: PhantomData { }
+        }
+    }
+
     fn tree_resolve<T>(&self, context:&BinReaderContext, slot:u32) -> OutkiResult<Ref<T>> where T : OutkiObj
     {
         let mut rctx = BinResolverContext {
@@ -370,24 +424,17 @@ impl BinPackageManager
 
         rctx.resolve(&mut ptr)?;
         if let Some(addr) = ptr.ptr {
-            Ok(Ref {
-                ptr: Ptr {
-                    ptr: addr.get(),
-                    _ph: PhantomData { }
-                },
-                pin: Rc::new(PinTag { 
-                    _mempin: Arc::new(rctx.pindata)
-                })
-            })
+            Ok(Self::root_ref_from_addr_pin::<T>(addr.get(), rctx.pindata))
         } else {
             Err(OutkiError::ResolveFailed)
         }
     }
 
-    fn destruct<T>(objptr:usize)
+    fn destruct<T>(_objptr:usize)
     {
+        #[cfg(not(feature="outki-leak-memory"))]
         unsafe {
-            let bx : Box<T> = Box::from_raw(objptr as *mut T);
+            let bx : Box<T> = Box::from_raw(_objptr as *mut T);
             drop(bx);
         }
     }
