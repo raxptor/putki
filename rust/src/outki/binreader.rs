@@ -63,6 +63,12 @@ impl BinReader for u8 {
     }
 }
 
+impl<'a> BinReader for i16 {
+    fn read(ctx: &mut BinDataStream) -> i16 {
+        u16::read(ctx) as i16
+    }
+}
+
 impl<'a> BinReader for i32 {
     fn read(ctx: &mut BinDataStream) -> i32 {
         u32::read(ctx) as i32
