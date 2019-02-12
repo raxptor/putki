@@ -581,7 +581,7 @@ public class RustGenerator
                 {
                 	sb.append("\n");
 	            	sb.append(pfx).append("impl putki::BuildCandidate for " + structName(struct) + " {");
-	                sb.append(pfx).append("\tfn as_any_ref(&mut self) -> &mut any::Any { return self; }");
+	                sb.append(pfx).append("\tfn as_any_ref(&mut self) -> &mut any::Any { self }");
 	                sb.append(pfx).append("\tfn build(&mut self, p:&putki::Pipeline, br: &mut putki::BuildRecord) -> Result<(), putki::PutkiError> { p.build(br, self) }");
 	                sb.append(pfx).append("\tfn scan_deps(&self, _p:&putki::Pipeline, _br: &mut putki::BuildRecord) {");
 	                sb.append(pfx).append("\t\tmatch self {");
@@ -625,7 +625,7 @@ public class RustGenerator
                 {
                     sb.append("\n");                                  
 	            	sb.append(pfx).append("impl putki::BuildCandidate for " + structNameWrap(struct) + " {");
-	                sb.append(pfx).append("\tfn as_any_ref(&mut self) -> &mut any::Any { return self; }");
+	                sb.append(pfx).append("\tfn as_any_ref(&mut self) -> &mut any::Any { self }");
 	                sb.append(pfx).append("\tfn build(&mut self, p:&putki::Pipeline, br: &mut putki::BuildRecord) -> Result<(), putki::PutkiError> { p.build(br, self) }");
 	                sb.append(pfx).append("\tfn scan_deps(&self, _p:&putki::Pipeline, _br: &mut putki::BuildRecord) {");
 	            	                

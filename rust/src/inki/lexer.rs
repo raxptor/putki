@@ -287,7 +287,7 @@ pub fn parse_array(data: &str) -> ScanResult
 fn parse_auto_detect(data: &str, require_value:bool) -> ScanResult
 {
 	// first should be {
-	let mut it = data.char_indices().enumerate();
+	let mut it = data.char_indices().enumerate().peekable();
 	let mut is_comment = false;
 	loop {
 		match it.next() {
@@ -309,6 +309,8 @@ fn parse_auto_detect(data: &str, require_value:bool) -> ScanResult
 				}
 				if value.1.is_whitespace() {
 					continue;
+				} else if value.1 == '/' && it.peek().map(|x| {(x.1).1}).unwrap_or_else(|| {' '}) == '/' {
+					is_comment = true;
 				} else if value.1 == '#' {
 					is_comment = true;
 				} else if value.1 == '{' {
