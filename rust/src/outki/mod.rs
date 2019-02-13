@@ -324,7 +324,6 @@ impl<'a> BinResolverContext<'a> {
                 }
             },
             None => {
-                println!("it is a null pointer!");
                 Ok(())
             }
         }     

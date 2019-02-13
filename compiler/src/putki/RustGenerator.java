@@ -113,6 +113,7 @@ public class RustGenerator
 		if (fn.equals("move")) return "move_";
 		if (fn.equals("type")) return "type_";
 		if (fn.equals("self")) return "self_";		
+		if (fn.equals("use")) return "use_";
 		if (fn.equals("bool")) return "bool_";
 		if (fn.equals("mod")) return "mod_";
 		return fn;
@@ -776,8 +777,30 @@ public class RustGenerator
                 			sb.append(",").append(pfx).append("\t" + structName(ch));
                 		else
                 			sb.append(",").append(pfx).append("\t" + structName(ch) + "(" + structName(ch) + ")");
-                	}
+                	}                	
                 	sb.append(pfx).append("}");
+                	                	
+                	if (struct.isTypeRoot)
+                	{
+                		sb.append(pfx);
+                		sb.append(pfx).append("impl From<&" + structName(struct) + "> for i32 {");
+                		sb.append(pfx).append("\tfn from(val: &" + structName(struct) + ") -> i32 {");        		
+                		sb.append(pfx).append("\t\tmatch val {");
+                		int k = 1;
+                		for (Compiler.ParsedStruct ch : struct.possibleChildren)
+                		{        		
+                			sb.append(pfx).append("\t\t\t" +structName(struct) + "::" + structName(ch));
+                			if (countFields(ch) > 0)
+                				sb.append("(_)");
+                			sb.append(" => " + k + ",");
+                			k++;
+                		}
+                		sb.append(pfx).append("\t\t\t_ => 0");
+                		sb.append(pfx).append("\t\t}");
+                		sb.append(pfx).append("\t}");
+                		sb.append(pfx).append("}");
+                		
+                	}
                 }
   
                 // Pure enum roots have type ()
