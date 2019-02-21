@@ -158,7 +158,17 @@ impl<T> From<&ArcRef<T>> for Ref<T>
 impl<T> Clone for Ref<T>
 {
     fn clone(&self) -> Self {
-        Ref {
+        Self {
+            ptr: Ptr { ptr: self.ptr.ptr, _ph: PhantomData { } },
+            pin: self.pin.clone()
+        }
+    }
+}
+
+impl<T> Clone for ArcRef<T>
+{
+    fn clone(&self) -> Self {
+        Self {
             ptr: Ptr { ptr: self.ptr.ptr, _ph: PhantomData { } },
             pin: self.pin.clone()
         }
