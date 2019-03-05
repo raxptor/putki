@@ -1,3 +1,4 @@
+#![allow(clippy::implicit_hasher)]
 use std::collections::HashMap;
 use std::vec::Vec;
 use std::str::FromStr;
@@ -25,7 +26,7 @@ pub type LexedKv = HashMap<String, LexedData>;
 
 impl default::Default for LexedData
 {
-	fn default() -> LexedData { return LexedData::Empty; }
+	fn default() -> LexedData { LexedData::Empty }
 }
 
 pub struct ScanResult<'a> 
@@ -34,7 +35,7 @@ pub struct ScanResult<'a>
 	pub data: LexedData
 }
 
-pub fn escape_string(input:&String) -> String
+pub fn escape_string(input:&str) -> String
 {
 	let mut s = String::with_capacity(input.len() + 32);
 	s.push('\"');
@@ -62,23 +63,23 @@ impl ToString for LexedData
 	fn to_string(&self) -> String {
 		let mut tmp = String::new();
 		match self {
-			&LexedData::Object { ref kv, ref id, ref type_name } => {
-				if type_name.len() > 0 {
+			LexedData::Object { ref kv, ref id, ref type_name } => {
+				if !type_name.is_empty() {
 					tmp.push('@');
 					tmp.push_str(type_name);
 					tmp.push(' ');
-					if id.len() > 0 {
+					if !id.is_empty() {
 						tmp.push_str(id);
 						tmp.push(' ');
 					}					
 				}
 				tmp.push_str(kv_to_string(kv).as_str());
 			},
-			&LexedData::Value(ref val) => tmp.push_str(val),
-			&LexedData::StringLiteral(ref val) => {
+			LexedData::Value(ref val) => tmp.push_str(val),
+			LexedData::StringLiteral(ref val) => {
 				tmp.push_str(&escape_string(val));
 			}
-			&LexedData::Array(ref vec) => {
+			LexedData::Array(ref vec) => {
 				tmp.push('[');
 				for val in vec {				
 					tmp.push_str(val.to_string().as_str());
@@ -86,26 +87,22 @@ impl ToString for LexedData
 				}
 				tmp.push(']');
 			}
-			&LexedData::Comment => { },
-			&LexedData::Empty => { }
+			LexedData::Comment => { },
+			LexedData::Empty => { }
 		}
-		return tmp;
+		tmp
 	}
 }
 
 fn parse_val<T : FromStr + Default>(val: &LexedData) -> T
 {
-	match val {
-		&LexedData::Value(ref x) => {
-			match T::from_str(x) {
-				Ok(val) => { return val; }
-				_ => { }
-			}
-		}		
-		_ => { }
+	if let LexedData::Value(ref x) = val {
+		if let Ok(val) = T::from_str(x) {
+			return val;
+		}
 	}
 	println!("expected other type");
-	return Default::default();
+	Default::default()
 }
 
 pub fn get_value<T>(data: Option<&LexedData>, default: T) -> T where T : Default + FromStr
@@ -122,15 +119,15 @@ pub fn get_bool(data: Option<&LexedData>, default: bool) -> bool
 {
 	data.and_then(|val| {
 		match val {
-			&LexedData::Value(ref x) => {
+			LexedData::Value(ref x) => {
 				match x.as_ref() {
-					"True" => return Some(true),
-					"true" => return Some(true),
-					"1" => return Some(true),
-					_ => return None
+					"True" => Some(true),
+					"true" => Some(true),
+					"1" => Some(true),
+					_ => Some(false)
 				}
 			}
-			_ => return None
+			_ => None
 		}
 	}).unwrap_or(default)
 }
@@ -139,38 +136,38 @@ pub fn get_string(data: Option<&LexedData>, default: &str) -> String
 {
 	data.map(|val| {
 		match val {
-			&LexedData::Value(ref x) => x.clone(),
-			&LexedData::StringLiteral(ref x) => x.clone(),
+			LexedData::Value(ref x) => x.clone(),
+			LexedData::StringLiteral(ref x) => x.clone(),
 			_ => String::from(default)
 		}
-	}).unwrap_or(String::from(default))
+	}).unwrap_or_else(|| String::from(default))
 }
 
-pub fn get_array<'a>(data: Option<&'a LexedData>) -> Option<slice::Iter<'a, LexedData>>
+pub fn get_array(data: Option<&LexedData>) -> Option<slice::Iter<LexedData>>
 {
 	data.and_then(|v| { 
 		match v {
-			&LexedData::Array(ref arr) => Some(arr.iter()),
+			LexedData::Array(ref arr) => Some(arr.iter()),
 			_ => None
 		}
 	})
 }
 
-pub fn get_object<'a>(data: Option<&'a LexedData>) -> Option<(&'a LexedKv, &'a str)>
+pub fn get_object(data: Option<&LexedData>) -> Option<(&LexedKv, &str)>
 {
 	data.and_then(|val| {
 		match val {
-			&LexedData::Object{ref kv, ref type_name, ..} => Some((kv, type_name.as_ref())),
+			LexedData::Object{ref kv, ref type_name, ..} => Some((kv, type_name.as_ref())),
 			_ => None
 		}
 	})
 }
 
-pub fn get_kv<'a>(data: Option<&'a LexedData>) -> Option<&'a LexedKv>
+pub fn get_kv(data: Option<&LexedData>) -> Option<&LexedKv>
 {
 	data.and_then(|val| {
 		match val {
-			&LexedData::Object{ref kv, ..} => Some(kv),
+			LexedData::Object{ref kv, ..} => Some(kv),
 			_ => None
 		}
 	})
@@ -179,18 +176,18 @@ pub fn get_kv<'a>(data: Option<&'a LexedData>) -> Option<&'a LexedKv>
 fn make_parse_error(err: &str) -> ScanResult
 {
 	println!("Parse error. {}", err);
-	return ScanResult {
+	ScanResult {
 		cont: "",
 		data: LexedData::Empty
 	}
 }
 
 fn is_syntax_delimiter(c : char) -> bool
-{
-	return c.is_whitespace() || c == ',' || c == '}' || c == ']' || c == ':' || c == '=' || c == ']' || c == '}' || c == '{' || c == '[';
+{	
+	c == '[' || c == '{' || c == '=' || c == ':' || c == ']' || c == '}' || c == ',' || c.is_whitespace()
 }
 
-fn parse_keyword_or_string<'a>(data: &'a str) -> ScanResult<'a>
+fn parse_keyword_or_string(data: &str) -> ScanResult
 {
 	let mut it = data.char_indices().enumerate(); 
 	let mut inside_string = false;
@@ -246,7 +243,7 @@ fn parse_keyword_or_string<'a>(data: &'a str) -> ScanResult<'a>
 	}    
 }
 
-pub fn parse_array<'a>(data: &'a str) -> ScanResult<'a>
+pub fn parse_array(data: &str) -> ScanResult
 {
 	let mut cur = data;
 	let mut it = data.char_indices().enumerate();		
@@ -287,10 +284,10 @@ pub fn parse_array<'a>(data: &'a str) -> ScanResult<'a>
 	}
 }
 
-fn parse_auto_detect<'a>(data: &'a str, require_value:bool) -> ScanResult<'a>
+fn parse_auto_detect(data: &str, require_value:bool) -> ScanResult
 {
 	// first should be {
-	let mut it = data.char_indices().enumerate();
+	let mut it = data.char_indices().enumerate().peekable();
 	let mut is_comment = false;
 	loop {
 		match it.next() {
@@ -312,6 +309,8 @@ fn parse_auto_detect<'a>(data: &'a str, require_value:bool) -> ScanResult<'a>
 				}
 				if value.1.is_whitespace() {
 					continue;
+				} else if value.1 == '/' && it.peek().map(|x| {(x.1).1}).unwrap_or_else(|| {' '}) == '/' {
+					is_comment = true;
 				} else if value.1 == '#' {
 					is_comment = true;
 				} else if value.1 == '{' {
@@ -328,7 +327,7 @@ fn parse_auto_detect<'a>(data: &'a str, require_value:bool) -> ScanResult<'a>
 	}	
 }
 
-pub fn parse_object_data<'a>(data: &'a str) -> ScanResult<'a>
+pub fn parse_object_data(data: &str) -> ScanResult
 {
 	let mut cur = data;
 	let mut it = data.char_indices().enumerate();
@@ -360,7 +359,7 @@ pub fn parse_object_data<'a>(data: &'a str) -> ScanResult<'a>
 						data: LexedData::Object {
 							id: String::new(),
 							type_name: String::new(),
-							kv: kv
+							 kv
 						}
 					};
 				} else if field_name.is_empty() {
@@ -390,7 +389,7 @@ pub fn parse_object_data<'a>(data: &'a str) -> ScanResult<'a>
 					let res = parse_auto_detect(&cur[value.0 ..], true);
 					cur = res.cont;
 					it = cur.char_indices().enumerate();
-					kv.insert(String::from(field_name), res.data);
+					kv.insert(field_name, res.data);
 					field_name = String::new();
 				}
 			}
@@ -399,7 +398,7 @@ pub fn parse_object_data<'a>(data: &'a str) -> ScanResult<'a>
 }
 
 // Parse one @type id { block }
-fn parse_object_with_header<'a>(data: &'a str) -> ScanResult<'a>
+fn parse_object_with_header(data: &str) -> ScanResult
 {
 	let cur = data;
 	let mut it = data.char_indices().enumerate();
@@ -439,10 +438,8 @@ fn parse_object_with_header<'a>(data: &'a str) -> ScanResult<'a>
 				if value.1 == '{'
 				{
 					if type_end == 0 { type_end = value.0 }
-					if id_end == 0 { 
-						if id_begin != 0 {
-							id_end = value.0 
-						}
+					if id_end == 0 && id_begin != 0 {
+						id_end = value.0 
 					}
 					let res = parse_object_data(&cur[value.0 ..]);
 					match res.data {
@@ -452,7 +449,7 @@ fn parse_object_with_header<'a>(data: &'a str) -> ScanResult<'a>
 								data: LexedData::Object {                                    
 									id: String::from(&cur[id_begin .. id_end]),
 									type_name: String::from(&cur[1..type_end]),
-									kv: kv
+									kv
 								}
 							};
 						},
@@ -482,9 +479,9 @@ pub fn lex_file(data: &str) -> LexedKv
 					match result.data {
 						LexedData::Object { kv, id, type_name } => {
 							objs.insert(id.clone(), LexedData::Object {
-								kv: kv,
-								id: id,
-								type_name: type_name
+								kv,
+								id,
+								type_name
 							});
 						}
 						_ => {

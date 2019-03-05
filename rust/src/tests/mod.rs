@@ -4,7 +4,6 @@ use shared;
 use shared::PutkiError;
 use inki::source::FieldWriter;
 use inki::source::WriteAsText;
-use pipeline;
 
 #[cfg(test)]
 mod outki;

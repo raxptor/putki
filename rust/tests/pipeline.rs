@@ -13,11 +13,15 @@ use std::path::Path;
 use putki::PutkiError;
 use putki::FieldWriter;
 use putki::Ptr;
+use putki::BinWriter;
+use putki::outki as outki;
+use outki::PackageManifest;
+use outki::BinReader;
 
 #[derive(Debug, Clone, Default)]
 struct TestValues {
 	value1: i32,
-	value2: i32
+	value2: i32	
 }
 
 #[derive(Debug, Clone, Default)]
@@ -31,6 +35,11 @@ struct Pointer {
 	next: putki::Ptr<Pointer>
 }
 
+struct PointerOutki {
+	contained: TestValues,
+	next: outki::NullablePtr<PointerOutki>
+}
+
 impl putki::TypeDescriptor for TestValues {
 	const TAG : &'static str = "TestValues";
 }
@@ -42,6 +51,10 @@ impl putki::TypeDescriptor for Multi {
 impl putki::TypeDescriptor for Pointer {
 	const TAG : &'static str = "Pointer";
 }
+
+impl putki::TypeDescriptor for PointerOutki {
+	const TAG : &'static str = "Pointer";
+}
   
 impl putki::BuildFields for TestValues { }
 
@@ -51,6 +64,43 @@ impl putki::BuildFields for Multi {
 		Ok(())
 	}
 }
+
+impl outki::BinLoader for Multi {
+   fn read(stream:&mut outki::BinDataStream) -> Self {
+        Self {
+			contained: TestValues::read(stream)
+		}
+   }
+   fn resolve(&mut self, _context: &mut outki::BinResolverContext) -> outki::OutkiResult<()> { Ok(()) }
+}
+
+impl outki::BinLoader for TestValues {
+   fn read(stream:&mut outki::BinDataStream) -> Self {
+        Self {
+			value1: i32::read(stream),
+			value2: i32::read(stream)
+		}
+   }
+   fn resolve(&mut self, _context: &mut outki::BinResolverContext) -> outki::OutkiResult<()> { Ok(()) }
+}
+
+impl outki::BinLoader for PointerOutki {
+   fn read(stream:&mut outki::BinDataStream) -> Self {	   
+        Self {
+			contained: TestValues::read(stream),
+			next: outki::NullablePtr::<PointerOutki>::read(stream)
+		}
+	}
+	fn resolve(&mut self, context: &mut outki::BinResolverContext) -> outki::OutkiResult<()> { 
+        context.resolve(&mut self.next)
+    }   
+}
+
+
+
+impl outki::OutkiObj for Multi { }
+impl outki::OutkiObj for TestValues { }
+impl outki::OutkiObj for PointerOutki { }
 
 impl putki::BuildFields for Pointer {
 	fn build_fields(&mut self, pipeline:&putki::Pipeline, br:&mut putki::BuildRecord) -> Result<(), putki::PutkiError> {
@@ -75,7 +125,6 @@ impl putki::BuildCandidate for Pointer {
     fn as_any_ref(&mut self) -> &mut any::Any { return self; }    
     fn build(&mut self, p:&putki::Pipeline, br: &mut putki::BuildRecord) -> Result<(), putki::PutkiError> { p.build(br, self) }
 	fn scan_deps(&self, p:&putki::Pipeline, br: &mut putki::BuildRecord) { 
-		println!("Adding output dependencies...");
 		p.add_output_dependency(br, &self.next);
 	}
 }
@@ -104,7 +153,6 @@ impl putki::Builder<Pointer> for PointerBuilder {
 		}
 	}
 	fn build(&self, br:&mut putki::BuildRecord, input:&mut Pointer) -> Result<(), putki::PutkiError> {		
-		println!("building pointer!");		
 		let ptr = br.create_object("n", Pointer {
 			next: putki::Ptr::null(),
 			contained: TestValues {
@@ -135,12 +183,27 @@ impl putki::WriteAsText for TestValues {
 	}
 }
 
+impl putki::BinSaver for TestValues {
+	fn write(&self, data: &mut Vec<u8>, _refwriter: &putki::PackageRefs) -> Result<(), PutkiError> {
+		self.value1.write(data);
+		self.value2.write(data);
+		Ok(())
+	}	
+}
+
 impl putki::ParseFromKV for Multi {
 	fn parse(kv : &putki::lexer::LexedKv, _pctx: &Arc<putki::InkiResolver>) -> Self {
 		return Self {
 			contained : putki::lexer::get_object(kv.get("Contained")).map(|v| { putki::ParseFromKV::parse(v.0, &_pctx) }).unwrap_or_default()
 		}
 	}
+}
+
+impl putki::BinSaver for Multi {
+	fn write(&self, data: &mut Vec<u8>, refwriter: &putki::PackageRefs) -> Result<(), PutkiError> {
+		self.contained.write(data, refwriter);
+		Ok(())
+	}	
 }
 
 impl putki::WriteAsText for Multi {
@@ -158,6 +221,14 @@ impl putki::ParseFromKV for Pointer {
 	}
 }
 
+impl putki::BinSaver for Pointer {
+	fn write(&self, data: &mut Vec<u8>, refwriter: &putki::PackageRefs) -> Result<(), PutkiError> {
+		self.contained.write(data, refwriter)?;
+		self.next.write(data, refwriter)?;
+		Ok(())
+	}	
+}
+
 impl putki::WriteAsText for Pointer {
 	fn write_text(&self, output: &mut String) -> Result<(), PutkiError> {
 		output.write_field("Contained", &self.contained, false)?;
@@ -168,6 +239,17 @@ impl putki::WriteAsText for Pointer {
 impl putki::InkiObj for TestValues { }
 impl putki::InkiObj for Multi { }
 impl putki::InkiObj for Pointer { }
+
+struct ReadFromVec {
+	data: Vec<u8>
+}
+
+impl outki::PackageRandomAccess for ReadFromVec
+{
+   fn read_chunk(&self, begin:usize, end:usize, f:&mut FnMut(outki::OutkiResult<&[u8]>) -> outki::OutkiResult<()>) -> outki::OutkiResult<()> {
+        (*f)(Ok(&self.data[begin..end]))
+    }
+}
 
 #[test]
 fn test_pipeline() {
@@ -225,9 +307,7 @@ fn test_pipeline() {
 		for (ref k, ref v) in recs.iter() {						
 			let mut r = String::new();
 			if let Some(bo) = v.built_object() {
-				println!("i got {}", k);
 				bo.write_object(&mut r);
-				println!("{}", r);
 			} else {
 				panic!("Failed somehow with {}", k);
 			}
@@ -237,4 +317,36 @@ fn test_pipeline() {
 	println!("Building package");
 	let mut rcp = putki::PackageRecipe::new();
 	rcp.add_object(&(*pipeline), "ptr", true);
+	rcp.add_object(&(*pipeline), "multi", true);
+
+	let data = putki::write_package(&(*pipeline), &rcp).expect("It should have worked");
+
+	let mfest;
+	{
+		let mut slice = data.as_slice();
+		mfest = outki::PackageManifest::parse(&mut slice).expect("Could not parse manifest");
+	}
+	
+    let mut mgr = outki::BinPackageManager::new();
+	let rfv = ReadFromVec { data: data };
+    mgr.insert(outki::Package::new(mfest, Box::new(rfv)));
+
+	{
+		let obj_maybe = mgr.resolve::<Multi>("multi");
+		assert_eq!(obj_maybe.is_ok(), true);  	
+		let obj = obj_maybe.unwrap();
+		assert_eq!(obj.contained.value1, 321 + 1000);
+		assert_eq!(obj.contained.value2, 654 + 2000);
+	}
+
+	{
+		let obj_maybe = mgr.resolve::<PointerOutki>("ptr");
+		assert_eq!(obj_maybe.is_ok(), true);  	
+		let obj = obj_maybe.unwrap();
+		assert_eq!(obj.contained.value1, 1 + 1000);
+		assert_eq!(obj.contained.value2, 2 + 2000);
+		assert_eq!(obj.next.unwrap().contained.value1, 222 + 1000);
+		assert_eq!(obj.next.unwrap().contained.value2, 333 + 2000);
+	}	
+	
 }

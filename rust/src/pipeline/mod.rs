@@ -30,6 +30,7 @@ use source::WriteAsText;
 use shared::PutkiError;
 
 pub mod writer;
+use writer::*;
 
 pub struct BuilderDesc {
     pub description: &'static str    
@@ -39,7 +40,7 @@ pub struct InputDeps {
 }
 
 pub trait BuildFields {
-    fn build_fields(&mut self, _pl:&Pipeline, _br:&mut BuildRecord) -> Result<(), shared::PutkiError> { return Ok(())}
+    fn build_fields(&mut self, _pl:&Pipeline, _br:&mut BuildRecord) -> Result<(), shared::PutkiError> { Ok(()) }
 }
 
 pub trait Builder<T> where Self : Send + Sync {
@@ -64,8 +65,8 @@ impl<T> BuilderAny for BuilderBox<T> where T : Send + Sync + 'static {
     }
     fn build(&self, br:&mut BuildRecord, input:&mut any::Any) -> Result<(), shared::PutkiError> {
         match self.builder.build(br, input.downcast_mut().unwrap()) {
-            Ok(x) => return Ok(x),
-            Err(x) => return Err(x)
+            Ok(_) => Ok(()),
+            Err(x) => Err(x)
         }
     }    
     fn accept(&self, b:&Any) -> bool {
@@ -81,7 +82,8 @@ struct ObjEntry
 // One per object and per builder.
 pub struct BuildRecord
 {
-    path: String,
+    path: String,    
+    type_tag: &'static str,
     res_base: path::PathBuf,
     built_obj: Option<Box<BuildResultObj>>,
     visited: HashSet<String>,
@@ -93,14 +95,13 @@ pub struct BuildRecord
 impl BuildRecord
 {
     pub fn is_ok(&self) -> bool {
-        return self.success;
+        self.success
     }
-    pub fn get_path<'a>(&'a self) -> &'a str {
-        return self.path.as_str();
+    pub fn get_path(&self) -> &str {
+        self.path.as_str()
     }
     pub fn create_object<T>(&mut self, tag:&str, obj:T) -> ptr::Ptr<T> where T:BuildCandidate + Send + Sync + Default + source::ParseFromKV {
         let tmp_path = format!("{}!{}", &self.path, tag);
-        println!("Created object with path [{}]!", tmp_path);
         ptr::Ptr::new_temp_object(tmp_path.as_str(), Arc::new(obj))
     }
     pub fn load_file(&mut self, res_path:&str) -> Result<Vec<u8>, shared::PutkiError> {
@@ -111,8 +112,8 @@ impl BuildRecord
         f.read_to_end(&mut buffer)?;
         Ok(buffer)
     }
-    pub fn built_object<'a>(&'a self) -> Option<&'a BuildResultObj> {
-        if let &Some(ref b) = &self.built_obj {
+    pub fn built_object(&self) -> Option<&BuildResultObj> {
+        if let Some(ref b) = &self.built_obj {
             Some(&(**b))
         } else {
             None
@@ -137,7 +138,7 @@ pub struct PipelineDesc
 impl PipelineDesc {
     pub fn new(source:Arc<source::ObjectLoader>, res_base: &path::Path) -> PipelineDesc {
         PipelineDesc {
-            source: source,
+            source,
             builders: Vec::new(),
             res_base: path::PathBuf::from(res_base)                
         }
@@ -165,7 +166,7 @@ pub struct Pipeline
     built: RwLock<HashMap<String, BuildRecord>>
 }
 
-pub trait InkiObj : source::WriteAsText + Send + Sync + BuildCandidate + shared::TypeDescriptor + source::ParseFromKV + Default
+pub trait InkiObj : source::WriteAsText + Send + Sync + BuildCandidate + shared::TypeDescriptor + source::ParseFromKV + writer::BinSaver + Default
 {
 }
 
@@ -179,7 +180,7 @@ trait BuildInvoke where Self : Send + Sync
     fn build(&self, p:&Pipeline, br:&BuildRequest);
 }
 
-pub trait BuildResultObj where Self : Send + Sync {
+pub trait BuildResultObj where Self : Send + Sync + BinSaver {
     fn write_object(&self, output:&mut String) -> Result<(), PutkiError>;
 }
 
@@ -196,6 +197,38 @@ impl<T> BuildResultObj for PtrBox<T> where T : 'static + InkiObj
     }
 }
 
+impl<T> BinSaver for PtrBox<T> where T : 'static + InkiObj
+{    
+    fn write(&self, data: &mut Vec<u8>, refwriter: &PackageRefs) -> Result<(), PutkiError> {
+        if let Some(x) = self.ptr.get_owned_object() {
+            <T as BinSaver>::write(&x, data, refwriter)
+        } else {
+            Err(PutkiError::ObjectNotFound)
+        }
+    }    
+}
+
+impl<T> BinSaver for Vec<T> where T : 'static + BinSaver
+{    
+    fn write(&self, data: &mut Vec<u8>, refwriter: &PackageRefs) -> Result<(), PutkiError> {
+        self.len().write(data);
+        for x in self.iter() {
+            (*x).write(data, refwriter)?;
+        }
+        Ok(())
+    }
+}
+
+impl<T> BinWriter for Vec<T> where T : 'static + BinWriter
+{    
+    fn write(&self, data: &mut Vec<u8>) {
+        self.len().write(data);
+        for x in self.iter() {
+            (*x).write(data);
+        }
+    }
+}
+
 impl<T> ObjDepRef for PtrBox<T> where T : 'static + Sync + Send + InkiObj
 {
 
@@ -208,6 +241,7 @@ impl<T> BuildInvoke for PtrBox<T> where T : 'static + InkiObj
         if let Some(obj) = inki::ptr::PtrInkiResolver::resolve_notrack(&self.ptr) {
             let mut br = BuildRecord {
                 error: None,
+                type_tag: <T as shared::TypeDescriptor>::TAG,
                 success: true,
                 path: br.path.clone(),
                 deps: HashMap::new(),
@@ -241,7 +275,7 @@ impl Pipeline
 {    
     pub fn new(desc:PipelineDesc) -> Self {
         Pipeline {
-            desc: desc,
+            desc,
             to_build: RwLock::new(Vec::new()),
             built: RwLock::new(HashMap::new()),
             inserted: RwLock::new(HashSet::new())
@@ -253,7 +287,7 @@ impl Pipeline
     }
 
     fn builders_for_obj(&self, obj: &any::Any) -> Vec<Arc<BuilderAny>> {
-        self.desc.builders.iter().filter(|x| { x.accept(obj) }).map(|x| { x.clone() } ).collect()
+        self.desc.builders.iter().filter(|x| { x.accept(obj) }).cloned().collect()
     }
 
     pub fn build_field<T>(&self, br:&mut BuildRecord, obj:&mut T) -> Result<(), shared::PutkiError> where T : 'static
@@ -276,7 +310,7 @@ impl Pipeline
         if self.insert_path_to_build(path.as_ref()) {
             let mut lk = self.to_build.write().unwrap();        
             lk.push(BuildRequest {
-                path: path,
+                path,
                 invoker: Box::new(PtrBox::<T> { ptr: ptr.clone() })
             });
         }
@@ -312,12 +346,12 @@ impl Pipeline
             lk.remove(0)
         };
         request.invoker.build(self, &request);
-        return true;
+        true
     }
 
     pub fn peek_build_records(&self) -> LockResult<RwLockReadGuard<HashMap<String, BuildRecord>>>
     {
-        return self.built.read();
+        self.built.read()
     }
 
     // This function is re-entrant when building fields.
