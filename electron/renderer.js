@@ -794,9 +794,11 @@ function build_full_entry(objdesc, on_new_path, editor_func)
             if (p != null)
             {
                 var old = Data[objdesc.path];
-                delete Data[objdesc.path];
-                Data[p] = old;
-                old._path = p;
+                if (old !== undefined) {
+                    delete Data[objdesc.path];
+                    Data[p] = old;
+                    old._path = p;
+                }
                 objdesc.path = p;
                 _path_text.textContent = p;
                 if (on_new_path)
