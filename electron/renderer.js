@@ -182,6 +182,49 @@ function create_array_editor(ed, args)
     return _array;
 }
 
+/*
+    Auto complete shit.
+*/
+
+var acs = {};
+var is_upd = {};
+function update_auto_complete(list_id)
+{    
+    is_upd[list_id]++;
+    setTimeout(function() {
+        is_upd[list_id]--;
+        console.log("refcount is ", list_id, is_upd[list_id]);
+        if (is_upd[list_id] == 0) {
+            var old = acs[list_id];
+            if (old !== undefined)
+                acs[list_id].destroy();            
+            // This will find all elements on the page and install the auto complete. So if many request the same auto on many fields,
+            // we will only do it when update refcount is 0 and so do it once.
+            console.log("installing for ", list_id);
+            acs[list_id] = new autoComplete({minChars:1, selector:(".pac-" + list_id), source: function(term, suggest) {        
+                var l = document.getElementById(list_id).options;
+                var k = [];
+                var lower = term.toLowerCase();
+                for (var i=0;i<l.length;i++) {
+                    if (l[i].value.toLowerCase().indexOf(term) != -1)
+                        k.push(l[i].value);
+                }
+                console.log("suggesting for", list_id, term, k);
+                suggest(k);
+            }});
+        }
+    }, 10);
+}
+
+window.make_auto_complete = function(element, list_id)
+{
+    if (is_upd[list_id] === undefined) {
+        is_upd[list_id] = 0;
+    } 
+    element.classList.add("pac-" + list_id);
+    update_auto_complete(list_id);
+}
+
 function create_pointer_preview(object, default_type)
 {
     var descs = [];
