@@ -614,13 +614,16 @@ function create_type_editor(ed, is_array_element)
         return {
             inline: reload_wrapped(function() {
                 var sel = document.createElement("select");
+                var val = ed.data[ed.datafield];
+                if (val === undefined)
+                    val = default_value(ed.field, is_array_element);
                 for (var i=0;i<type.Values.length;i++)
                 {   
                     var opt = document.createElement("option"); 
                     opt.text = type.Values[i].Name;
                     opt.value = type.Values[i].Value;
                     sel.options.add(opt);
-                    if (ed.data[ed.datafield] == type.Values[i].Name)
+                    if (val == type.Values[i].Name)
                         sel.selectedIndex = i;
                 }
                 sel.addEventListener("change", function() {
