@@ -1,6 +1,7 @@
 var fs = require('fs');
 var path = require('path');
 const fsextra = require('fs-extra');
+var md5 = require('js-md5');
 
 function format_string(str, indent)
 {
@@ -39,7 +40,7 @@ function format_string(str, indent)
 
 var unfiltered = ["I32", "U32", "U8", "Float", "Bool"];
 
-function format(types, data, indent, typename)
+function format(types, data, indent, typename, paths)
 {
     var delim = ",";
     var nlsep = "";
@@ -78,7 +79,7 @@ function format(types, data, indent, typename)
     {
         var pcs = [];
         for (var k=0;k<data.length;k++) {
-            pcs.push(format(types, data[k], indent+1, typename));
+            pcs.push(format(types, data[k], indent+1, typename, paths));
         }
         return "[" + nlsep + pcs.join(delim + nlsep) + finsep + "]";
     }
@@ -97,13 +98,30 @@ function format(types, data, indent, typename)
                 continue;
             if (flds[i].Array && data[f].length == 0)
                 continue;
-            var frmted = format(types, data[f], indent+1, flds[i].Type);
+            var frmted = format(types, data[f], indent+1, flds[i].Type, paths);
             if (frmted !== null)
                 pcs.push(flds[i].PrettyName + ": " + frmted);
         }
 
         if (pcs.length == 0 && data._type === undefined && data._path === undefined)
             return null;
+
+        if (type.RequirePath) {
+            // need to assign path also to get the header written
+            data._type = data._type || typename;
+            if (data._path == undefined) {
+                var strd = JSON.stringify(data);
+                var check = "&" + md5(strd).substr(0, 6);
+                var counter = 2;
+                while (paths.hasOwnProperty(check)) {
+                    check = "&" + md5(strd).substr(0, 6) + "-" + counter;
+                    counter++;
+                }
+                console.log("Assigned path ", check, " to type ", data._type);
+                data._path = check;
+                paths[data._path] = true;
+            }
+        }
 
         var hdr = "";
         if (data._type !== undefined) {
@@ -130,6 +148,12 @@ function format(types, data, indent, typename)
 exports.write = function(root, types, data, single_file)
 {
     var files = {};
+    var paths = {};
+    for (var x in data)
+    {
+        if (data[x]._path !== undefined)
+            paths[data[x]._path] = true;    
+    }
     for (var x in data)
     {
         var d = data[x]; 
@@ -139,7 +163,7 @@ exports.write = function(root, types, data, single_file)
             file = [];
             files[actual] = file;
         }
-        file.push(format(types, d, 0));
+        file.push(format(types, d, 0, undefined, paths));
     }
     for (var x in files)
     {

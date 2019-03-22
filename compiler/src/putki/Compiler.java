@@ -69,6 +69,7 @@ public class Compiler
 		public boolean isValueType;
 		public boolean permitAsAux;
 		public boolean permitAsAsset;
+		public boolean requirePath;
 
 		public ParsedStruct resolvedParent;
 		public List<ParsedStruct> possibleChildren;
@@ -578,6 +579,10 @@ public class Compiler
 					{
 						curStruct.permitAsAsset = false;
 						curStruct.isValueType = true;
+					}
+					else if (pieces[j].equals("require-path"))
+					{
+						curStruct.requirePath = true;
 					}
 					else if (pieces[j].equals("no-out"))
 					{

@@ -235,7 +235,7 @@ function create_pointer_preview(object, default_type)
             if (type.hasOwnProperty("Parent"))
                 descs.push("@" + resolve_type(object._type).PrettyName);
         }
-        if (object._path !== undefined)
+        if (object._path !== undefined && object._path[0] != '&')
             descs.push(object._path);
         descs.push(create_object_preview_txt(object, resolve_type(object._type || default_type)));
         root.appendChild(document.createTextNode(descs.join(' ')));
