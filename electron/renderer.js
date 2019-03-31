@@ -182,6 +182,46 @@ function create_array_editor(ed, args)
     return _array;
 }
 
+/*
+    Auto complete shit.
+*/
+
+var acs = {};
+var is_upd = {};
+function update_auto_complete(list_id)
+{    
+    is_upd[list_id]++;
+    setTimeout(function() {
+        is_upd[list_id]--;
+        if (is_upd[list_id] == 0) {
+            var old = acs[list_id];
+            if (old !== undefined)
+                acs[list_id].destroy();            
+            // This will find all elements on the page and install the auto complete. So if many request the same auto on many fields,
+            // we will only do it when update refcount is 0 and so do it once.            
+            acs[list_id] = new autoComplete({minChars:1, selector:(".pac-" + list_id), source: function(term, suggest) {        
+                var l = document.getElementById(list_id).options;
+                var k = [];
+                var lower = term.toLowerCase();
+                for (var i=0;i<l.length;i++) {
+                    if (l[i].value.toLowerCase().indexOf(term) != -1)
+                        k.push(l[i].value);
+                }                
+                suggest(k);
+            }});
+        }
+    }, 10);
+}
+
+window.make_auto_complete = function(element, list_id)
+{
+    if (is_upd[list_id] === undefined) {
+        is_upd[list_id] = 0;
+    } 
+    element.classList.add("pac-" + list_id);
+    update_auto_complete(list_id);
+}
+
 function create_pointer_preview(object, default_type)
 {
     var descs = [];
@@ -195,7 +235,7 @@ function create_pointer_preview(object, default_type)
             if (type.hasOwnProperty("Parent"))
                 descs.push("@" + resolve_type(object._type).PrettyName);
         }
-        if (object._path !== undefined)
+        if (object._path !== undefined && object._path[0] != '&')
             descs.push(object._path);
         descs.push(create_object_preview_txt(object, resolve_type(object._type || default_type)));
         root.appendChild(document.createTextNode(descs.join(' ')));
@@ -574,13 +614,16 @@ function create_type_editor(ed, is_array_element)
         return {
             inline: reload_wrapped(function() {
                 var sel = document.createElement("select");
+                var val = ed.data[ed.datafield];
+                if (val === undefined)
+                    val = default_value(ed.field, is_array_element);
                 for (var i=0;i<type.Values.length;i++)
                 {   
                     var opt = document.createElement("option"); 
                     opt.text = type.Values[i].Name;
                     opt.value = type.Values[i].Value;
                     sel.options.add(opt);
-                    if (ed.data[ed.datafield] == type.Values[i].Name)
+                    if (val == type.Values[i].Name)
                         sel.selectedIndex = i;
                 }
                 sel.addEventListener("change", function() {
