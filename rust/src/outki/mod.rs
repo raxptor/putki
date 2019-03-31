@@ -203,6 +203,25 @@ impl<T> fmt::Debug for NullablePtr<T> {
     }    
 }
 
+impl<T> PartialEq for Ptr<T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.ptr == other.ptr
+    }
+}
+
+impl<T> PartialEq for NullablePtr<T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.ptr == other.ptr
+    }
+}
+
+impl<T> PartialEq for Ref<T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.ptr == other.ptr
+    }
+}
+
+
 
 impl<T> Ptr<T> {
     #[cfg(not(feature="outki-leak-memory"))]
