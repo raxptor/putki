@@ -716,7 +716,7 @@ public class RustGenerator
         	{
         		String prefix = "\n";
     			sb.append("\n");
-    			sb.append("#[derive(Clone, Debug, PartialEq)]");
+    			sb.append("#[derive(Clone, Copy, Debug, PartialEq)]");
         		sb.append(prefix).append("pub enum " + e.name + " {");
         		boolean first = true;
         		for (Compiler.EnumValue val : e.values)

@@ -188,7 +188,7 @@ impl<T> Deref for Ref<T>
 impl<T> Ref<T> {
     fn pin(&self) -> &DataPin {
         &self.pin
-    }    
+    }
 }
 
 impl<T> fmt::Debug for Ptr<T> {
