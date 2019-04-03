@@ -6,6 +6,7 @@ use std::marker::PhantomData;
 use std::num::NonZeroUsize;
 use std::collections::HashMap;
 use std::mem::forget;
+use std::hash::{Hash, Hasher};
 use std::io;
 use std::fmt;
 use shared;
@@ -113,6 +114,18 @@ pub struct Ref<T>
     pin: DataPin
 }
 
+impl<T> Hash for Ptr<T> {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.ptr.hash(state);
+    }
+}
+
+impl<T> Hash for Ref<T> {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.ptr.hash(state);
+    }
+}
+
 pub struct ArcRef<T>
 {
     ptr: Ptr<T>,
@@ -165,12 +178,23 @@ impl<T> Clone for Ref<T>
     }
 }
 
+#[cfg(not(feature="outki-leak-memory"))]
 impl<T> Clone for ArcRef<T>
 {
     fn clone(&self) -> Self {
         Self {
             ptr: Ptr { ptr: self.ptr.ptr, _ph: PhantomData { } },
             pin: self.pin.clone()
+        }
+    }
+}
+
+#[cfg(feature="outki-leak-memory")]
+impl<T> Clone for ArcRef<T>
+{
+    fn clone(&self) -> Self {
+        Self {
+            ptr: Ptr { ptr: self.ptr.ptr, _ph: PhantomData { } }
         }
     }
 }
@@ -188,7 +212,7 @@ impl<T> Deref for Ref<T>
 impl<T> Ref<T> {
     fn pin(&self) -> &DataPin {
         &self.pin
-    }    
+    }
 }
 
 impl<T> fmt::Debug for Ptr<T> {
@@ -202,6 +226,25 @@ impl<T> fmt::Debug for NullablePtr<T> {
         write!(f, "<ptr {:?}>", self.ptr)
     }    
 }
+
+impl<T> PartialEq for Ptr<T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.ptr == other.ptr
+    }
+}
+
+impl<T> PartialEq for NullablePtr<T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.ptr == other.ptr
+    }
+}
+
+impl<T> PartialEq for Ref<T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.ptr == other.ptr
+    }
+}
+
 
 
 impl<T> Ptr<T> {
