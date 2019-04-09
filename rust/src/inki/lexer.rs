@@ -309,9 +309,7 @@ fn parse_auto_detect(data: &str, require_value:bool) -> ScanResult
 				}
 				if value.1.is_whitespace() {
 					continue;
-				} else if value.1 == '/' && it.peek().map(|x| {(x.1).1}).unwrap_or_else(|| {' '}) == '/' {
-					is_comment = true;
-				} else if value.1 == '#' {
+				} else if value.1 == '#' || (value.1 == '/' && it.peek().map(|x| {(x.1).1}).unwrap_or_else(|| {' '}) == '/') {
 					is_comment = true;
 				} else if value.1 == '{' {
 					return parse_object_data(&data[(value.0) ..]);
