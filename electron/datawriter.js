@@ -27,13 +27,8 @@ function format_string(str, indent)
             chars.push("\\\"");
         else if (cc <= 127 || c == ' ')            
             chars.push(c);
-        else {            
-            chars.push("\\u");
-            chars.push(hex[(cc >> 12) & 0xf]);
-            chars.push(hex[(cc >> 8) & 0xf]);
-            chars.push(hex[(cc >> 4) & 0xf]);
-            chars.push(hex[(cc >> 0) & 0xf]);
-        }
+        else         
+            chars.push(c);
     }
     return "\"" + chars.join("") + "\"";
 }
