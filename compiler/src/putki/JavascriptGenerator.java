@@ -10,7 +10,6 @@ import putki.Compiler.ParsedFile;
 import putki.Compiler.ParsedStruct;
 import putki.Compiler.ParsedTree;
 import putki.CppGenerator.Platform;
-import sun.misc.FormattedFloatingDecimal;;
 
 public class JavascriptGenerator
 {

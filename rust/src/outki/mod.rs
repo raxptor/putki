@@ -173,7 +173,7 @@ impl<T> Clone for Ref<T>
     fn clone(&self) -> Self {
         Self {
             ptr: Ptr { ptr: self.ptr.ptr, _ph: PhantomData { } },
-            pin: self.pin
+            pin: self.pin.clone()
         }
     }
 }
@@ -257,14 +257,14 @@ impl<T> Ptr<T> {
         }
     }
     #[cfg(feature="outki-leak-memory")]
-    fn as_ref(&self, pin: DataPin) -> Ref<T> {        
+    fn as_ref(&self, pin: &DataPin) -> Ref<T> {        
         Ref {
             ptr: Ptr { ptr: self.ptr, _ph: PhantomData { } },
-            pin
+            pin: *pin
         }
     }    
     pub fn make_ref<K>(&self, r:&Ref<K>) -> Ref<T> {
-        self.as_ref(*r.pin())
+        self.as_ref(r.pin())
     }
 }
 
