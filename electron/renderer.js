@@ -48,7 +48,9 @@ function on_change(ed)
 
 function clone(src) {
     console.log("clone", src, JSON.stringify(src), " and reparse ", JSON.parse(JSON.stringify(src)));
-    return JSON.parse(JSON.stringify(src));
+    var obj = JSON.parse(JSON.stringify(src));
+    delete obj._path;
+    return obj;
 }
 
 function resolve_type(type)
@@ -122,7 +124,7 @@ function create_array_editor(ed, args)
             ));            
             ctl0.appendChild(mk_button("clone", function(idx) { 
                 return function() {
-                    iv.splice(idx, 0, clone(iv[idx]));
+                    iv.splice(idx + 1, 0, clone(iv[idx]));
                     on_inline_changed(_array._x_reload());
                     on_change();
                 }; } (i)
