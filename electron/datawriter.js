@@ -35,7 +35,7 @@ function format_string(str, indent)
 
 var unfiltered = ["I32", "U32", "U8", "Float", "Bool"];
 
-function format(types, data, indent, typename, paths)
+function format(types, data, indent, typename, paths, build_fns)
 {
     var delim = ",";
     var nlsep = "";
@@ -74,26 +74,34 @@ function format(types, data, indent, typename, paths)
     {
         var pcs = [];
         for (var k=0;k<data.length;k++) {
-            pcs.push(format(types, data[k], indent+1, typename, paths));
+            pcs.push(format(types, data[k], indent+1, typename, paths, build_fns));
         }
         return "[" + nlsep + pcs.join(delim + nlsep) + finsep + "]";
     }
     if (data instanceof Object)
     {
         var pcs = [];
-        var type = types[data._type || typename];
+        var tn = data._type || typename;
+        var type = types[tn];
+
+        // custom mangling step.
+        if (build_fns !== undefined && build_fns[tn] !== undefined)
+            data = build_fns[tn](data);
+
         var flds = type.ExpandedFields.slice(0).sort( (a, b) => {
             var x = a["Name"];
             var y = b["Name"];
             return x < y ? -1 : (x > y ? 1 : 0);
         });
+
+
         for (var i=0;i<flds.length;i++) {
             var f = flds[i].Name;
             if (data[f] === undefined || data[f] == null)
                 continue;
             if (flds[i].Array && data[f].length == 0)
                 continue;
-            var frmted = format(types, data[f], indent+1, flds[i].Type, paths);
+            var frmted = format(types, data[f], indent+1, flds[i].Type, paths, build_fns);
             if (frmted !== null)
                 pcs.push(flds[i].PrettyName + ": " + frmted);
         }
@@ -140,7 +148,7 @@ function format(types, data, indent, typename, paths)
     }
 }
 
-exports.write = function(root, types, data, single_file)
+exports.write = function(root, types, data, single_file, build_fns)
 {
     var files = {};
     var paths = {};
@@ -158,7 +166,7 @@ exports.write = function(root, types, data, single_file)
             file = [];
             files[actual] = file;
         }
-        file.push(format(types, d, 0, undefined, paths));
+        file.push(format(types, d, 0, undefined, paths, build_fns));
     }
     for (var x in files)
     {

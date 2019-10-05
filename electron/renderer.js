@@ -267,8 +267,11 @@ function create_object_preview_txt(object, type)
     var txts = [];
     for (var x in type.ExpandedFields)
     {
+        if (!type.ExpandedFields[x].ShowInEditor)
+            continue;
         var fn = type.ExpandedFields[x].Name;
-        var pn = type.ExpandedFields[x].PrettyName;
+        var pn = type.ExpandedFields[x].PrettyName;        
+
         var val = object[fn];
         if (val === undefined || val === null || (val instanceof Array && val.length == 0) ||
             (val instanceof Object && Object.keys(val).length === 0))
@@ -794,6 +797,8 @@ function build_properties(objdesc)
             for (var i=0;i<type.ExpandedFields.length;i++)
             {
                 var f = type.ExpandedFields[i];
+                if (!f.ShowInEditor)
+                    continue;
                 row = create_property(_properties, row, {
                     data: objdesc.data,
                     field: f,
@@ -1020,6 +1025,7 @@ var Data = {};
 var Plugins = [];
 var PluginFieldPostProcess = {};
 var PluginFieldCustom = {};
+var PluginBuildObject = {};
 var Editing = {};
 var Configuration = {};
 var FileSet = {};
@@ -1061,7 +1067,7 @@ ipcRenderer.on('save', function(event) {
                     FileSet[k] = false;
                 }
             }
-            datawriter.write(path.join(root, Configuration.data["data-root"]), UserTypes, Data);
+            datawriter.write(path.join(root, Configuration.data["data-root"]), UserTypes, Data, undefined, PluginBuildObject);
             for (var k in Data) {
                 FileSet[Data[k]._file] = true;
             }
@@ -1144,6 +1150,9 @@ ipcRenderer.on('configuration', function(evt, config) {
         }
         for (var x in pd.field_custom) {
             PluginFieldCustom[x] = pd.field_custom[x];
+        }
+        for (var x in pd.object_build) {
+            PluginBuildObject[x] = pd.object_build[x];
         }
     }    
     if (config.data["data-root"] !== undefined) {
