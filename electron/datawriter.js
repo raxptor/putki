@@ -123,6 +123,8 @@ function format(types, data, indent, typename, paths, build_fns)
                 console.log("Assigned path ", check, " to type ", data._type);
                 data._path = check;
                 paths[data._path] = true;
+            } else {
+                paths[data._path] = true;
             }
         }
 
