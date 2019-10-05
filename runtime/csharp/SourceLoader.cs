@@ -48,7 +48,32 @@ namespace Mixki
 			};
 		}
 
-		public Type Resolve<Type>(string assetPath, object value, ParseFn inlineFn = null)
+        Dictionary<Type, object[]> s_emptyArrays = new Dictionary<Type, object[]>();
+
+        public Type[] AllocateRefArray<Type>(int count) where Type:class
+        {
+            if (count == 0)
+            {
+                object[] arr;
+                if (s_emptyArrays.TryGetValue(typeof(Type), out arr))
+                {
+                    return (Type[])arr;
+                }
+                else
+                {
+                    var empty = new Type[0];
+                    s_emptyArrays[typeof(Type)] = empty;
+                }
+            }
+            return new Type[count];
+        }
+
+        public Type[] AllocateObjArray<Type>(int count)
+        {
+            return new Type[count];
+        }
+
+        public Type Resolve<Type>(string assetPath, object value, ParseFn inlineFn = null)
 		{
 			// inline object such as auxptr with { }
 			if (value is Dictionary<string, object>)
