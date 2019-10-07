@@ -131,6 +131,7 @@ public class JavascriptGenerator
 
                 	sb.append(", PrettyName:\"" + field.name + "\"");
                 	sb.append(", Array:" + field.isArray + ", Pointer:" + ptr);
+                	sb.append(", ShowInEditor: " + field.showInEditor);
 
                 	if (field.localizationCategory != null)
                 		sb.append(", LocalizationCategory: \"" + field.localizationCategory + "\"");
