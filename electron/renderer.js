@@ -472,8 +472,8 @@ function create_type_editor(ed, is_array_element)
             data: Data,
             on_changed: on_inline_changed
         };
-        if (res.block) output.block = reload_wrapped(function(args) { return res.block(ed, args, opts); });
-        if (res.inline) output.inline = reload_wrapped(function(args) { return res.inline(ed, args, opts); });
+        if (res.block) output.block = reload_wrapped(function(args) { return res.block(ed, args, opts); }, config);
+        if (res.inline) output.inline = reload_wrapped(function(args) { return res.inline(ed, args, opts); }, config);
         output.pre_expand = res.pre_expand;
         return output;
     }
@@ -482,15 +482,15 @@ function create_type_editor(ed, is_array_element)
     if (!is_array_element && ed.field.Array)
     {
         return {
-            block: reload_wrapped(function(args) { def_arr(ed); return create_array_editor(ed, args); }),
-            inline: reload_wrapped(function(args) { def_arr(ed); return create_array_preview(ed.data[ed.datafield], args) }),
+            block: reload_wrapped(function(args) { def_arr(ed); return create_array_editor(ed, args); }, config),
+            inline: reload_wrapped(function(args) { def_arr(ed); return create_array_preview(ed.data[ed.datafield], args) }, config),
             pre_expand: (ed.data[ed.datafield] || []).length > 0
         };
     }
     if (ed.field.Pointer)
     {
-        var preview = reload_wrapped(function() { return create_pointer_preview(ed.data[ed.datafield], ed.field.Type); });
-        var block = reload_wrapped(function() { return create_pointer_editor(ed); });
+        var preview = reload_wrapped(function() { return create_pointer_preview(ed.data[ed.datafield], ed.field.Type); }, config);
+        var block = reload_wrapped(function() { return create_pointer_editor(ed); }, config);
         var value_context_menu = function(dom) {
             var ptypes = popups.compatible_types(UserTypes, ed.field.Type);
             var opts = {};
@@ -576,7 +576,7 @@ function create_type_editor(ed, is_array_element)
                     on_change();
                 });  
                 return ip;
-            })
+            }, config)
         }
     } 
     if (type.Editor == "Text")
@@ -592,7 +592,7 @@ function create_type_editor(ed, is_array_element)
                     on_change();
                 });
                 return ta;
-            })
+            }, config)
         };
     }
     if (type.Editor == "Checkbox")
@@ -611,7 +611,7 @@ function create_type_editor(ed, is_array_element)
                     on_change();
                 });  
                 return ta;
-            })
+            }, config)
         };
     }
     if (type.Values !== undefined)
@@ -643,18 +643,18 @@ function create_type_editor(ed, is_array_element)
                     }
                 });
                 return sel;
-            })
+            }, config)
         }
     }
     if (type.Fields !== undefined)
     {
         return {
-            inline: reload_wrapped(function() { def_obj(ed); return create_object_preview(ed.data[ed.datafield], type) } ),
+            inline: reload_wrapped(function() { def_obj(ed); return create_object_preview(ed.data[ed.datafield], type) }, config ),
             block: reload_wrapped(function() { def_obj(ed); return build_block_entry({
                 type: ed.field.Type,
                 data: ed.data[ed.datafield],
                 parent: ed
-            })})
+            })}, config)
         };
     }
     var el = document.createElement("input");
@@ -860,12 +860,17 @@ function build_full_entry(objdesc, on_new_path, editor_func)
             }
         });
     });
+
+    var pp = PluginObjectPostProcess[objdesc.type];
+    if (pp !== undefined) {
+        _entry = pp(_entry, objdesc);
+    }
     return _entry;
 }  
 
 function build_root_entry(path, editor_func)
 {
-    return build_full_entry(
+    return reload_wrapped(function() { return build_full_entry(
         {
             path: path,
             type: Data[path]._type,
@@ -873,7 +878,7 @@ function build_root_entry(path, editor_func)
         },
         null,
         editor_func,
-    );
+    )});
 }
 
 var project_root = null;
@@ -885,7 +890,10 @@ function plugin_config()
         types: UserTypes,
         data: Data,
         build_root_entry: build_root_entry,
-        build_full_entry: build_full_entry
+        build_full_entry: build_full_entry,
+        electron: {
+            dialogs: dialogs
+        }
     }
 }
 
@@ -1025,6 +1033,7 @@ function open_editor(path, editor, anchor)
 var UserTypes = {};
 var Data = {};
 var Plugins = [];
+var PluginObjectPostProcess = {};
 var PluginFieldPostProcess = {};
 var PluginFieldCustom = {};
 var PluginBuildObject = {};
@@ -1142,13 +1151,16 @@ ipcRenderer.on('configuration', function(evt, config) {
         var p = path.join(root, plugins[i]);
         console.log("Loading plugin from", p);
         var plugin = require(p);        
-        var pd = plugin.initialize(config, UserTypes);
+        var pd = plugin.initialize(config, plugin_config());
         plugin.install_on_page();
         Plugins.push(pd);
         if (pd.data_mangler)
             data_manglers.push(pd.data_mangler);
         for (var x in pd.field_post_process) {
             PluginFieldPostProcess[x] = pd.field_post_process[x];
+        }
+        for (var x in pd.object_post_process) {
+            PluginObjectPostProcess[x] = pd.object_post_process[x];
         }
         for (var x in pd.field_custom) {
             PluginFieldCustom[x] = pd.field_custom[x];
