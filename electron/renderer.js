@@ -414,14 +414,14 @@ function create_pointer_editor(ed)
     var ptrval = document.createElement("div");
     var iv = ed.data[ed.datafield];
     if (iv instanceof Object) {
-        var inl = build_full_entry({
+        var inl = reload_wrapped(function() { return build_full_entry({
             type: iv._type || ed.field.Type,
             path: iv._path,
             data: iv,
             parent: ed
         }, function (new_path) {
             iv._path = new_path;
-        });
+        }); });
 
         if (iv.hasOwnProperty("_anchor")) {
             var anch = document.createElement('a');
