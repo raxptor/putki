@@ -890,7 +890,7 @@ function plugin_config()
         types: UserTypes,
         data: Data,
         build_root_entry: build_root_entry,
-        build_full_entry: build_full_entry,
+        build_full_entry: function(x,y,z) { return reload_wrapped(function() { return build_full_entry(x, y, z); }); },
         electron: {
             dialogs: dialogs
         }
