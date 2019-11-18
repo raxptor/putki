@@ -40,7 +40,7 @@ pub trait PtrInkiResolver<T>
 
 pub trait Resolver<T>
 {
-    fn resolve(&self, trk: &mut Tracker) -> Option<Arc<T>>;
+    fn resolve(&self, trk: &mut dyn Tracker) -> Option<Arc<T>>;
 }
 
 pub trait Tracker where Self : Send + Sync {
@@ -49,13 +49,13 @@ pub trait Tracker where Self : Send + Sync {
 
 impl<T> Resolver<T> for Ptr<T> where T : 'static + source::ParseFromKV
 {
-    fn resolve(&self, trk: &mut Tracker) -> Option<Arc<T>> {
+    fn resolve(&self, trk: &mut dyn Tracker) -> Option<Arc<T>> {
         match self.target {
             PtrTarget::ObjPath { ref path, .. } => {
                 trk.follow(path);
-                (self as &PtrInkiResolver<T>).resolve_notrack()
+                (self as &dyn PtrInkiResolver<T>).resolve_notrack()
             },
-            _ => (self as &PtrInkiResolver<T>).resolve_notrack()
+            _ => (self as &dyn PtrInkiResolver<T>).resolve_notrack()
         }
     }    
 }

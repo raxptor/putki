@@ -27,7 +27,7 @@ impl source::ObjectLoader for LoadAll
 	}
 }
 
-fn visit_dirs(dir: &Path, cb: &mut FnMut(&DirEntry)) -> io::Result<()> {
+fn visit_dirs(dir: &Path, cb: &mut dyn FnMut(&DirEntry)) -> io::Result<()> {
     if dir.is_dir() {
         for entry in fs::read_dir(dir)? {
             let entry = entry?;
@@ -47,7 +47,7 @@ fn process_jsony_obj(base:&Path, file:&Path, idx: &mut LoadAll, ld:&lexer::Lexed
 	match ld {
 		lexer::LexedData::Object { ref kv, .. } => {
 			if let Ok(ref_) = file.strip_prefix(base) {
-				let mut bp = String::from(ref_.to_string_lossy());				
+				let bp = String::from(ref_.to_string_lossy());				
 				let mut obj_ref = bp.trim_end_matches(".json").replace('\\', "/");
 				if let Some(refval) = kv.get("ref") {
 					if let lexer::LexedData::StringLiteral(ref path_piece) = refval {

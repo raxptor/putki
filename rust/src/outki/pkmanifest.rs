@@ -41,7 +41,7 @@ impl PackageManifest
         });
     }
 
-    pub fn parse(reader:&mut Read) -> OutkiResult<PackageManifest> {
+    pub fn parse(reader:&mut dyn Read) -> OutkiResult<PackageManifest> {
         let mut buffer = [0; 8];
         reader.read_exact(&mut buffer)?;        
         let mut tmp_ds = BinDataStream::new(&buffer);
@@ -64,7 +64,7 @@ impl PackageManifest
 
         for _i in 0..num_slots {
             let flags = u32::read(&mut content);
-            let mut path: Option<String> = if (flags & SLOTFLAG_HAS_PATH) != 0 {
+            let path: Option<String> = if (flags & SLOTFLAG_HAS_PATH) != 0 {
                 Some(String::read(&mut content))
             } else {
                 None

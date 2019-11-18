@@ -69,11 +69,11 @@ pub trait ParseFromKV where Self:Sized + TypeDescriptor + Clone {
 }
 
 pub struct InkiResolver {
-	loader: Arc<ObjectLoader>
+	loader: Arc<dyn ObjectLoader>
 }
 
 impl InkiResolver {
-	pub fn new(loader:Arc<ObjectLoader>) -> Self {
+	pub fn new(loader:Arc<dyn ObjectLoader>) -> Self {
 		Self {
 			loader
 		}
