@@ -49,34 +49,34 @@ pub trait Builder<T> where Self : Send + Sync {
 }
 
 struct BuilderBox <T> {
-    builder: Arc<Builder<T>>,
+    builder: Arc<dyn Builder<T>>,
     object_type: any::TypeId
 }
 
 trait BuilderAny where Self : Send + Sync {
     fn object_type(&self) -> any::TypeId;
-    fn build(&self, br:&mut BuildRecord, input:&mut any::Any) -> Result<(), shared::PutkiError>;
-    fn accept(&self, b:&Any) -> bool;
+    fn build(&self, br:&mut BuildRecord, input:&mut dyn any::Any) -> Result<(), shared::PutkiError>;
+    fn accept(&self, b:&dyn Any) -> bool;
 }
 
 impl<T> BuilderAny for BuilderBox<T> where T : Send + Sync + 'static {
     fn object_type(&self) -> any::TypeId {
         self.object_type
     }
-    fn build(&self, br:&mut BuildRecord, input:&mut any::Any) -> Result<(), shared::PutkiError> {
+    fn build(&self, br:&mut BuildRecord, input:&mut dyn any::Any) -> Result<(), shared::PutkiError> {
         match self.builder.build(br, input.downcast_mut().unwrap()) {
             Ok(_) => Ok(()),
             Err(x) => Err(x)
         }
     }    
-    fn accept(&self, b:&Any) -> bool {
+    fn accept(&self, b:&dyn Any) -> bool {
         b.is::<T>()
     }
 }
 
 struct ObjEntry
 {
-    object: Arc<Any>    
+    object: Arc<dyn Any>    
 }
 
 // One per object and per builder.
@@ -85,9 +85,9 @@ pub struct BuildRecord
     path: String,    
     type_tag: &'static str,
     res_base: path::PathBuf,
-    built_obj: Option<Box<BuildResultObj>>,
+    built_obj: Option<Box<dyn BuildResultObj>>,
     visited: HashSet<String>,
-    deps: HashMap<String, Box<ObjDepRef>>,
+    deps: HashMap<String, Box<dyn ObjDepRef>>,
     error: Option<String>,
     success: bool,        
 }
@@ -112,7 +112,7 @@ impl BuildRecord
         f.read_to_end(&mut buffer)?;
         Ok(buffer)
     }
-    pub fn built_object(&self) -> Option<&BuildResultObj> {
+    pub fn built_object(&self) -> Option<&dyn BuildResultObj> {
         if let Some(ref b) = &self.built_obj {
             Some(&(**b))
         } else {
@@ -130,13 +130,13 @@ impl ptr::Tracker for BuildRecord {
 
 pub struct PipelineDesc
 {
-    source: Arc<source::ObjectLoader>,
-    builders: Vec<Arc<BuilderAny>>,
+    source: Arc<dyn source::ObjectLoader>,
+    builders: Vec<Arc<dyn BuilderAny>>,
     res_base: path::PathBuf
 }
 
 impl PipelineDesc {
-    pub fn new(source:Arc<source::ObjectLoader>, res_base: &path::Path) -> PipelineDesc {
+    pub fn new(source:Arc<dyn source::ObjectLoader>, res_base: &path::Path) -> PipelineDesc {
         PipelineDesc {
             source,
             builders: Vec::new(),
@@ -153,7 +153,7 @@ impl PipelineDesc {
 }
 
 pub trait BuildCandidate where Self : 'static + Send + Sync + BuildFields {
-    fn as_any_ref(&mut self) -> &mut Any;
+    fn as_any_ref(&mut self) -> &mut dyn Any;
     fn build(&mut self, p:&Pipeline, br: &mut BuildRecord) -> Result<(), shared::PutkiError>;
     fn scan_deps(&self, _p:&Pipeline, _br: &mut BuildRecord) { }
 }
@@ -251,7 +251,7 @@ impl<T> BuildInvoke for PtrBox<T> where T : 'static + InkiObj
             };            
             let mut clone = (*obj).clone();
             {
-                let bc : &mut BuildCandidate = &mut clone;                
+                let bc : &mut dyn BuildCandidate = &mut clone;                
                 if let Err(_res) = bc.build(p, &mut br) {
                     br.success = false;
                     println!("ERROR in build of {}", br.path);
@@ -268,7 +268,7 @@ impl<T> BuildInvoke for PtrBox<T> where T : 'static + InkiObj
 
 struct BuildRequest {
     path: String,
-    invoker: Box<BuildInvoke>
+    invoker: Box<dyn BuildInvoke>
 }
 
 impl Pipeline
@@ -286,7 +286,7 @@ impl Pipeline
         self.built.write().unwrap().insert(br.path.clone(), br);
     }
 
-    fn builders_for_obj(&self, obj: &any::Any) -> Vec<Arc<BuilderAny>> {
+    fn builders_for_obj(&self, obj: &dyn any::Any) -> Vec<Arc<dyn BuilderAny>> {
         self.desc.builders.iter().filter(|x| { x.accept(obj) }).cloned().collect()
     }
 
@@ -359,7 +359,7 @@ impl Pipeline
         for x in self.builders_for_obj(obj) {
             x.build(br, obj)?;
         }
-        (obj as &mut BuildFields).build_fields(&self, br)?;
+        (obj as &mut dyn BuildFields).build_fields(&self, br)?;
         Ok(())
     }
 }

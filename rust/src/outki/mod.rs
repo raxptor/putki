@@ -35,7 +35,7 @@ impl From<io::Error> for OutkiError {
 }
 
 pub trait PackageRandomAccess {    
-    fn read_chunk(&self, begin:usize, end:usize, f:&mut FnMut(OutkiResult<&[u8]>) -> OutkiResult<()>) -> OutkiResult<()>;
+    fn read_chunk(&self, begin:usize, end:usize, f:&mut dyn FnMut(OutkiResult<&[u8]>) -> OutkiResult<()>) -> OutkiResult<()>;
 }
 
 pub type OutkiResult<T> = Result<T, OutkiError>;
@@ -204,7 +204,7 @@ impl<T> Deref for Ref<T>
     type Target = T;
     fn deref(&self) -> &T {
         unsafe {
-            &(*(self.ptr.ptr as (*const T)))
+            &(*(self.ptr.ptr as *const T))
         }
     }
 }
@@ -275,7 +275,7 @@ impl<'a, T> NullablePtr<T>
         unsafe {
             self.ptr.map(|x| {
                 debug_assert!((x.get() & UNRESOLVED_MASK) != UNRESOLVED_VALUE);
-                &(*(x.get() as (*const T)))
+                &(*(x.get() as *const T))
             })
         }
     }
@@ -287,7 +287,7 @@ impl<'a, T> NullablePtr<T>
 impl<'a, T> Ref<T>
 {
     pub fn get_pointer(&self) -> *const T {
-        self.ptr.ptr as (*const T)
+        self.ptr.ptr as *const T
     }
 }
 
@@ -297,7 +297,7 @@ impl<T> Deref for Ptr<T>
     fn deref(&self) -> &T {
         debug_assert!((self.ptr & UNRESOLVED_MASK) != UNRESOLVED_VALUE);
         unsafe {
-            &(*(self.ptr as (*const T)))
+            &(*(self.ptr as *const T))
         }
     }
 }

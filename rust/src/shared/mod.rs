@@ -7,7 +7,7 @@ use std::io;
 #[derive(Debug)]
 pub enum PutkiError {
     Test,
-    BuilderError(Box<Error>),
+    BuilderError(Box<dyn Error>),
     IOError(io::Error),
     ObjectNotFound,
 }
@@ -23,7 +23,7 @@ pub trait TypeDescriptor {
 }
 
 pub trait Resolver<ResolveContext> {
-	fn load(&self, pctx: &ResolveContext, path:&str) -> Option<Rc<Any>>;
+	fn load(&self, pctx: &ResolveContext, path:&str) -> Option<Rc<dyn Any>>;
 }
 
 pub fn tag_of<T>() -> &'static str where T : TypeDescriptor

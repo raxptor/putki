@@ -182,7 +182,7 @@ pub fn write_package(p:&pipeline::Pipeline, recipe:&PackageRecipe) -> Result<Vec
 
     let k = p.peek_build_records().unwrap();    
     for path in items.iter() {          
-        let mut flags:u32 = outki::SLOTFLAG_HAS_PATH | outki::SLOTFLAG_INTERNAL;
+        let flags:u32 = outki::SLOTFLAG_HAS_PATH | outki::SLOTFLAG_INTERNAL;
         let type_id:usize = *k.get(*path).and_then(|x| type_rev.get(x.type_tag)).unwrap_or(&0);
         flags.write(&mut manifest);
         path.write(&mut manifest);
