@@ -49,11 +49,50 @@ function fixup_legacy(obj)
             var value = obj[key];
             out[key.toLowerCase()] = fixup_legacy(value);
         });  
-        console.log("legacy fix", obj, out);
+        if (out["parent"] !== undefined) 
+        {
+            // transfer parents down
+            Object.keys(out["parent"]).forEach(function(key,index) {
+                out[key.toLowerCase()] = out["parent"][key];
+            });  
+            console.log("parent transfer ", out);
+            delete out["parent"];
+        }        
         return out;
     }
     return obj;
 }
+
+
+function inline_legacy_aux(obj, resolve)
+{
+    if (Array.isArray(obj)) 
+    {
+        var out = [];
+        for (var x in obj) {
+            out[x] = inline_legacy_aux(obj[x], resolve);
+        }
+        return out;
+    }
+    if (obj instanceof Object)
+    {        
+        var out = {};
+        Object.keys(obj).forEach(function(key,index) {
+            var value = obj[key];
+            out[key] = inline_legacy_aux(value, resolve);
+        });  
+        return out;
+    }
+    if (typeof obj === "string")
+    {
+        if (obj.indexOf("\#") != -1)
+        {
+            return resolve(obj);
+        }
+    }
+    return obj;
+}
+
 
 exports.load_tree_legacy = function(_path, result, result_file_set, user_types)
 {
@@ -68,6 +107,11 @@ exports.load_tree_legacy = function(_path, result, result_file_set, user_types)
         main._type = obj.type.toLowerCase();
         main._file = "main.txt";
 
+        if (obj_path == "ui/cutscene/cutsceneroot")
+        {
+            console.log(obj.data);
+        }
+
         if (user_types[main._type] === undefined) 
         {
             console.log("ignoring object with type " + main._type);
@@ -75,7 +119,6 @@ exports.load_tree_legacy = function(_path, result, result_file_set, user_types)
         }
 
         result[main._path] = main;
-        console.log(main);
 
         if (obj.aux !== undefined)
         {
@@ -89,13 +132,28 @@ exports.load_tree_legacy = function(_path, result, result_file_set, user_types)
                     console.log("ignoring aux object with type " + main._type);
                     return;
                 }
-
-                aux._path = obj_path + obj.aux[i].path;
+                aux._path = obj_path + obj.aux[i].ref;
                 aux._file = "main.txt";
                 result[aux._path] = aux;
             }
         }
     });
+
+    console.log("Inlining aux objects");
+    for (var x in result)
+    {
+        result[x] = inline_legacy_aux(result[x], function(path) {
+            if (result[path] !== undefined) {
+                var obj = result[path];
+                delete result[path];
+                return obj;
+            } else {
+                console.log("Unable to resolve ", path);
+                return null;
+            }
+        });
+    }
+
     result_file_set["main.txt"] = true;
     return true;
 }

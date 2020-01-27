@@ -1171,9 +1171,10 @@ ipcRenderer.on('configuration', function(evt, config) {
     }    
     if (config.data["data-root-legacy"] !== undefined) {
         dataloader.load_tree_legacy(path.join(root, config.data["data-root-legacy"]), Data, FileSet, UserTypes);
-    }
-    if (config.data["data-root"] !== undefined) {
-        dataloader.load_tree(path.join(root, config.data["data-root"]), Data, FileSet);
+    } else {
+        if (config.data["data-root"] !== undefined) {
+            dataloader.load_tree(path.join(root, config.data["data-root"]), Data, FileSet);
+        }
     }
     if (config.data["data-bundle"] !== undefined) {
         var tmp = JSON.parse(fs.readFileSync(path.join(root, config.data["data-bundle"]), "utf-8"));
