@@ -5,7 +5,6 @@ const popups = require('./popups');
 const path = require('path');
 const fs = require('fs');
 const databrowser = require('./databrowser');
-
 var Dialogs = require("dialogs");
 var dialogs = new Dialogs({});
 var reload_browser = function() { console.log("Not reloading browser"); }

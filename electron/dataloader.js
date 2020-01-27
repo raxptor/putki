@@ -55,7 +55,6 @@ function fixup_legacy(obj)
             Object.keys(out["parent"]).forEach(function(key,index) {
                 out[key.toLowerCase()] = out["parent"][key];
             });  
-            console.log("parent transfer ", out);
             delete out["parent"];
         }        
         return out;
@@ -145,6 +144,7 @@ exports.load_tree_legacy = function(_path, result, result_file_set, user_types)
         result[x] = inline_legacy_aux(result[x], function(path) {
             if (result[path] !== undefined) {
                 var obj = result[path];
+                delete obj._path;
                 delete result[path];
                 return obj;
             } else {
