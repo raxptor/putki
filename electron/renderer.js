@@ -1169,6 +1169,9 @@ ipcRenderer.on('configuration', function(evt, config) {
             PluginBuildObject[x] = pd.object_build[x];
         }
     }    
+    if (config.data["data-root-legacy"] !== undefined) {
+        dataloader.load_tree_legacy(path.join(root, config.data["data-root-legacy"]), Data, FileSet, UserTypes);
+    }
     if (config.data["data-root"] !== undefined) {
         dataloader.load_tree(path.join(root, config.data["data-root"]), Data, FileSet);
     }

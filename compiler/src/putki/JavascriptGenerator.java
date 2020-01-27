@@ -119,6 +119,8 @@ public class JavascriptGenerator
                 		case BYTE: sb.append("U8"); break;
                 		case STRING: if (field.stringIsText) sb.append("Text"); else sb.append("String"); break;
                 		case BOOL: sb.append("Bool"); break;
+                		case PATH: sb.append("String"); break; // fix this maybe.
+                		case FILE: sb.append("String"); break; // fix this maybe.
                 		case ENUM: sb.append(field.resolvedEnum.name.toLowerCase()); break;
                 		case STRUCT_INSTANCE: sb.append(field.resolvedRefStruct.name.toLowerCase()); break;
                 		case HASH: sb.append("Hash"); break;

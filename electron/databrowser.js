@@ -68,6 +68,9 @@ exports.create = function(onto, types, data, plugins, config, data_browser_previ
             path.appendChild(document.createTextNode(data[x]._path));
             path.style.gridRow = e.count;
             var type = document.createElement('x-browser-type');
+            if (types[data[x]._type] === undefined) {
+                console.log("unknown type ", data[x]._type);
+            }
             type.appendChild(document.createTextNode("@" + types[data[x]._type].PrettyName));
             type.style.gridRow = e.count;
             var preview = document.createElement('x-browser-preview');

@@ -14,11 +14,94 @@ function tree_sync(root, cb)
         if (!p.endsWith(".txt"))
             continue;
         cb(p);
+    }    
+}
+
+function tree_sync_legacy(root, cb)
+{
+    var items = fs.readdirSync(root);
+    for (var i=0;i<items.length;i++)
+    {
+        var p = path.join(root, items[i]);
+        var st = fs.statSync(p);
+        if (st.isDirectory())
+            tree_sync_legacy(p, cb);
+        if (!p.endsWith(".json"))
+            continue;
+        cb(p);
     }
 }
 
-exports.load_tree = function(_path, result, result_file_set)
+function fixup_legacy(obj)
 {
+    if (Array.isArray(obj)) 
+    {
+        var out = [];
+        for (var x in obj) {
+            out[x] = fixup_legacy(obj[x]);
+        }
+        return out;
+    }
+    if (obj instanceof Object)
+    {        
+        var out = {};
+        Object.keys(obj).forEach(function(key,index) {
+            var value = obj[key];
+            out[key.toLowerCase()] = fixup_legacy(value);
+        });  
+        console.log("legacy fix", obj, out);
+        return out;
+    }
+    return obj;
+}
+
+exports.load_tree_legacy = function(_path, result, result_file_set, user_types)
+{
+    console.log("loading legacy data.");
+    tree_sync_legacy(_path, function(file) {        
+        var json = parser.strip_comments(fs.readFileSync(file, "utf8"));
+        var obj_path = path.relative(_path, file).replace(/\\/g, "/").replace(".json", "");
+        var obj = fixup_legacy(eval("(" + json + ')'));
+
+        var main = obj.data;
+        main._path = obj_path;
+        main._type = obj.type.toLowerCase();
+        main._file = "main.txt";
+
+        if (user_types[main._type] === undefined) 
+        {
+            console.log("ignoring object with type " + main._type);
+            return;
+        }
+
+        result[main._path] = main;
+        console.log(main);
+
+        if (obj.aux !== undefined)
+        {
+            for (var i=0;i<obj.aux.length;i++)
+            {
+                var aux = obj.aux[i].data;
+                aux._type = obj.aux[i].type.toLowerCase();
+
+                if (user_types[aux._type] === undefined) 
+                {
+                    console.log("ignoring aux object with type " + main._type);
+                    return;
+                }
+
+                aux._path = obj_path + obj.aux[i].path;
+                aux._file = "main.txt";
+                result[aux._path] = aux;
+            }
+        }
+    });
+    result_file_set["main.txt"] = true;
+    return true;
+}
+
+exports.load_tree = function(_path, result, result_file_set)
+{    
     tree_sync(_path, function(file) {
         var data = parser.strip_comments(fs.readFileSync(file, "utf8"));
         var pd = {
