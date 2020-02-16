@@ -265,7 +265,7 @@ public class RustGenerator
 
     public static void generateCrate(Compiler comp, CodeWriter writer)
     {
-        for (Compiler.ParsedTree tree : comp.allTrees())
+        for (Compiler.ParsedTree tree : comp.allTrees("rust"))
         {
 	        Path lib = tree.genCodeRoot.resolve("rust").resolve("src");
 	        Path fn = lib.resolve("lib.rs");

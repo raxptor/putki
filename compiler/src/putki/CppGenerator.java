@@ -676,7 +676,7 @@ public class CppGenerator
 
     public static void generateInkiHeader(Compiler comp, CodeWriter writer)
     {
-        for (Compiler.ParsedTree tree : comp.allTrees())
+        for (Compiler.ParsedTree tree : comp.allTrees("cpp"))
         {
         	for (Compiler.ParsedFile file : tree.parsedFiles)
         	{
@@ -738,7 +738,7 @@ public class CppGenerator
 
     public static void generateInkiImplementation(Compiler comp, CodeWriter writer)
     {
-        for (Compiler.ParsedTree tree : comp.allTrees())
+        for (Compiler.ParsedTree tree : comp.allTrees("cpp"))
         {
             Path inkiMasterFn = tree.genCodeRoot.resolve("cpp").resolve("inki").resolve("inki-master.cpp");
             StringBuilder master = new StringBuilder();
@@ -1221,7 +1221,7 @@ public class CppGenerator
 
     public static void generateOutkiHeader(Compiler comp, CodeWriter writer)
     {
-        for (Compiler.ParsedTree tree : comp.allTrees())
+        for (Compiler.ParsedTree tree : comp.allTrees("cpp"))
         {
         	Path outki = tree.genCodeRoot.resolve("cpp").resolve("outki");
         	for (Compiler.ParsedFile file : tree.parsedFiles)
@@ -1278,7 +1278,7 @@ public class CppGenerator
 
     public static void generateOutkiImplementation(Compiler comp, CodeWriter writer)
     {
-        for (Compiler.ParsedTree tree : comp.allTrees())
+        for (Compiler.ParsedTree tree : comp.allTrees("cpp"))
         {
             Path inkiMasterFn = tree.genCodeRoot.resolve("cpp").resolve("outki").resolve("outki-master.cpp");
             StringBuilder master = new StringBuilder();

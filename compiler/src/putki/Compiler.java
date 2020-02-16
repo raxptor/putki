@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 
 public class Compiler {
 	public static int DOMAIN_INPUT = 1;
@@ -100,6 +101,7 @@ public class Compiler {
 		public Path putkiPath;
 		public List<ParsedFile> parsedFiles;
 		public HashMap<String, ParsedTree> deps;
+		public HashSet<String> outputs;
 	}
 
 	List<ParsedStruct> allTypes = new ArrayList<Compiler.ParsedStruct>();
@@ -116,8 +118,14 @@ public class Compiler {
 		System.out.println(path + ":" + line + " Error! " + err);
 	}
 
-	public List<ParsedTree> allTrees() {
-		return allTrees;
+	public List<ParsedTree> allTrees(String lang) {
+		List<ParsedTree> trees = new ArrayList<ParsedTree>();
+		for (ParsedTree tree : allTrees)
+		{
+			if (tree.outputs.contains(lang))
+				trees.add(tree);
+		}
+		return trees;
 	}
 
 	public List<ParsedStruct> getAllTypes() {
@@ -484,6 +492,12 @@ public class Compiler {
 			List<String> lines = Files.readAllLines(configPath);
 
 			ParsedTree pt = new ParsedTree();
+			pt.outputs = new HashSet<>();
+			pt.outputs.add("cs");
+			pt.outputs.add("rust");
+			pt.outputs.add("js");
+			pt.outputs.add("cpp");
+			pt.outputs.add("java");
 			pt.moduleName = "module";
 			pt.loaderName = "loader";
 			pt.typeFileEnding = "typedef";
@@ -526,6 +540,11 @@ public class Compiler {
 						mixkiOnly = Boolean.parseBoolean(line.substring(11));
 					} else if (line.startsWith("src:")) {
 						sourceFolder = line.substring(4);
+					} else if (line.startsWith("outputs:")) {
+						pt.outputs.clear();
+						for (String wh : line.substring(8).split(" ")) {
+							pt.outputs.add(wh);
+						}
 					}
 				}
 			}

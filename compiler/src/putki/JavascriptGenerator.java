@@ -15,7 +15,7 @@ public class JavascriptGenerator
 {
     public static void generateDescriptors(Compiler comp, CodeWriter writer)
     {
-        for (Compiler.ParsedTree tree : comp.allTrees())
+        for (Compiler.ParsedTree tree : comp.allTrees("js"))
         {
 	        generateTypeDescriptors(comp, tree, writer);
         }

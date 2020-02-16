@@ -327,7 +327,7 @@ public class CSharpGenerator
 
     public static void generateMixkiParsers(Compiler comp, CodeWriter writer)
     {
-        for (Compiler.ParsedTree tree : comp.allTrees())
+        for (Compiler.ParsedTree tree : comp.allTrees("cs"))
         {
             Path mixki = tree.genCodeRoot.resolve("csharp").resolve("mixki");
             Path fn = mixki.resolve(tree.loaderName + ".cs");
@@ -406,7 +406,7 @@ public class CSharpGenerator
 
     public static void generateOutkiStructs(Compiler comp, CodeWriter writer)
     {
-        for (Compiler.ParsedTree tree : comp.allTrees())
+        for (Compiler.ParsedTree tree : comp.allTrees("cs"))
         {
             Path mixki = tree.genCodeRoot.resolve("csharp").resolve("outki");
             Path fn = mixki.resolve(tree.moduleName + ".cs");
@@ -516,7 +516,7 @@ public class CSharpGenerator
 
     public static void generateOutkiDataLoader(Compiler comp, CodeWriter writer)
     {
-        for (Compiler.ParsedTree tree : comp.allTrees())
+        for (Compiler.ParsedTree tree : comp.allTrees("cs"))
         {
             Path mixki = tree.genCodeRoot.resolve("csharp").resolve("outki");
             Path fn = mixki.resolve(tree.moduleName + "Loader.cs");
@@ -776,7 +776,7 @@ public class CSharpGenerator
 
     public static void generateNetkiStructs(Compiler comp, CodeWriter writer)
     {
-        for (Compiler.ParsedTree tree : comp.allTrees())
+        for (Compiler.ParsedTree tree : comp.allTrees("cs"))
         {
             Path mixki = tree.genCodeRoot.resolve("csharp").resolve("netki");
             Path fn = mixki.resolve(tree.moduleName + ".cs");

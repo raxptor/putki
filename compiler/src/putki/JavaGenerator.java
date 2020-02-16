@@ -16,7 +16,7 @@ public class JavaGenerator
 
 	public static void generateEditorProxys(Compiler comp, CodeWriter writer)
 	{
-		for (Compiler.ParsedTree tree : comp.allTrees())
+		for (Compiler.ParsedTree tree : comp.allTrees("java"))
 		{
 			Path mixki = tree.genCodeRoot.resolve("java").resolve("putked").resolve("inki");
 			Path fn = mixki.resolve(tree.moduleName + ".java");
