@@ -451,7 +451,8 @@ public class CSharpGenerator
                     if ((struct.domains & Compiler.DOMAIN_OUTPUT) == 0)
                         continue;
                     sb.append("\n");
-                    sb.append(pfx).append("[System.Serializable]");
+// TODO: make option for this
+//                  sb.append(pfx).append("[System.Serializable]");
                     if (struct.isValueType)
                         sb.append(pfx).append("public struct " + struct.name);
                     else
