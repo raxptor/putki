@@ -1175,6 +1175,19 @@ ipcRenderer.on('configuration', function(evt, config) {
             dataloader.load_tree(path.join(root, config.data["data-root"]), Data, FileSet);
         }
     }
+
+    // clear out objects of unrecognized types
+    for (var pt in Data)
+    {
+        var t = Data[pt]._type;
+        if (t !== undefined && UserTypes[t] === undefined)
+        {
+            console.log("Clearing object at path ", pt, " because it has unrecognized type", t);
+            delete Data[pt];
+        }
+    }
+
+
     if (config.data["data-bundle"] !== undefined) {
         var tmp = JSON.parse(fs.readFileSync(path.join(root, config.data["data-bundle"]), "utf-8"));
         for (var x in tmp.data) {
