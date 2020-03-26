@@ -1102,6 +1102,42 @@ ipcRenderer.on('save', function(event) {
 
 ipcRenderer.send('request-configuration');
 
+function dig_with_type(obj, def_type, cb)
+{
+    if (typeof obj === 'string')
+    {
+        return;
+    }
+    var tn = obj["_type"] || def_type;
+    var t = resolve_type(tn);
+    if (t === undefined)
+    {
+        console.log("Encountered object with unkown type ", obj, tn, def_type);
+        return;
+    }
+    cb(obj, tn);    
+    for (var i in t.ExpandedFields)
+    {
+        var field_name = t.ExpandedFields[i].Name;
+        if (!obj.hasOwnProperty(field_name))
+        {
+            continue;
+        }
+        var value = obj[field_name];
+        if (value === undefined)
+            continue;
+        var sub_type = t.ExpandedFields[i].Type;
+        if (t.ExpandedFields[i].Array)
+        {
+            for (var j=0;j<value.length;j++)
+            {
+                dig_with_type(value[j], sub_type, cb);
+            }
+        }
+        dig_with_type(value, sub_type, cb);
+    }
+}
+
 ipcRenderer.on('configuration', function(evt, config) {
     var js = config.data["gen-js"];
     var plugins = config.data["plugins"];
@@ -1197,7 +1233,7 @@ ipcRenderer.on('configuration', function(evt, config) {
         console.log("Loaded data bundle from revision ", Revision);
     }
     data_manglers.forEach(x => {
-        x(Data);
+        x(Data, dig_with_type);
     });
     add_page("Index", function(page) {
         var browser = databrowser.create(page, UserTypes, Data, Plugins, plugin_config(), function preview(d) {    
