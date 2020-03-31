@@ -24,7 +24,7 @@ namespace Mixki
 		string m_root;
 		Dictionary<String, object> m_raw;
 		Dictionary<String, object> m_parsed;
-		Dictionary<String, ParseFn> m_parsers;
+        Dictionary<String, ParseFn> m_parsers;
 		List<String> m_pathStack = new List<string>();
 
         public Dictionary<String, object> AllParsed()
@@ -96,7 +96,26 @@ namespace Mixki
 		}
 
 		static int m_inlineCounter = 0;
+
         static public bool AssignPathsToAllObjects = false;
+        static public bool RecordLoadOrder = false;
+        static public Dictionary<object, int> s_loadOrderData = new Dictionary<object, int>();
+        static int s_loadOrder;
+
+        static void RecordLoaded(object obj)
+        {
+            if (RecordLoadOrder)
+            {
+                s_loadOrderData[obj] = s_loadOrder++;
+            }
+        }
+
+        public static int GetLoadOrder(object obj)
+        {
+            int order = -1;
+            s_loadOrderData.TryGetValue(obj, out order);
+            return order;
+        }
 
         // This happens when an object pointed to
         public void PostInlineResolve(string path, object obj)
@@ -104,6 +123,7 @@ namespace Mixki
             if (AssignPathsToAllObjects) {
                 string ipath = path + "##inline" + ((m_inlineCounter++).ToString());
                 m_parsed.Add(ipath, obj);
+                RecordLoaded(obj);
             }
         }
 
@@ -123,8 +143,9 @@ namespace Mixki
 
 				object parsed = inlineFn(this, ipath, value as Dictionary<string, object>, inlineFn(this, null, null, null, false), false);
 				m_parsed.Add(ipath, parsed);
-				Putki.PackageManager.RegisterLoaded(ipath, parsed);
-				return (Type) parsed;
+                RecordLoaded(parsed);
+                Putki.PackageManager.RegisterLoaded(ipath, parsed);                
+                return (Type) parsed;
 			}
 				
 			string path = value.ToString();
@@ -190,7 +211,8 @@ namespace Mixki
 				{
 					object prep = p(null, null, null, null, false);
 					m_parsed.Add(path, prep);
-					m_pathStack.Add(path);
+                    RecordLoaded(prep);
+                    m_pathStack.Add(path);
 					p(this, assetPath, datas, prep, false);
 					m_pathStack.RemoveAt(m_pathStack.Count - 1);
 					Putki.PackageManager.RegisterLoaded(path, prep);
