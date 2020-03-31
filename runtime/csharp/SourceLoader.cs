@@ -7,7 +7,7 @@ namespace Mixki
 {
 	public class SourceLoader
 	{
-		public delegate object ParseFn(SourceLoader loader, string path, Dictionary<string, object> obj, object parseInto);
+		public delegate object ParseFn(SourceLoader loader, string path, Dictionary<string, object> obj, object parseInto, bool addAsInline);
 		public delegate void LogFn(string txt);
 
 		public struct Parser
@@ -96,8 +96,18 @@ namespace Mixki
 		}
 
 		static int m_inlineCounter = 0;
+        static public bool AssignPathsToAllObjects = false;
 
-		public Type Resolve<Type>(object value, ParseFn inlineFn = null)
+        // This happens when an object pointed to
+        public void PostInlineResolve(string path, object obj)
+        {
+            if (AssignPathsToAllObjects) {
+                string ipath = path + "##inline" + ((m_inlineCounter++).ToString());
+                m_parsed.Add(ipath, obj);
+            }
+        }
+
+        public Type Resolve<Type>(object value, ParseFn inlineFn = null)
 		{
 			if (value is Dictionary<string, object>)
 			{
@@ -111,7 +121,7 @@ namespace Mixki
 					ipath = "##inline" + ((m_inlineCounter++).ToString());
 				}
 
-				object parsed = inlineFn(this, ipath, value as Dictionary<string, object>, inlineFn(this, null, null, null));
+				object parsed = inlineFn(this, ipath, value as Dictionary<string, object>, inlineFn(this, null, null, null, false), false);
 				m_parsed.Add(ipath, parsed);
 				Putki.PackageManager.RegisterLoaded(ipath, parsed);
 				return (Type) parsed;
@@ -178,10 +188,10 @@ namespace Mixki
 				ParseFn p;
 				if (m_parsers.TryGetValue(Normalize(type), out p))
 				{
-					object prep = p(null, null, null, null);
+					object prep = p(null, null, null, null, false);
 					m_parsed.Add(path, prep);
 					m_pathStack.Add(path);
-					p(this, assetPath, datas, prep);
+					p(this, assetPath, datas, prep, false);
 					m_pathStack.RemoveAt(m_pathStack.Count - 1);
 					Putki.PackageManager.RegisterLoaded(path, prep);
 					return (Type) prep;

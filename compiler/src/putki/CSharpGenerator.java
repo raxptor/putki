@@ -125,10 +125,10 @@ public class CSharpGenerator
                 sb.append("float.Parse(" + src + ".ToString(), System.Globalization.CultureInfo.InvariantCulture)");
                 break;
             case STRUCT_INSTANCE:
-                sb.append("(Outki." + field.resolvedRefStruct.name + ")" + field.resolvedRefStruct.loaderName + "." + field.resolvedRefStruct.name + "Fn(loader, path, " + src + ", null)");
+                sb.append("(Outki." + field.resolvedRefStruct.name + ")" + field.resolvedRefStruct.loaderName + "." + field.resolvedRefStruct.name + "Fn(loader, path, " + src + ", null, true)");
                 break;
             case ENUM:
-                sb.append("(Outki." + field.resolvedEnum.name + ")" + field.resolvedEnum.loaderName + "." + field.resolvedEnum.name + "EnumFn(loader, path, " + src + ", null)");
+                sb.append("(Outki." + field.resolvedEnum.name + ")" + field.resolvedEnum.loaderName + "." + field.resolvedEnum.name + "EnumFn(loader, path, " + src + ", null, false)");
                 break;
             default:
                 sb.append("0 /* TODO: Implement me */");
@@ -149,14 +149,22 @@ public class CSharpGenerator
                 String npfx = "\n\t\t\t";
                 String outki = "Outki." + struct.name;
                 sb.append("\n");
-                sb.append("\t\tstatic object " + struct.name + "Fn(SourceLoader loader, string path, object dict_or_path, object parseInto) {");
+                sb.append("\t\tstatic object " + struct.name + "Fn(SourceLoader loader, string path, object dict_or_path, object parseInto, bool addAsInline) {");
                 sb.append(npfx).append("var obj = dict_or_path as Dictionary<string, object>;");
                 sb.append(npfx).append("if (obj == null && dict_or_path != null)");
                 sb.append(npfx).append("\treturn loader.Resolve<Outki." + struct.name + ">(dict_or_path.ToString());");
                 
                 sb.append(npfx).append(outki + " target = parseInto == null ? new " + outki + "() : (" + outki + ")parseInto;");
                 sb.append(npfx).append("if (obj == null) return target;");
-                sb.append(npfx).append("return " + struct.name + "ParseInto(loader, path, obj, target);");
+                sb.append(npfx).append("var result = " + struct.name + "ParseInto(loader, path, obj, target);");
+                if (!struct.isValueType)
+                {
+                	sb.append(npfx).append("if (addAsInline) {");
+                	sb.append(npfx).append("\tloader.PostInlineResolve(path, result);");
+                	sb.append(npfx).append("}");
+                }
+                
+                sb.append(npfx).append("return result;");
                 sb.append("\n\t\t}\n");
                 sb.append("\n\t\tstatic Outki." + struct.name + " " + struct.name + "ParseInto(SourceLoader loader, string path, Dictionary<string, object> source, Outki." + struct.name + " target) {");
 
@@ -312,7 +320,7 @@ public class CSharpGenerator
             for (ParsedEnum e : file.enums)
             {
                 sb.append("\n");
-                sb.append("\t\tstatic object " + e.name + "EnumFn(SourceLoader loader, string path, object obj, object parseInto)");
+                sb.append("\t\tstatic object " + e.name + "EnumFn(SourceLoader loader, string path, object obj, object parseInto, bool addAsInline)");
                 sb.append("\n\t\t{");
                 String npfx = "\n\t\t\t";
                 sb.append(npfx).append("string tmp = obj.ToString();");
