@@ -60,6 +60,9 @@ function format(types, data, indent, typename, paths, build_fns)
     nlsep = "\n" + "\t".repeat(indent+1);
     finsep = "\n" + "\t".repeat(indent);
 
+    if (data === null)
+        return "null";
+
     if (data.constructor == String && unfiltered.indexOf(typename) != -1)
     {
         return data;
@@ -74,7 +77,11 @@ function format(types, data, indent, typename, paths, build_fns)
     {
         var pcs = [];
         for (var k=0;k<data.length;k++) {
-            pcs.push(format(types, data[k], indent+1, typename, paths, build_fns));
+            var pc = format(types, data[k], indent+1, typename, paths, build_fns);
+            if (pc != null)
+                pcs.push(pc);
+            else
+                pcs.push("{}");
         }
         return "[" + nlsep + pcs.join(delim + nlsep) + finsep + "]";
     }
