@@ -236,7 +236,7 @@ function create_pointer_preview(object, default_type)
             if (type.hasOwnProperty("Parent"))
                 descs.push("@" + resolve_type(object._type).PrettyName);
         }
-        if (object._path !== undefined && object._path[0] != '&')
+        if (object._path !== undefined && object._path[0] != '&' && object._path.indexOf("guid/") != 0)
             descs.push(object._path);
         descs.push(create_object_preview_txt(object, resolve_type(object._type || default_type)));
         root.appendChild(document.createTextNode(descs.join(' ')));
@@ -830,6 +830,8 @@ function build_full_entry(objdesc, on_new_path, editor_func)
     var _path = document.createElement('x-path');
     var _type_text = document.createTextNode("@" + resolve_type(objdesc.type).PrettyName + " ");
     var _path_text = document.createTextNode(objdesc.path !== undefined ? objdesc.path : "<anonymous>");
+    if (objdesc.path !== undefined && objdesc.path.indexOf("guid/") == 0)
+        _path_text.textContent = "<guid>";
     _path.appendChild(_type_text);
     _path.appendChild(_path_text);
     _entry.appendChild(_path);
