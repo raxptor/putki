@@ -850,6 +850,10 @@ function build_full_entry(objdesc, on_new_path, editor_func)
                     Data[p] = old;
                     old._path = p;
                 }
+                if (objdesc.data._type == undefined) {
+                    console.log("Inserting type on object.");
+                    objdesc.data._type = objdesc.type;
+                }
                 objdesc.path = p;
                 _path_text.textContent = p;
                 if (on_new_path)
