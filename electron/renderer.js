@@ -205,7 +205,7 @@ function update_auto_complete(list_id)
                 var k = [];
                 var lower = term.toLowerCase();
                 for (var i=0;i<l.length;i++) {
-                    if (l[i].value.toLowerCase().indexOf(term) != -1)
+                    if (l[i].value.toLowerCase().indexOf(lower) != -1)
                         k.push(l[i].value);
                 }                
                 suggest(k);
