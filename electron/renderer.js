@@ -497,7 +497,8 @@ function create_type_editor(ed, is_array_element)
             {
                 opts[x] = { display: ptypes[x].PrettyName, data: x }
             }
-            ipcRenderer.send('edit-pointer', { types: opts });
+            console.log("can inline =", (typeof ed.data[ed.datafield] === 'string'));
+            ipcRenderer.send('edit-pointer', { types: opts, can_inline: (typeof ed.data[ed.datafield] === 'string') });
             nextEditPointer = function(arg) {
                 if (arg == "@clear") {
                     ed.data[ed.datafield] = default_value(ed.field, is_array_element);
@@ -522,8 +523,16 @@ function create_type_editor(ed, is_array_element)
                             on_change();
                         }
                     });
-                }
-                else {
+                } else if (arg == "@inline") {
+                    var path = ed.data[ed.datafield];
+                    if (Data[path] !== undefined)
+                    {
+                        ed.data[ed.datafield] = Data[path];
+                        delete Data[path];
+                        on_inline_changed(dom.inline);
+                        on_change();
+                    }
+                } else {
                     ed.data[ed.datafield] = {
                         _type: arg.data
                     };
