@@ -10,6 +10,7 @@ import putki.Compiler.ParsedFile;
 import putki.Compiler.ParsedStruct;
 import putki.Compiler.ParsedTree;
 import putki.CppGenerator.Platform;
+import java.util.List;
 
 public class JavascriptGenerator
 {
@@ -51,6 +52,29 @@ public class JavascriptGenerator
 	public static String enumName(Compiler.ParsedEnum e)
 	{
 		return e.name;
+	}
+	
+	public static String escape(String s)
+	{
+		return s.replace("\"", "\\\"");
+	}
+	
+	public static String annotations(List<Compiler.Annotation> ans)
+	{
+		StringBuilder sb = new StringBuilder();
+		sb.append("[");
+		boolean f = true; 
+		for (Compiler.Annotation an : ans)
+		{
+			if (!f)
+			{
+				sb.append(", ");
+			}
+			f = false;
+			sb.append("{ Type:\"" + an.Type + "\", Text:\"" + escape(an.Text) + "\" }");
+		}
+		sb.append("]");
+		return sb.toString();
 	}
 
     public static void generateTypeDescriptors(Compiler comp, Compiler.ParsedTree tree, CodeWriter writer)
@@ -95,9 +119,10 @@ public class JavascriptGenerator
 
             	sb.append("\n\t\tPrettyName:\"" + struct.name + "\"");
            		sb.append(",\n\t\tPermitAsAsset:" + struct.permitAsAsset);
-           		sb.append(",\n\t\tIsTypeRoot:" + struct.isTypeRoot);
+           		sb.append(",\n\t\tIsTypeRoot:" + struct.isTypeRoot)	 	;
            		sb.append(",\n\t\tIsValueType:" + struct.isValueType);
            		sb.append(",\n\t\tRequirePath:" + struct.requirePath);
+           		sb.append(",\n\t\tAnnotations:" + annotations(struct.annotations));
            		if (struct.resolvedParent != null)
            			sb.append(",\n\t\tParent:\""+  struct.resolvedParent.name.toLowerCase() + "\"");
        			sb.append(",\n\t\tFields: [");
@@ -111,7 +136,7 @@ public class JavascriptGenerator
                 		sb.append(",");
                 	ff = false;
                 	sb.append(prefix).append("{ Name:\"" + field.name.toLowerCase() + "\", Type:\"");
-                	switch (field.type)
+                	switch (field.type)	
                 	{
                 		case INT32: sb.append("I32"); break;
                 		case UINT32: sb.append("U32"); break;
@@ -134,6 +159,7 @@ public class JavascriptGenerator
                 	sb.append(", PrettyName:\"" + field.name + "\"");
                 	sb.append(", Array:" + field.isArray + ", Pointer:" + ptr);
                 	sb.append(", ShowInEditor: " + field.showInEditor);
+                	sb.append(", Annotations:" + annotations(field.annotations));
 
                 	if (field.localizationCategory != null)
                 		sb.append(", LocalizationCategory: \"" + field.localizationCategory + "\"");

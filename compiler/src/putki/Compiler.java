@@ -20,8 +20,17 @@ public class Compiler {
 	public enum FieldType {
 		INT32, UINT32, FLOAT, BYTE, BOOL, STRING, POINTER, HASH, PATH, STRUCT_INSTANCE, ENUM, FILE
 	}
+	
+	public enum AnnotationType {
+		DESCRIPTION, INFO, WARNING, INVALID
+	}
+	
+	public class Annotation {
+		public AnnotationType Type;
+		public String Text;
+	}
 
-	public class ParsedField {
+	public class ParsedField {		
 		public int index;
 		public int domains;
 		public boolean isArray;
@@ -40,9 +49,10 @@ public class Compiler {
 		public boolean stringIsText;
 		public String localizationCategory;
 		public boolean localizationPlural;
+		public List<Annotation> annotations;
 	}
 
-	public class ParsedStruct {
+	public class ParsedStruct {			
 		public int domains;
 		public int uniqueId;
 		public String name;
@@ -59,6 +69,7 @@ public class Compiler {
 
 		public ParsedStruct resolvedParent;
 		public List<ParsedStruct> possibleChildren;
+		public List<Annotation> annotations;
 
 		public boolean hasParent(ParsedStruct p) {
 			ParsedStruct c = this;
@@ -284,7 +295,10 @@ public class Compiler {
 		}
 
 		if (gotType && !readRefType) {
-			cur.fields.add(next);
+			next.annotations = new ArrayList<Annotation>();
+			next.annotations.addAll(annotations);
+			annotations.clear();			
+			cur.fields.add(next);			
 			return true;
 		} else {
 			System.out.println("line [" + line + "] parse status gotType:" + gotType + " type=" + next.type + "  name:"
@@ -292,6 +306,8 @@ public class Compiler {
 		}
 		return false;
 	}
+
+	List<Annotation> annotations = new ArrayList<Annotation>();
 
 	public ParsedFile parseFile(File f, String path) throws IOException {
 		System.out.println("Parsing [" + path + "]");
@@ -321,6 +337,7 @@ public class Compiler {
 		ParsedEnum curEnum = null;
 		ParsedStruct curStruct = null;
 		boolean entered = false;
+				
 		for (int i = 0; i < lines.size(); i++) {
 			String line = lines.get(i).trim();
 			int comment = line.indexOf("//");
@@ -330,6 +347,30 @@ public class Compiler {
 
 			if (line.length() == 0) {
 				continue;
+			}
+			if (line.startsWith("[") && line.endsWith("]")) {
+				int sep = line.indexOf(':');
+				if (sep != -1)
+				{
+					AnnotationType at = AnnotationType.INVALID;
+					String type = line.substring(1, sep);
+					String value = line.substring(sep + 1, line.length()-1);
+					if (type.contentEquals("Info")) 
+						at = AnnotationType.INFO;
+					else if (type.contentEquals("Warning")) 
+						at = AnnotationType.WARNING;
+					else if (type.contentEquals("Description")) 
+						at = AnnotationType.DESCRIPTION;
+					else
+						error(path, i, "Invalid annotation type [" + type+  "], use Info, Warning or Description");
+					if (value.length() == 0)
+						error(path, i, "Empty annotation value");
+					Annotation a = new Annotation();
+					a.Type = at;
+					a.Text = value;
+					annotations.add(a);
+					continue;
+				}
 			}
 
 			if (line.startsWith("%include")) {
@@ -421,6 +462,9 @@ public class Compiler {
 						curStruct.fields = new ArrayList<ParsedField>();
 						curStruct.permitAsAsset = true;
 						curStruct.permitAsAux = true;
+						curStruct.annotations = new ArrayList<Annotation>();
+						curStruct.annotations.addAll(annotations);
+						annotations.clear();
 						readModifiers = j + 1;
 						break;
 					}
@@ -660,7 +704,7 @@ public class Compiler {
 					field.resolvedEnum = enumsByName.get(field.refType);
 					if (field.resolvedEnum == null) {
 						System.out.println("Unresolved enum name [" + field.refType + "] in field " + struct.name + "."
-								+ field.name);
+								+ field.name); 
 						return false;
 					}
 				} else if (field.refType != null) {
