@@ -35,6 +35,22 @@ function format_string(str, indent)
 
 var unfiltered = ["I32", "U32", "U8", "Float", "Bool"];
 
+function generateUUID() { // Public Domain/MIT
+    var d = new Date().getTime();//Timestamp
+    var d2 = (performance && performance.now && (performance.now()*1000)) || 0;//Time in microseconds since page-load or 0 if unsupported
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+        var r = Math.random() * 16;//random number between 0 and 16
+        if(d > 0){//Use timestamp until depleted
+            r = (d + r)%16 | 0;
+            d = Math.floor(d/16);
+        } else {//Use microseconds since page-load if supported
+            r = (d2 + r)%16 | 0;
+            d2 = Math.floor(d2/16);
+        }
+        return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+    });
+}
+
 function format(types, data, indent, typename, paths, build_fns)
 {
     var delim = ",";
@@ -60,6 +76,9 @@ function format(types, data, indent, typename, paths, build_fns)
     nlsep = "\n" + "\t".repeat(indent+1);
     finsep = "\n" + "\t".repeat(indent);
 
+    if (data === null)
+        return "null";
+
     if (data.constructor == String && unfiltered.indexOf(typename) != -1)
     {
         return data;
@@ -74,7 +93,11 @@ function format(types, data, indent, typename, paths, build_fns)
     {
         var pcs = [];
         for (var k=0;k<data.length;k++) {
-            pcs.push(format(types, data[k], indent+1, typename, paths, build_fns));
+            var pc = format(types, data[k], indent+1, typename, paths, build_fns);
+            if (pc != null)
+                pcs.push(pc);
+            else
+                pcs.push("{}");
         }
         return "[" + nlsep + pcs.join(delim + nlsep) + finsep + "]";
     }
@@ -113,19 +136,18 @@ function format(types, data, indent, typename, paths, build_fns)
             // need to assign path also to get the header written
             data._type = data._type || typename;
             if (data._path == undefined) {
-                var strd = JSON.stringify(data);
-                var check = "&" + md5(strd).substr(0, 6);
-                var counter = 2;
-                while (paths.hasOwnProperty(check)) {
-                    check = "&" + md5(strd).substr(0, 6) + "-" + counter;
-                    counter++;
-                }
+                var check = "guid/" + generateUUID();
                 console.log("Assigned path ", check, " to type ", data._type);
                 data._path = check;
                 paths[data._path] = true;
             } else {
                 paths[data._path] = true;
             }
+        }
+
+        if (data._path !== undefined) {
+            // enforce output of type if path is present.                        
+            data._type = data._type || typename;
         }
 
         var hdr = "";

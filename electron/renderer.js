@@ -1,6 +1,7 @@
 const { ipcRenderer } = require('electron');
 const dataloader = require('./dataloader');
 const datawriter = require('./datawriter')
+const annotations = require("./annotations");
 const popups = require('./popups');
 const path = require('path');
 const fs = require('fs');
@@ -205,7 +206,7 @@ function update_auto_complete(list_id)
                 var k = [];
                 var lower = term.toLowerCase();
                 for (var i=0;i<l.length;i++) {
-                    if (l[i].value.toLowerCase().indexOf(term) != -1)
+                    if (l[i].value.toLowerCase().indexOf(lower) != -1)
                         k.push(l[i].value);
                 }                
                 suggest(k);
@@ -236,7 +237,7 @@ function create_pointer_preview(object, default_type)
             if (type.hasOwnProperty("Parent"))
                 descs.push("@" + resolve_type(object._type).PrettyName);
         }
-        if (object._path !== undefined && object._path[0] != '&')
+        if (object._path !== undefined && object._path[0] != '&' && object._path.indexOf("guid/") != 0)
             descs.push(object._path);
         descs.push(create_object_preview_txt(object, resolve_type(object._type || default_type)));
         root.appendChild(document.createTextNode(descs.join(' ')));
@@ -497,7 +498,8 @@ function create_type_editor(ed, is_array_element)
             {
                 opts[x] = { display: ptypes[x].PrettyName, data: x }
             }
-            ipcRenderer.send('edit-pointer', { types: opts });
+            console.log("can inline =", (typeof ed.data[ed.datafield] === 'string'));
+            ipcRenderer.send('edit-pointer', { types: opts, can_inline: (typeof ed.data[ed.datafield] === 'string') });
             nextEditPointer = function(arg) {
                 if (arg == "@clear") {
                     ed.data[ed.datafield] = default_value(ed.field, is_array_element);
@@ -522,8 +524,16 @@ function create_type_editor(ed, is_array_element)
                             on_change();
                         }
                     });
-                }
-                else {
+                } else if (arg == "@inline") {
+                    var path = ed.data[ed.datafield];
+                    if (Data[path] !== undefined)
+                    {
+                        ed.data[ed.datafield] = Data[path];
+                        delete Data[path];
+                        on_inline_changed(dom.inline);
+                        on_change();
+                    }
+                } else {
                     ed.data[ed.datafield] = {
                         _type: arg.data
                     };
@@ -676,7 +686,10 @@ function create_property(parent, row, objdesc, is_array_element, expanded)
         if (objdesc.field.LocalizationCategory) {
             disp_prop_name = disp_prop_name + "\u00A0{loc}";
         }
-        _prop_name.appendChild(document.createTextNode(disp_prop_name));
+        var sp = document.createElement("span");
+        sp.appendChild(document.createTextNode(disp_prop_name));
+        _prop_name.appendChild(sp);
+        annotations.addAnnotation(sp, objdesc.field.Annotations);
         _prop_name.style.gridRow = row;
         parent.appendChild(_prop_name);
         update_label = function() {
@@ -826,13 +839,19 @@ function build_block_entry(objdesc)
 
 function build_full_entry(objdesc, on_new_path, editor_func)
 {
+    var t = resolve_type(objdesc.type);
     var _entry = document.createElement('x-entry'); 
     var _path = document.createElement('x-path');
-    var _type_text = document.createTextNode("@" + resolve_type(objdesc.type).PrettyName + " ");
+    var _type_text = document.createTextNode("@" + t.PrettyName + " ");
     var _path_text = document.createTextNode(objdesc.path !== undefined ? objdesc.path : "<anonymous>");
+    if (objdesc.path !== undefined && objdesc.path.indexOf("guid/") == 0)
+        _path_text.textContent = "<guid>";
     _path.appendChild(_type_text);
     _path.appendChild(_path_text);
     _entry.appendChild(_path);
+    if (t.Annotations !== undefined && t.Annotations.length > 0)
+        _entry.appendChild(annotations.makeAnnotationBox(t.Annotations));
+
     if (editor_func != null) {
         _entry.appendChild(editor_func(plugin_config(), objdesc));
     } else {
@@ -847,6 +866,10 @@ function build_full_entry(objdesc, on_new_path, editor_func)
                     delete Data[objdesc.path];
                     Data[p] = old;
                     old._path = p;
+                }
+                if (objdesc.data._type == undefined) {
+                    console.log("Inserting type on object.");
+                    objdesc.data._type = objdesc.type;
                 }
                 objdesc.path = p;
                 _path_text.textContent = p;
@@ -891,7 +914,8 @@ function plugin_config()
         build_root_entry: build_root_entry,
         build_full_entry: function(x,y,z) { return reload_wrapped(function() { return build_full_entry(x, y, z); }); },
         electron: {
-            dialogs: dialogs
+            dialogs: dialogs,
+            popups: popups
         }
     }
 }

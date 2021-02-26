@@ -197,7 +197,8 @@ function parse(status, rootlevel)
                         {
                             // it has path
                             var path = pcs[1].trim();
-                            data["_path"] = path;
+                            if (path.length > 0 && path[0] != "&")
+                                data["_path"] = path;
                             data["_file"] = status.file;
                             if (rootlevel)
                                 status.result[path] = data;

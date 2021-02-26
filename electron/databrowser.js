@@ -1,5 +1,6 @@
 const { ipcRenderer } = require('electron');
 var popups = require('./popups');
+var annotations = require('./annotations');
 var Dialogs = require("dialogs");
 var dialogs = new Dialogs({});
 

@@ -13,6 +13,16 @@ x-info {
     flex-direction: column;
 }
 
+.tiny-annotation {
+    margin-left: 2px;
+    border: 1px solid #999;
+    color: #999;
+}
+
+.has-annotation {
+    //background-color: #ddf;
+}
+
 x-entry {
     background-color: #fff;
     display: block;
@@ -111,6 +121,14 @@ td.value {
     margin: 3px;
     padding-left: 5px;
     padding-right: 5px;
+}
+
+x-annotation {
+    display: block;
+    background-color: #eef;
+    border: 1px solid black;
+    padding: 2px;
+    margin: 5px;
 }
 
 x-properties .no-value {

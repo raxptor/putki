@@ -243,6 +243,11 @@ namespace Mixki
 
 		public void InsertRawObj(string path, Dictionary<string, object> obj)
 		{
+			if (m_raw.ContainsKey(path))
+			{
+				Logger("DUPLICATE OBJECT ON PATH [" + path + "]");
+				//return;
+			}
 			m_raw.Add(path, obj);
 		}
 
