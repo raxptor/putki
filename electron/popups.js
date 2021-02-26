@@ -1,4 +1,5 @@
 var Dialogs = require("dialogs");
+var annotations = require('./annotations');
 var dialogs = new Dialogs({});
 
 function ask_with_filter(make_contents, on_done, accept_any)
@@ -44,6 +45,9 @@ function ask_with_filter(make_contents, on_done, accept_any)
                 pick = tp;
             }
             var nm = document.createTextNode(tp.display);
+            if (tp.annotations !== undefined) {
+                typeBox.setAttribute("title", annotations.format(tp.annotations));
+            }
             typeBox.appendChild(nm);
             listBox.appendChild(typeBox);
             (function(type) {
@@ -110,7 +114,8 @@ exports.ask_type = function(alltypes, type_name_root, on_done, only_assets)
             filtered.push({
                 data: idx,
                 exact: idx == lower,
-                display: '@' + tp.PrettyName
+                display: '@' + tp.PrettyName,
+                annotations: tp.Annotations
             });
         }
         return filtered;

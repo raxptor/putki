@@ -1,6 +1,7 @@
 const { ipcRenderer } = require('electron');
 const dataloader = require('./dataloader');
 const datawriter = require('./datawriter')
+const annotations = require("./annotations");
 const popups = require('./popups');
 const path = require('path');
 const fs = require('fs');
@@ -685,7 +686,10 @@ function create_property(parent, row, objdesc, is_array_element, expanded)
         if (objdesc.field.LocalizationCategory) {
             disp_prop_name = disp_prop_name + "\u00A0{loc}";
         }
-        _prop_name.appendChild(document.createTextNode(disp_prop_name));
+        var sp = document.createElement("span");
+        sp.appendChild(document.createTextNode(disp_prop_name));
+        _prop_name.appendChild(sp);
+        annotations.addAnnotation(sp, objdesc.field.Annotations);
         _prop_name.style.gridRow = row;
         parent.appendChild(_prop_name);
         update_label = function() {
@@ -835,15 +839,19 @@ function build_block_entry(objdesc)
 
 function build_full_entry(objdesc, on_new_path, editor_func)
 {
+    var t = resolve_type(objdesc.type);
     var _entry = document.createElement('x-entry'); 
     var _path = document.createElement('x-path');
-    var _type_text = document.createTextNode("@" + resolve_type(objdesc.type).PrettyName + " ");
+    var _type_text = document.createTextNode("@" + t.PrettyName + " ");
     var _path_text = document.createTextNode(objdesc.path !== undefined ? objdesc.path : "<anonymous>");
     if (objdesc.path !== undefined && objdesc.path.indexOf("guid/") == 0)
         _path_text.textContent = "<guid>";
     _path.appendChild(_type_text);
     _path.appendChild(_path_text);
     _entry.appendChild(_path);
+    if (t.Annotations !== undefined && t.Annotations.length > 0)
+        _entry.appendChild(annotations.makeAnnotationBox(t.Annotations));
+
     if (editor_func != null) {
         _entry.appendChild(editor_func(plugin_config(), objdesc));
     } else {
