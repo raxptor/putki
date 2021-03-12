@@ -211,9 +211,9 @@ namespace Mixki
 				{
 					object prep = p(null, null, null, null, false);
 					m_parsed.Add(path, prep);
-                    RecordLoaded(prep);
-                    m_pathStack.Add(path);
-					p(this, assetPath, datas, prep, false);
+					RecordLoaded(prep);
+					m_pathStack.Add(path);
+					prep = p(this, assetPath, datas, prep, false);
 					m_pathStack.RemoveAt(m_pathStack.Count - 1);
 					Putki.PackageManager.RegisterLoaded(path, prep);
 					return (Type) prep;
