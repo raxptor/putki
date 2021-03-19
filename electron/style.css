@@ -377,3 +377,51 @@ x-page {
     grid-column: 1;
     margin: 4px;
 }
+
+
+x-inline-preview {
+    display: inline;
+}
+
+x-inline-preview::before {
+    content: "{"
+}
+
+x-inline-preview::after {
+    content: "}"
+}
+
+x-preview-property {
+    display: inline;    
+}
+
+x-preview-property.notfirst::before {
+    content: " "
+}
+
+x-preview-prop-name {
+    display: inline;
+}
+
+x-preview-path {
+    display: inline;
+    color: #156d00;
+    margin-right: 6px;
+}
+
+x-preview-prop-value {
+    display: inline;
+    color: #0021cd;
+}
+
+x-browser input[type="text"] {
+    width: 100%;
+}
+
+x-preview-property.highlight {
+    font-weight: bold;
+}
+
+x-preview-prop-value.highlight {
+    font-weight: bold;
+}

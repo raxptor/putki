@@ -230,20 +230,24 @@ function create_pointer_preview(object, default_type)
     if (object instanceof Object)
     {
         var root = document.createElement('div');
-
+        var descs = document.createElement('div');
         if (object._type !== undefined) {
             // only add type if it has parent, otherwise it is implied.
             var type = resolve_type(object._type);
             if (type.hasOwnProperty("Parent"))
-                descs.push("@" + resolve_type(object._type).PrettyName);
+                descs.appendChild(document.createTextNode("@" + resolve_type(object._type).PrettyName));
         }
         if (object._path !== undefined && object._path[0] != '&' && object._path.indexOf("guid/") != 0)
-            descs.push(object._path);
-        descs.push(create_object_preview_txt(object, resolve_type(object._type || default_type)));
-        root.appendChild(document.createTextNode(descs.join(' ')));
+        {
+            var pn = document.createElement('x-preview-path');            
+            pn.appendChild(document.createTextNode(object._path));
+            descs.appendChild(pn);
+        }
+        descs.appendChild(create_object_preview_node(object, resolve_type(object._type || default_type)));
+        root.appendChild(descs);
         return root;
     }
-    else    
+    else  
     {
         var style = document.createElement('span');
         if (object === undefined || object === null)
@@ -264,38 +268,65 @@ function create_pointer_preview(object, default_type)
     }
 }
 
-function create_object_preview_txt(object, type)
+function create_object_preview_node(object, type)
 {
-    var txts = [];
+    var root = document.createElement('x-inline-preview');
+    create_object_preview_props(object, type, root);
+    return root;
+}
+
+function create_object_preview_props(object, type, preview)
+{
+    var had_props = false;
     for (var x in type.ExpandedFields)
     {
         if (!type.ExpandedFields[x].ShowInEditor)
             continue;
         var fn = type.ExpandedFields[x].Name;
-        var pn = type.ExpandedFields[x].PrettyName;        
-
+        var pn = type.ExpandedFields[x].PrettyName;
         var val = object[fn];
         if (val === undefined || val === null || (val instanceof Array && val.length == 0) ||
             (val instanceof Object && Object.keys(val).length === 0))
             continue;
+
+        var propNode = document.createElement('x-preview-property');
+        if (had_props)
+        {
+            propNode.classList.add('notfirst');
+        }
+
+        if (val instanceof Array || val instanceof Object)
+        {
+            var name = document.createElement('x-preview-prop-name');
+            name.appendChild(document.createTextNode(pn + ":"));
+            propNode.appendChild(name);
+        }
+        else
+        {
+            var name = document.createElement('x-preview-prop-name');
+            name.appendChild(document.createTextNode(pn + "="));
+            propNode.appendChild(name);
+        }
+
+        var value = document.createElement('x-preview-prop-value');
+
+        had_props = true;
         if (val instanceof Array)
         {
             if (val.length > 0 && (val[0] != null && val[0].constructor == String))
             {
-                txts.push(pn + ":[" + val.join(", ") + "]");
+                value.appendChild(document.createTextNode("[" + val.join(", ") + "]"));
             }
             else
             {
-                txts.push(pn + ":[" + val.length + " itms]");
+                value.appendChild(document.createTextNode("[" + val.length + " itms]"));
             }
         }
         else if (val instanceof Object)
         {
             if (Object.keys(val).length > 0) {
                 var t = resolve_type(type.ExpandedFields[x].Type);
-                var preview = create_object_preview_txt(val, t);
-                if (preview != "<default>")
-                    txts.push(pn + ":{" + preview + "}");
+                value.appendChild(create_object_preview_node(val, t));
             }
         }
         else
@@ -303,18 +334,27 @@ function create_object_preview_txt(object, type)
             if (val.constructor == String) {
                 var lim = 100;
                 if (val.length < lim)
-                    txts.push(pn + "=" + "\"" + val + "\"");
+                    value.appendChild(document.createTextNode("\"" + val + "\""));
                 else
-                    txts.push(pn + "=" + "\"" + val.substring(0, lim-3) + "...\"");
+                    value.appendChild(document.createTextNode("\"" + val.substring(0, lim-3) + "...\""));                
             }
-            else
-                txts.push(pn + "=" + val.toString());
+            else {
+                value.appendChild(document.createTextNode("=" + val.toString()));
+            }
         }
+
+        if (type.ExpandedFields[x].HasAnnotationHighlight)
+            propNode.classList.add('highlight');
+        if (type.ExpandedFields[x].HasAnnotationHighlightValue)
+            value.classList.add('highlight');
+
+        propNode.appendChild(value);
+        preview.appendChild(propNode);
     }
-    if (txts.length == 0)
-        return "<default>";
-    else
-        return txts.join(', ');
+    if (!had_props)
+    {
+        preview.appendChild(document.createTextNode("<default>"));
+    }
 }
 
 function reload_wrapped(make, config)
@@ -371,7 +411,7 @@ function on_inline_changed(node)
 
 function create_object_preview(object, type)
 {
-    var tn = document.createTextNode(create_object_preview_txt(object, type));
+    var tn = create_object_preview_node(object, type);
     tn._x_is_preview = true;
     return tn;
 }
