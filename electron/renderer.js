@@ -291,8 +291,14 @@ function create_object_preview_props(object, type, preview)
         var fn = type.ExpandedFields[x].Name;
         var pn = type.ExpandedFields[x].PrettyName;
         var val = object[fn];
+
+        if (val === undefined && type.ExpandedFields[x].HasAnnotationAlwaysShowInPreview)
+        {
+            val = type.ExpandedFields[x].Default;
+        }
+
         if (val === undefined || val === null || (val instanceof Array && val.length == 0) ||
-            (val instanceof Object && Object.keys(val).length === 0))
+            (val instanceof Object && Object.keys(val).length === 0))            
             continue;
 
         var propNode = document.createElement('x-preview-property');
@@ -541,7 +547,7 @@ function create_type_editor(ed, is_array_element)
     }
     if (ed.field.Pointer)
     {
-        var preview = reload_wrapped(function() { return create_pointer_preview(ed.data[ed.datafield], ed.field.Type); }, config);
+        var preview = reload_wrapped(function() { return create_pointer_preview(ed.data[ed.datafield], resolve_type(ed.field.Type)); }, config);
         var block = reload_wrapped(function() { return create_pointer_editor(ed); }, config);
         var value_context_menu = function(dom) {
             var ptypes = popups.compatible_types(UserTypes, ed.field.Type);
