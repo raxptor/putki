@@ -67,18 +67,15 @@ exports.create = function(onto, types, data, plugins, config, data_browser_previ
             var e = fn_map[fn];
             var path = document.createElement('x-browser-path');
             path.appendChild(document.createTextNode(data[x]._path));
-            path.style.gridRow = e.count;
             var type = document.createElement('x-browser-type');
             if (types[data[x]._type] === undefined) {
                 console.log("unknown type ", data[x]._type);
             }
             type.appendChild(document.createTextNode("@" + types[data[x]._type].PrettyName));
-            type.style.gridRow = e.count;
             var preview = document.createElement('x-browser-preview');
             //if (data_browser_preview !== null) {
             {
                 preview.appendChild(document.createTextNode(data_browser_preview(data[x])));
-                preview.style.gridRow = e.count;
             }
             (function(_path) {
                 path.addEventListener('click', function() {
@@ -194,12 +191,22 @@ exports.create = function(onto, types, data, plugins, config, data_browser_previ
             type_search = search.substr(1);
             search = "^";
         }
+        var gridRow = 0;
         for (var x in fn_map) {
             var e = fn_map[x];            
-            e.header.classList.remove('hidden');        
-            e.controls.classList.remove('hidden');        
+            e.header.classList.remove('hidden');
+            e.controls.classList.remove('hidden');
+            e.header.style.gridRow = ++gridRow;            
             var found = 0;
             for (var i in e.items) {
+                if (gridRow > 900)
+                {
+                    e.header.classList.add('hidden');
+                    e.controls.classList.add('hidden');
+                    for (var j in els) {
+                        els[j].classList.add('hidden');
+                    }
+                }                    
                 var els = e.items[i].elements;
                 for (var j in els) {
                     els[j].classList.remove('hidden');
@@ -213,10 +220,15 @@ exports.create = function(onto, types, data, plugins, config, data_browser_previ
                 else
                 {
                     last = {path: e.items[i].path, anchor: e.items[i].anchor};
+                    var row = ++gridRow;
+                    for (var j in els) {
+                        els[j].style.gridRow = row; 
+                    }
                     totFound++;
                     found++;
                 }
             }
+            e.controls.style.gridRow = ++gridRow;
             if (found == 0)
             {
                 e.header.classList.add('hidden');
