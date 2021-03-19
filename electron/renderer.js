@@ -325,7 +325,12 @@ function create_object_preview_props(object, type, preview)
         else if (val instanceof Object)
         {
             if (Object.keys(val).length > 0) {
-                var t = resolve_type(type.ExpandedFields[x].Type);
+                var defType = resolve_type(type.ExpandedFields[x].Type);
+                var t = (val._type !== undefined) ? resolve_type(val._type) : defType;
+                if (t != defType && t !== undefined)
+                {
+                    value.appendChild(document.createTextNode(t.PrettyName));
+                }
                 value.appendChild(create_object_preview_node(val, t));
             }
         }
