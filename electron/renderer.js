@@ -243,7 +243,7 @@ function create_pointer_preview(object, default_type)
             pn.appendChild(document.createTextNode(object._path));
             descs.appendChild(pn);
         }
-        descs.appendChild(create_object_preview_node(object, resolve_type(object._type || default_type)));
+        descs.appendChild(create_object_preview_node(object, default_type));
         root.appendChild(descs);
         return root;
     }
@@ -268,10 +268,16 @@ function create_pointer_preview(object, default_type)
     }
 }
 
-function create_object_preview_node(object, type)
+function create_object_preview_node(object, def_type)
 {
     var root = document.createElement('x-inline-preview');
-    create_object_preview_props(object, type, root);
+    var stype = resolve_type(object._type);
+    if (stype !== undefined && stype !== def_type)
+    {
+        root.appendChild(document.createTextNode(stype.PrettyName));
+        def_type = stype;
+    }
+    create_object_preview_props(object, def_type, root);
     return root;
 }
 
@@ -313,25 +319,26 @@ function create_object_preview_props(object, type, preview)
         had_props = true;
         if (val instanceof Array)
         {
+            var arrNode = document.createElement('x-preview-array');
             if (val.length > 0 && (val[0] != null && val[0].constructor == String))
             {
-                value.appendChild(document.createTextNode("[" + val.join(", ") + "]"));
+                arrNode.appendChild(document.createTextNode(val.join(", ")));
+            }
+            else if (val.length == 1 && val[0] != null)
+            {
+                arrNode.appendChild(document.createTextNode("1 item"));
+                //arrNode.appendChild(create_object_preview_node(val[0], resolve_type(type.ExpandedFields[x].Type)));
             }
             else
             {
-                value.appendChild(document.createTextNode("[" + val.length + " itms]"));
+                arrNode.appendChild(document.createTextNode(val.length + " itms"));
             }
+            value.appendChild(arrNode);
         }
         else if (val instanceof Object)
         {
             if (Object.keys(val).length > 0) {
-                var defType = resolve_type(type.ExpandedFields[x].Type);
-                var t = (val._type !== undefined) ? resolve_type(val._type) : defType;
-                if (t != defType && t !== undefined)
-                {
-                    value.appendChild(document.createTextNode(t.PrettyName));
-                }
-                value.appendChild(create_object_preview_node(val, t));
+                value.appendChild(create_object_preview_node(val, resolve_type(type.ExpandedFields[x].Type)));
             }
         }
         else

@@ -409,6 +409,18 @@ x-preview-path {
     margin-right: 6px;
 }
 
+x-preview-array {
+    display: inline;
+}
+
+x-preview-array::before {
+    content: "["
+}
+
+x-preview-array::after {
+    content: "]"
+}
+
 x-preview-prop-value {
     display: inline;
     color: #0021cd;
