@@ -74,6 +74,14 @@ public class JavascriptGenerator
 			sb.append("{ Type:\"" + an.Type + "\", Text:\"" + escape(an.Text) + "\" }");
 		}
 		sb.append("]");
+		
+		for (Compiler.Annotation an : ans)
+		{
+			if (an.Type == Compiler.AnnotationType.EDITOR) 
+			{
+				sb.append(", HasAnnotation" + an.Text + ":true");
+			}
+		}
 		return sb.toString();
 	}
 

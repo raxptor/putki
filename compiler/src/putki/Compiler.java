@@ -22,7 +22,7 @@ public class Compiler {
 	}
 	
 	public enum AnnotationType {
-		DESCRIPTION, INFO, WARNING, INVALID
+		DESCRIPTION, INFO, WARNING, EDITOR, INVALID
 	}
 	
 	public class Annotation {
@@ -361,6 +361,8 @@ public class Compiler {
 						at = AnnotationType.WARNING;
 					else if (type.contentEquals("Description")) 
 						at = AnnotationType.DESCRIPTION;
+					else if (type.contentEquals("Editor")) 
+						at = AnnotationType.EDITOR;
 					else
 						error(path, i, "Invalid annotation type [" + type+  "], use Info, Warning or Description");
 					if (value.length() == 0)
