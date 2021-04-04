@@ -235,7 +235,7 @@ ipcMain.on('edit-pointer', (event, arg) => {
       }
     }];
   }
-  var menu = Menu.buildFromTemplate([{
+  var tpl = [{
     label: 'Create',
     submenu: submenu
   }, {
@@ -248,6 +248,15 @@ ipcMain.on('edit-pointer', (event, arg) => {
     click: function() {
       event.sender.send('edit-pointer-reply', '@clear');
     }
-  }]);
+  }];
+  if (arg.can_inline) {
+    tpl.push({
+      label: 'Make inline',
+      click: function() {
+        event.sender.send('edit-pointer-reply', '@inline');
+      }
+    });
+  }
+  var menu = Menu.buildFromTemplate(tpl);
   menu.popup({ });  
 });

@@ -145,6 +145,11 @@ function format(types, data, indent, typename, paths, build_fns)
             }
         }
 
+        if (data._path !== undefined) {
+            // enforce output of type if path is present.                        
+            data._type = data._type || typename;
+        }
+
         var hdr = "";
         if (data._type !== undefined) {
             hdr = hdr + "@" + types[data._type].PrettyName + " ";

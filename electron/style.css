@@ -13,6 +13,16 @@ x-info {
     flex-direction: column;
 }
 
+.tiny-annotation {
+    margin-left: 2px;
+    border: 1px solid #999;
+    color: #999;
+}
+
+.has-annotation {
+    //background-color: #ddf;
+}
+
 x-entry {
     background-color: #fff;
     display: block;
@@ -111,6 +121,14 @@ td.value {
     margin: 3px;
     padding-left: 5px;
     padding-right: 5px;
+}
+
+x-annotation {
+    display: block;
+    background-color: #eef;
+    border: 1px solid black;
+    padding: 2px;
+    margin: 5px;
 }
 
 x-properties .no-value {
@@ -358,4 +376,64 @@ x-page {
     grid-row: 2;
     grid-column: 1;
     margin: 4px;
+}
+
+
+x-inline-preview {
+    display: inline;
+}
+
+x-inline-preview::before {
+    content: "{"
+}
+
+x-inline-preview::after {
+    content: "}"
+}
+
+x-preview-property {
+    display: inline;    
+}
+
+x-preview-property.notfirst::before {
+    content: " "
+}
+
+x-preview-prop-name {
+    display: inline;
+}
+
+x-preview-path {
+    display: inline;
+    color: #156d00;
+    margin-right: 6px;
+}
+
+x-preview-array {
+    display: inline;
+}
+
+x-preview-array::before {
+    content: "["
+}
+
+x-preview-array::after {
+    content: "]"
+}
+
+x-preview-prop-value {
+    display: inline;
+    color: #0021cd;
+}
+
+x-browser input[type="text"] {
+    width: 100%;
+}
+
+x-preview-property.highlight {
+    font-weight: bold;
+}
+
+x-preview-prop-value.highlight {
+    font-weight: bold;
 }

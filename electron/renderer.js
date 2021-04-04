@@ -1,6 +1,7 @@
 const { ipcRenderer } = require('electron');
 const dataloader = require('./dataloader');
 const datawriter = require('./datawriter')
+const annotations = require("./annotations");
 const popups = require('./popups');
 const path = require('path');
 const fs = require('fs');
@@ -229,20 +230,24 @@ function create_pointer_preview(object, default_type)
     if (object instanceof Object)
     {
         var root = document.createElement('div');
-
+        var descs = document.createElement('div');
         if (object._type !== undefined) {
             // only add type if it has parent, otherwise it is implied.
             var type = resolve_type(object._type);
             if (type.hasOwnProperty("Parent"))
-                descs.push("@" + resolve_type(object._type).PrettyName);
+                descs.appendChild(document.createTextNode("@" + resolve_type(object._type).PrettyName));
         }
         if (object._path !== undefined && object._path[0] != '&' && object._path.indexOf("guid/") != 0)
-            descs.push(object._path);
-        descs.push(create_object_preview_txt(object, resolve_type(object._type || default_type)));
-        root.appendChild(document.createTextNode(descs.join(' ')));
+        {
+            var pn = document.createElement('x-preview-path');            
+            pn.appendChild(document.createTextNode(object._path));
+            descs.appendChild(pn);
+        }
+        descs.appendChild(create_object_preview_node(object, default_type));
+        root.appendChild(descs);
         return root;
     }
-    else    
+    else  
     {
         var style = document.createElement('span');
         if (object === undefined || object === null)
@@ -263,38 +268,83 @@ function create_pointer_preview(object, default_type)
     }
 }
 
-function create_object_preview_txt(object, type)
+function create_object_preview_node(object, def_type)
 {
-    var txts = [];
+    var root = document.createElement('x-inline-preview');
+    var stype = resolve_type(object._type);
+    if (stype !== undefined && stype !== def_type)
+    {
+        root.appendChild(document.createTextNode(stype.PrettyName));
+        def_type = stype;
+    }
+    create_object_preview_props(object, def_type, root);
+    return root;
+}
+
+function create_object_preview_props(object, type, preview)
+{
+    var had_props = false;
     for (var x in type.ExpandedFields)
     {
         if (!type.ExpandedFields[x].ShowInEditor)
             continue;
         var fn = type.ExpandedFields[x].Name;
-        var pn = type.ExpandedFields[x].PrettyName;        
-
+        var pn = type.ExpandedFields[x].PrettyName;
         var val = object[fn];
+
+        if (val === undefined && type.ExpandedFields[x].HasAnnotationAlwaysShowInPreview)
+        {
+            val = type.ExpandedFields[x].Default;
+        }
+
         if (val === undefined || val === null || (val instanceof Array && val.length == 0) ||
-            (val instanceof Object && Object.keys(val).length === 0))
+            (val instanceof Object && Object.keys(val).length === 0))            
             continue;
+
+        var propNode = document.createElement('x-preview-property');
+        if (had_props)
+        {
+            propNode.classList.add('notfirst');
+        }
+
+        if (val instanceof Array || val instanceof Object)
+        {
+            var name = document.createElement('x-preview-prop-name');
+            name.appendChild(document.createTextNode(pn + ":"));
+            propNode.appendChild(name);
+        }
+        else
+        {
+            var name = document.createElement('x-preview-prop-name');
+            name.appendChild(document.createTextNode(pn + "="));
+            propNode.appendChild(name);
+        }
+
+        var value = document.createElement('x-preview-prop-value');
+
+        had_props = true;
         if (val instanceof Array)
         {
+            var arrNode = document.createElement('x-preview-array');
             if (val.length > 0 && (val[0] != null && val[0].constructor == String))
             {
-                txts.push(pn + ":[" + val.join(", ") + "]");
+                arrNode.appendChild(document.createTextNode(val.join(", ")));
+            }
+            else if (val.length == 1 && val[0] != null)
+            {
+                arrNode.appendChild(document.createTextNode("1 item"));
+                //arrNode.appendChild(create_object_preview_node(val[0], resolve_type(type.ExpandedFields[x].Type)));
             }
             else
             {
-                txts.push(pn + ":[" + val.length + " itms]");
+                arrNode.appendChild(document.createTextNode(val.length + " itms"));
             }
+            value.appendChild(arrNode);
         }
         else if (val instanceof Object)
         {
             if (Object.keys(val).length > 0) {
-                var t = resolve_type(type.ExpandedFields[x].Type);
-                var preview = create_object_preview_txt(val, t);
-                if (preview != "<default>")
-                    txts.push(pn + ":{" + preview + "}");
+                value.appendChild(create_object_preview_node(val, resolve_type(type.ExpandedFields[x].Type)));
             }
         }
         else
@@ -302,18 +352,27 @@ function create_object_preview_txt(object, type)
             if (val.constructor == String) {
                 var lim = 100;
                 if (val.length < lim)
-                    txts.push(pn + "=" + "\"" + val + "\"");
+                    value.appendChild(document.createTextNode("\"" + val + "\""));
                 else
-                    txts.push(pn + "=" + "\"" + val.substring(0, lim-3) + "...\"");
+                    value.appendChild(document.createTextNode("\"" + val.substring(0, lim-3) + "...\""));                
             }
-            else
-                txts.push(pn + "=" + val.toString());
+            else {
+                value.appendChild(document.createTextNode("=" + val.toString()));
+            }
         }
+
+        if (type.ExpandedFields[x].HasAnnotationHighlight)
+            propNode.classList.add('highlight');
+        if (type.ExpandedFields[x].HasAnnotationHighlightValue)
+            value.classList.add('highlight');
+
+        propNode.appendChild(value);
+        preview.appendChild(propNode);
     }
-    if (txts.length == 0)
-        return "<default>";
-    else
-        return txts.join(', ');
+    if (!had_props)
+    {
+        preview.appendChild(document.createTextNode("<default>"));
+    }
 }
 
 function reload_wrapped(make, config)
@@ -370,7 +429,7 @@ function on_inline_changed(node)
 
 function create_object_preview(object, type)
 {
-    var tn = document.createTextNode(create_object_preview_txt(object, type));
+    var tn = create_object_preview_node(object, type);
     tn._x_is_preview = true;
     return tn;
 }
@@ -488,7 +547,7 @@ function create_type_editor(ed, is_array_element)
     }
     if (ed.field.Pointer)
     {
-        var preview = reload_wrapped(function() { return create_pointer_preview(ed.data[ed.datafield], ed.field.Type); }, config);
+        var preview = reload_wrapped(function() { return create_pointer_preview(ed.data[ed.datafield], resolve_type(ed.field.Type)); }, config);
         var block = reload_wrapped(function() { return create_pointer_editor(ed); }, config);
         var value_context_menu = function(dom) {
             var ptypes = popups.compatible_types(UserTypes, ed.field.Type);
@@ -497,7 +556,8 @@ function create_type_editor(ed, is_array_element)
             {
                 opts[x] = { display: ptypes[x].PrettyName, data: x }
             }
-            ipcRenderer.send('edit-pointer', { types: opts });
+            console.log("can inline =", (typeof ed.data[ed.datafield] === 'string'));
+            ipcRenderer.send('edit-pointer', { types: opts, can_inline: (typeof ed.data[ed.datafield] === 'string') });
             nextEditPointer = function(arg) {
                 if (arg == "@clear") {
                     ed.data[ed.datafield] = default_value(ed.field, is_array_element);
@@ -522,8 +582,16 @@ function create_type_editor(ed, is_array_element)
                             on_change();
                         }
                     });
-                }
-                else {
+                } else if (arg == "@inline") {
+                    var path = ed.data[ed.datafield];
+                    if (Data[path] !== undefined)
+                    {
+                        ed.data[ed.datafield] = Data[path];
+                        delete Data[path];
+                        on_inline_changed(dom.inline);
+                        on_change();
+                    }
+                } else {
                     ed.data[ed.datafield] = {
                         _type: arg.data
                     };
@@ -676,7 +744,10 @@ function create_property(parent, row, objdesc, is_array_element, expanded)
         if (objdesc.field.LocalizationCategory) {
             disp_prop_name = disp_prop_name + "\u00A0{loc}";
         }
-        _prop_name.appendChild(document.createTextNode(disp_prop_name));
+        var sp = document.createElement("span");
+        sp.appendChild(document.createTextNode(disp_prop_name));
+        _prop_name.appendChild(sp);
+        annotations.addAnnotation(sp, objdesc.field.Annotations);
         _prop_name.style.gridRow = row;
         parent.appendChild(_prop_name);
         update_label = function() {
@@ -826,15 +897,19 @@ function build_block_entry(objdesc)
 
 function build_full_entry(objdesc, on_new_path, editor_func)
 {
+    var t = resolve_type(objdesc.type);
     var _entry = document.createElement('x-entry'); 
     var _path = document.createElement('x-path');
-    var _type_text = document.createTextNode("@" + resolve_type(objdesc.type).PrettyName + " ");
+    var _type_text = document.createTextNode("@" + t.PrettyName + " ");
     var _path_text = document.createTextNode(objdesc.path !== undefined ? objdesc.path : "<anonymous>");
     if (objdesc.path !== undefined && objdesc.path.indexOf("guid/") == 0)
         _path_text.textContent = "<guid>";
     _path.appendChild(_type_text);
     _path.appendChild(_path_text);
     _entry.appendChild(_path);
+    if (t.Annotations !== undefined && t.Annotations.length > 0)
+        _entry.appendChild(annotations.makeAnnotationBox(t.Annotations));
+
     if (editor_func != null) {
         _entry.appendChild(editor_func(plugin_config(), objdesc));
     } else {
@@ -849,6 +924,10 @@ function build_full_entry(objdesc, on_new_path, editor_func)
                     delete Data[objdesc.path];
                     Data[p] = old;
                     old._path = p;
+                }
+                if (objdesc.data._type == undefined) {
+                    console.log("Inserting type on object.");
+                    objdesc.data._type = objdesc.type;
                 }
                 objdesc.path = p;
                 _path_text.textContent = p;

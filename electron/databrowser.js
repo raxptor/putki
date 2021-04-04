@@ -1,7 +1,32 @@
 const { ipcRenderer } = require('electron');
 var popups = require('./popups');
+var annotations = require('./annotations');
 var Dialogs = require("dialogs");
 var dialogs = new Dialogs({});
+
+function levenshtein(a, b) {
+    if(a.length == 0) return b.length; 
+    if(b.length == 0) return a.length; 
+    var matrix = [];
+    var i;
+    for(i = 0; i <= b.length; i++){
+      matrix[i] = [i];
+    }
+    var j;
+    for(j = 0; j <= a.length; j++){
+      matrix[0][j] = j;
+    }
+    for(i = 1; i <= b.length; i++){
+      for(j = 1; j <= a.length; j++){
+        if(b.charAt(i-1) == a.charAt(j-1)){
+          matrix[i][j] = matrix[i-1][j-1];
+        } else {
+          matrix[i][j] = Math.min(matrix[i-1][j-1] + 1, Math.min(matrix[i][j-1] + 1, matrix[i-1][j] + 1)); 
+        }
+      }
+    }  
+    return matrix[b.length][a.length];
+};
 
 function mk_button(command, fn)
 {
@@ -27,7 +52,7 @@ exports.create = function(onto, types, data, plugins, config, data_browser_previ
     var grid = null;
     var fn_map = {};
 
-    var pick = null;
+    var picks = [];
 
     var rebuild = function(deep_dig) {
         if (grid)
@@ -66,18 +91,15 @@ exports.create = function(onto, types, data, plugins, config, data_browser_previ
             var e = fn_map[fn];
             var path = document.createElement('x-browser-path');
             path.appendChild(document.createTextNode(data[x]._path));
-            path.style.gridRow = e.count;
             var type = document.createElement('x-browser-type');
             if (types[data[x]._type] === undefined) {
                 console.log("unknown type ", data[x]._type);
             }
             type.appendChild(document.createTextNode("@" + types[data[x]._type].PrettyName));
-            type.style.gridRow = e.count;
             var preview = document.createElement('x-browser-preview');
             //if (data_browser_preview !== null) {
             {
                 preview.appendChild(document.createTextNode(data_browser_preview(data[x])));
-                preview.style.gridRow = e.count;
             }
             (function(_path) {
                 path.addEventListener('click', function() {
@@ -193,12 +215,25 @@ exports.create = function(onto, types, data, plugins, config, data_browser_previ
             type_search = search.substr(1);
             search = "^";
         }
+        var gridRow = 0;
+
+        picks.length = 0;
+
         for (var x in fn_map) {
             var e = fn_map[x];            
-            e.header.classList.remove('hidden');        
-            e.controls.classList.remove('hidden');        
+            e.header.classList.remove('hidden');
+            e.controls.classList.remove('hidden');
+            e.header.style.gridRow = ++gridRow;            
             var found = 0;
             for (var i in e.items) {
+                if (gridRow > 900)
+                {
+                    e.header.classList.add('hidden');
+                    e.controls.classList.add('hidden');
+                    for (var j in els) {
+                        els[j].classList.add('hidden');
+                    }
+                }                    
                 var els = e.items[i].elements;
                 for (var j in els) {
                     els[j].classList.remove('hidden');
@@ -211,22 +246,22 @@ exports.create = function(onto, types, data, plugins, config, data_browser_previ
                 }
                 else
                 {
-                    last = {path: e.items[i].path, anchor: e.items[i].anchor};
+                    picks.push({path: e.items[i].path, anchor: e.items[i].anchor});
+                    var row = ++gridRow;
+                    for (var j in els) {
+                        els[j].style.gridRow = row; 
+                    }
                     totFound++;
                     found++;
                 }
             }
+            e.controls.style.gridRow = ++gridRow;
             if (found == 0)
             {
                 e.header.classList.add('hidden');
                 e.controls.classList.add('hidden');
             }
-        }        
-
-        if (totFound == 1)
-            pick = last;
-        else
-            pick = null;
+        }                
     }
 
     filtrate();
@@ -238,8 +273,22 @@ exports.create = function(onto, types, data, plugins, config, data_browser_previ
             filtrate();
             filter.value = "";
         } else {
-            if (pick != null) {
-                start_editing(pick.path, pick.anchor);
+            if (picks.length > 0) {
+                var best = levenshtein(picks[0].path, filter.value);
+                console.log(picks[0].path, best);
+                var bi = 0;
+                for (var k=1;k<picks.length;k++)
+                {
+                    var l = levenshtein(picks[k].path, filter.value);
+                    console.log(picks[k].path, filter.value, l);
+                    if (l < best)
+                    {
+                        best = l;
+                        bi = k;
+                    }
+                }
+                console.log("picked ", picks[bi], "@index", bi, "with lev", best);
+                start_editing(picks[bi].path, picks[bi].anchor);
             }
         }
     };

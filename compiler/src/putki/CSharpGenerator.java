@@ -459,6 +459,10 @@ public class CSharpGenerator
                     if ((struct.domains & Compiler.DOMAIN_OUTPUT) == 0)
                         continue;
                     sb.append("\n");
+                    
+                    for (Compiler.Annotation a : struct.annotations)
+                    	sb.append(pfx).append("// " + a.Type + ": " + a.Text);
+                    
 // TODO: make option for this
 //                  sb.append(pfx).append("[System.Serializable]");
                     if (struct.isValueType)
@@ -498,7 +502,9 @@ public class CSharpGenerator
                         if ((field.domains & Compiler.DOMAIN_OUTPUT) == 0)
                             continue;
                         if (field.isParentField)
-                        	continue;                      
+                        	continue;  
+                        for (Compiler.Annotation a : field.annotations)
+                        	sb.append(spfx).append("// " + a.Type + ": " + a.Text);
                         if (field.localizationCategory != null)
                         {
                         	if (field.localizationPlural)
