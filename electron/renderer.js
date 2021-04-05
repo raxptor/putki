@@ -273,10 +273,7 @@ function create_object_preview_node(object, def_type)
     var root = document.createElement('x-inline-preview');
     var stype = resolve_type(object._type);
     if (stype !== undefined && stype !== def_type)
-    {
-        root.appendChild(document.createTextNode(stype.PrettyName));
         def_type = stype;
-    }
     create_object_preview_props(object, def_type, root);
     return root;
 }
