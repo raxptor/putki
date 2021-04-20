@@ -885,10 +885,15 @@ function build_block_entry(objdesc)
 {
     var _entry = document.createElement('x-inline-entry'); 
     var inline = build_properties(objdesc);
+    var pp = PluginObjectPostProcess[objdesc.type];
+    if (pp !== undefined) {
+        inline = pp(inline, objdesc);
+        inline._x_reload = function() {
+            _entry._x_reload();
+        }
+    }
     _entry.appendChild(inline);
-    _entry._x_changed = function() {
-        console.log("object changed!");
-    };
+    _entry.classList.add("block-editor");
     return _entry;  
 } 
 
