@@ -67,7 +67,15 @@ function default_value(field, is_array_element)
     if (field.Array && !is_array_element)
         return [];
     if (field.Pointer)
+    {
+        if (field.DefaultStruct !== undefined)
+        {
+            return {
+                _type: field.DefaultStruct
+            };
+        }
         return null;
+    }
     var type = resolve_type(field.Type);
     if (type.Fields !== undefined)
         return {};
@@ -224,8 +232,10 @@ window.make_auto_complete = function(element, list_id)
     update_auto_complete(list_id);
 }
 
-function create_pointer_preview(object, default_type)
+function create_pointer_preview(object, default_type, default_value)
 {
+    if (object == undefined)
+        object = default_value;
     var descs = [];
     if (object instanceof Object)
     {
@@ -273,10 +283,7 @@ function create_object_preview_node(object, def_type)
     var root = document.createElement('x-inline-preview');
     var stype = resolve_type(object._type);
     if (stype !== undefined && stype !== def_type)
-    {
-        root.appendChild(document.createTextNode(stype.PrettyName));
         def_type = stype;
-    }
     create_object_preview_props(object, def_type, root);
     return root;
 }
@@ -357,7 +364,7 @@ function create_object_preview_props(object, type, preview)
                     value.appendChild(document.createTextNode("\"" + val.substring(0, lim-3) + "...\""));                
             }
             else {
-                value.appendChild(document.createTextNode("=" + val.toString()));
+                value.appendChild(document.createTextNode(val.toString()));
             }
         }
 
@@ -466,11 +473,19 @@ function create_array_preview(arr)
     return document.createTextNode("[" + pure.join(", ") + "]");
 }
 
-function create_pointer_editor(ed)
+function create_pointer_editor(ed, iv, default_value)
 {
     var ptr = document.createElement("x-pointer"); 
     var ptrval = document.createElement("div");
-    var iv = ed.data[ed.datafield];
+    if (iv === undefined)
+    {
+        iv = default_value;
+        // need this to actually write the object into the field of owner parent.
+        ptrval._x_changed = function() {
+            console.log("now it was edited.");
+            ed.data[ed.datafield] = default_value;
+        }
+    }
     if (iv instanceof Object) {
         var inl = reload_wrapped(function() { return build_full_entry({
             type: iv._type || ed.field.Type,
@@ -547,8 +562,8 @@ function create_type_editor(ed, is_array_element)
     }
     if (ed.field.Pointer)
     {
-        var preview = reload_wrapped(function() { return create_pointer_preview(ed.data[ed.datafield], resolve_type(ed.field.Type)); }, config);
-        var block = reload_wrapped(function() { return create_pointer_editor(ed); }, config);
+        var preview = reload_wrapped(function() { return create_pointer_preview(ed.data[ed.datafield], resolve_type(ed.field.Type), default_value(ed.field, is_array_element)); }, config);
+        var block = reload_wrapped(function() { return create_pointer_editor(ed, ed.data[ed.datafield], default_value(ed.field, is_array_element)); }, config);
         var value_context_menu = function(dom) {
             var ptypes = popups.compatible_types(UserTypes, ed.field.Type);
             var opts = {};
@@ -556,11 +571,10 @@ function create_type_editor(ed, is_array_element)
             {
                 opts[x] = { display: ptypes[x].PrettyName, data: x }
             }
-            console.log("can inline =", (typeof ed.data[ed.datafield] === 'string'));
             ipcRenderer.send('edit-pointer', { types: opts, can_inline: (typeof ed.data[ed.datafield] === 'string') });
             nextEditPointer = function(arg) {
                 if (arg == "@clear") {
-                    ed.data[ed.datafield] = default_value(ed.field, is_array_element);
+                    delete ed.data[ed.datafield];
                     on_inline_changed(dom.inline);
                     on_change();
                 }
@@ -762,8 +776,8 @@ function create_property(parent, row, objdesc, is_array_element, expanded)
             if (value instanceof Array)
             {
                 value.splice(0, value.length);
-            }
-            else if (value instanceof Object)
+            }            
+            else if (!objdesc.field.Pointer && value instanceof Object)
             {
                 for (var x in value)
                     delete value[x];
@@ -888,10 +902,15 @@ function build_block_entry(objdesc)
 {
     var _entry = document.createElement('x-inline-entry'); 
     var inline = build_properties(objdesc);
+    var pp = PluginObjectPostProcess[objdesc.type];
+    if (pp !== undefined) {
+        inline = pp(inline, objdesc);
+        inline._x_reload = function() {
+            _entry._x_reload();
+        }
+    }
     _entry.appendChild(inline);
-    _entry._x_changed = function() {
-        console.log("object changed!");
-    };
+    _entry.classList.add("block-editor");
     return _entry;  
 } 
 
