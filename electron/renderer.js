@@ -283,10 +283,7 @@ function create_object_preview_node(object, def_type)
     var root = document.createElement('x-inline-preview');
     var stype = resolve_type(object._type);
     if (stype !== undefined && stype !== def_type)
-    {
-        root.appendChild(document.createTextNode(stype.PrettyName));
         def_type = stype;
-    }
     create_object_preview_props(object, def_type, root);
     return root;
 }
@@ -905,10 +902,15 @@ function build_block_entry(objdesc)
 {
     var _entry = document.createElement('x-inline-entry'); 
     var inline = build_properties(objdesc);
+    var pp = PluginObjectPostProcess[objdesc.type];
+    if (pp !== undefined) {
+        inline = pp(inline, objdesc);
+        inline._x_reload = function() {
+            _entry._x_reload();
+        }
+    }
     _entry.appendChild(inline);
-    _entry._x_changed = function() {
-        console.log("object changed!");
-    };
+    _entry.classList.add("block-editor");
     return _entry;  
 } 
 
