@@ -51,6 +51,12 @@ function generateUUID() { // Public Domain/MIT
     });
 }
 
+var new_line = "\n";
+
+exports.set_new_line = function(nl) {
+    new_line = nl;
+}
+
 function format(types, data, indent, typename, paths, build_fns)
 {
     var delim = ",";
@@ -73,8 +79,8 @@ function format(types, data, indent, typename, paths, build_fns)
 
     // Quick; no need for comma delimiters when having newlines.    
     delim = "";
-    nlsep = "\n" + "\t".repeat(indent+1);
-    finsep = "\n" + "\t".repeat(indent);
+    nlsep = new_line + "\t".repeat(indent+1);
+    finsep = new_line + "\t".repeat(indent);
 
     if (data === null)
         return "null";
@@ -158,7 +164,7 @@ function format(types, data, indent, typename, paths, build_fns)
              hdr = hdr + data._path + " ";
         }        
         if (indent == 0)
-            return hdr.trim() + "\n{" + nlsep + pcs.join(delim + nlsep) + finsep + "}";    
+            return hdr.trim() + new_line + "{" + nlsep + pcs.join(delim + nlsep) + finsep + "}";    
         else {
             if (pcs.length == 0)
                 return hdr + "{ }";
@@ -197,6 +203,6 @@ exports.write = function(root, types, data, single_file, build_fns)
         var pth = path.join(root, x);
         console.log("writing file ", pth);
         fsextra.ensureDirSync(path.dirname(pth));
-        fs.writeFileSync(pth, files[x].join("\n\n") + "\n");
+        fs.writeFileSync(pth, files[x].join(new_line + new_line) + new_line);
     }
 };

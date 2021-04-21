@@ -168,7 +168,8 @@ ipcMain.on('request-configuration', function(evt, ed) {
     evt.sender.send('configuration', {
       config_path: configPath,
       root: path.dirname(configPath),
-      data: JSON.parse(data)
+      data: JSON.parse(data),
+      raw: data
     });
   });
 });

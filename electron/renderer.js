@@ -1256,6 +1256,18 @@ ipcRenderer.on('configuration', function(evt, config) {
     }
     var id_counter = 0;
 
+    if (process.env["PUTKED_LINE_BREAKS"] == "crlf")
+        datawriter.set_new_line("\r\n");
+    else if (process.env["PUTKED_LINE_BREAKS"] == "lf")
+        datawriter.set_new_line("\n");
+    else if (config.raw.indexOf('\r') != -1) {
+        console.log("Detected windows linebreaks");
+        datawriter.set_new_line("\r\n");
+    } else {
+        console.log("Using LF linebreaks");
+        datawriter.set_new_line("\n");
+    } 
+
     for (var xx in UserTypes)
     {
         var flds = UserTypes[xx].Fields;
