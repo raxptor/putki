@@ -179,7 +179,10 @@ public class JavascriptGenerator
                 		else
                 			sb.append(", Default:\"" + field.defValue + "\"");
                 	}
-
+                	if (field.resolvedDefaultStruct != null)
+                	{
+                		sb.append(", DefaultStruct: \"" + field.resolvedDefaultStruct.name.toLowerCase() + "\"");
+                	}
                 	sb.append(" }");
                 }
     			sb.append("\n\t\t]");

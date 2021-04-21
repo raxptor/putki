@@ -242,6 +242,16 @@ public class CSharpGenerator
 	                        writeExpr(sb, "tmp", fld);
 	                        sb.append(";");
 	                        sb.append(npfx).append("}");
+	                        if (fld.resolvedDefaultStruct != null)
+	                        {
+	                        	sb.append(npfx).append("else");
+	                        	sb.append(npfx).append("{");
+	                        	sb.append(npfx).append("\tvar defv = new Outki." + fld.resolvedDefaultStruct.name + "();");
+	                        	sb.append(npfx).append("\t" + fld.resolvedDefaultStruct.name + "ParseInto(loader, null, new Dictionary<string, object>(), defv);");
+	                        	sb.append(npfx).append("\t" + ref + " = defv;");
+	                        	sb.append(npfx).append("}");
+	                        	
+	                        }
 	                        if (fld.defValue != null)
 	                        {
 	                        	sb.append(npfx).append("else");

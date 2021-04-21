@@ -44,6 +44,7 @@ public class Compiler {
 		public String refType;
 		public String defValue;
 		public ParsedStruct resolvedRefStruct;
+		public ParsedStruct resolvedDefaultStruct;
 		public ParsedEnum resolvedEnum;
 		public ParsedField buildConfigTargetField;
 		public boolean stringIsText;
@@ -636,7 +637,6 @@ public class Compiler {
 							return false;
 						}
 					}
-
 					struct.moduleName = tree.moduleName;
 					struct.loaderName = tree.loaderName;
 					struct.uniqueId = unique_id++;
@@ -715,6 +715,15 @@ public class Compiler {
 						System.out.println("Unresolved type name [" + field.refType + "] in field " + struct.name + "."
 								+ field.name);
 						return false;
+					}
+					if (field.type == FieldType.POINTER && field.defValue != null && !field.defValue.equals("null")) {
+						field.resolvedDefaultStruct = typesByName.get(field.defValue);
+						if (field.resolvedDefaultStruct == null) {
+							System.out.println("Unresolved default value type name [" + field.defValue + "] in field " + struct.name + "."
+									+ field.name);
+							return false;
+						}
+						field.defValue = null;
 					}
 				}
 			}
