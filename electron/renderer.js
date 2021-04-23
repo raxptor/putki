@@ -234,7 +234,9 @@ window.make_auto_complete = function(element, list_id)
 
 function create_pointer_preview(object, default_type, default_value)
 {
-    if (object == undefined)
+    if (object === "")
+        object = null;
+    if (object === undefined)
         object = default_value;
     var descs = [];
     if (object instanceof Object)
@@ -476,6 +478,8 @@ function create_array_preview(arr)
 function create_pointer_editor(ed, iv, default_value)
 {
     var ptr = document.createElement("x-pointer"); 
+    ptr.classList.add("block-editor");
+
     var ptrval = document.createElement("div");
     if (iv === undefined)
     {
@@ -571,7 +575,7 @@ function create_type_editor(ed, is_array_element)
             {
                 opts[x] = { display: ptypes[x].PrettyName, data: x }
             }
-            ipcRenderer.send('edit-pointer', { types: opts, can_inline: (typeof ed.data[ed.datafield] === 'string') });
+            ipcRenderer.send('edit-pointer', { types: opts, can_inline: (typeof ed.data[ed.datafield] === 'string'), pointer_with_default: (ed.field.Pointer && ed.field.DefaultStruct !== undefined) });
             nextEditPointer = function(arg) {
                 if (arg == "@clear") {
                     delete ed.data[ed.datafield];
@@ -605,6 +609,10 @@ function create_type_editor(ed, is_array_element)
                         on_inline_changed(dom.inline);
                         on_change();
                     }
+                } else if (arg == "@null") {
+                    ed.data[ed.datafield] = null;
+                    on_inline_changed(dom.inline);
+                    on_change();
                 } else {
                     ed.data[ed.datafield] = {
                         _type: arg.data
@@ -767,7 +775,7 @@ function create_property(parent, row, objdesc, is_array_element, expanded)
         update_label = function() {
             _prop_name.classList.remove("no-value");
             var cv = objdesc.data[objdesc.datafield];
-            if (cv === undefined || cv === null || (cv instanceof Array && cv.length == 0) ||
+            if (cv === undefined || (cv instanceof Array && cv.length == 0) ||
                 (cv instanceof Object && Object.keys(cv).length === 0))
                 _prop_name.classList.add("no-value");
         };
@@ -830,7 +838,6 @@ function create_property(parent, row, objdesc, is_array_element, expanded)
         {
             dom.block.classList.add("array-element");
         }
-        dom.block.classList.add("block-editor");
         parent.appendChild(dom.block);
         if (dom.inline)
         {

@@ -244,12 +244,22 @@ ipcMain.on('edit-pointer', (event, arg) => {
     click: function() {
       event.sender.send('edit-pointer-reply', '@link');
     }
-  }, {
+  }];
+  tpl.push({
     label: 'Clear',
     click: function() {
       event.sender.send('edit-pointer-reply', '@clear');
     }
-  }];
+  });
+  if (arg.pointer_with_default) {
+    tpl.push({
+      label: 'Make null',
+      click: function() {
+        event.sender.send('edit-pointer-reply', '@null');
+      }
+    });
+  } else {
+  }
   if (arg.can_inline) {
     tpl.push({
       label: 'Make inline',

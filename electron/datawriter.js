@@ -82,8 +82,8 @@ function format(types, data, indent, typename, paths, build_fns)
     nlsep = new_line + "\t".repeat(indent+1);
     finsep = new_line + "\t".repeat(indent);
 
-    if (data === null)
-        return "null";
+    if (data === null || data === undefined)
+        return "\"\"";
 
     if (data.constructor == String && unfiltered.indexOf(typename) != -1)
     {
@@ -126,7 +126,7 @@ function format(types, data, indent, typename, paths, build_fns)
 
         for (var i=0;i<flds.length;i++) {
             var f = flds[i].Name;
-            if (data[f] === undefined || data[f] == null)
+            if (data[f] === undefined)
                 continue;
             if (flds[i].Array && data[f].length == 0)
                 continue;
