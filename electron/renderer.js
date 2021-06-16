@@ -3,6 +3,7 @@ const dataloader = require('./dataloader');
 const datawriter = require('./datawriter')
 const annotations = require("./annotations");
 const popups = require('./popups');
+const excelimport = require('./excelimport');
 const path = require('path');
 const fs = require('fs');
 const databrowser = require('./databrowser');
@@ -1369,6 +1370,12 @@ ipcRenderer.on('configuration', function(evt, config) {
         open_editor(process.env["EDIT_OBJ"]);
 });
 
+ipcRenderer.on("excel-import", function(evt, path) {
+    excelimport.do_import(path, Data, function(message) {
+        dialogs.alert(message);
+    });
+});
+
 ipcRenderer.on("new-object", function() {
     var fn = function(type, file) {
         dialogs.prompt("Enter object path", "new/instance", function(path) {
@@ -1391,21 +1398,3 @@ ipcRenderer.on("new-object", function() {
         });
     });
 });
-
-
-
-/*
-open_editor("game");
-
-*/
-/*
-datawriter.write(UserTypes, Data);
-=======
-*/
-
-//popups.ask_type(UserTypes, null, function(which) { console.log("selected ", which); });
-//popups.ask_instance(UserTypes, Data, "item", function(which) { console.log("selected ", which); });
-
-//document.body.appendChild(build_root_entry("manor/music-room/play-instrument"));
-//document.body.appendChild(build_root_entry("procitems/trinkets/rune-necklace"));
-

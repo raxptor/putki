@@ -12,6 +12,7 @@
   "dependencies": {
     "dialogs": "^1.1.20",
     "electron": "^4.1.0",
+    "exceljs": "^4.2.1",
     "fs-extra": "^7.0.1",
     "js-md5": "^0.7.3",
     "require.js": "^1.0.0"

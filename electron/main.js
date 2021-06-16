@@ -25,6 +25,16 @@ const template = [
         }
       },
       {
+        label: "Excel import",
+        click: function() {
+          dialog.showOpenDialog(mainWindow, { filters: [{name: 'XLSX file', extensions: ['xlsx']}] }, function(x) {    
+            if (x !== undefined && x.length != 0) {
+              mainWindow.webContents.send('excel-import', x[0]);
+            }
+          });
+        }
+      },
+      {
         label: "Save",
         accelerator: 'CmdOrCtrl+S',        
         click: function() {
