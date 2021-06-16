@@ -4,7 +4,7 @@ const fsextra = require('fs-extra');
 const md5 = require('js-md5');
 const exceljs = require('exceljs');
 
-exports.do_import = function(filename, Data, on_done)
+exports.do_import = function(filename, Data, Types, on_done)
 {
     console.log("doing import of ", filename);    
 
@@ -30,7 +30,7 @@ exports.do_import = function(filename, Data, on_done)
     }
 
 
-    var stats = { changed: 0 };
+    var stats = { changed: 0, new: 0 };
     function set_value(root, path, value)
     {
         if (typeof(root) === 'string' || root instanceof String)
@@ -48,8 +48,27 @@ exports.do_import = function(filename, Data, on_done)
             if (root[field] != value)
             {
                 if (root[field] === undefined)
-                {
-                    console.log("NEW ." + field + " => [" + value + "]");
+                {                    
+                    var isDefault = false;
+                    if (root._type !== undefined && Types[root._type] !== undefined)
+                    {
+                        var flds = Types[root._type].ExpandedFields;
+                        for (var x in flds)
+                        {
+                            if (flds[x].Name === field && flds[x].Default == value)
+                            {
+                                isDefault = true;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (!isDefault)
+                    {
+                        console.log("NEW ." + field + " => [" + value + "]");
+                        root[field] = value;
+                        stats.new++;                    
+                    }
                 }
                 else
                 {
@@ -110,7 +129,7 @@ exports.do_import = function(filename, Data, on_done)
                 }
            }
         }
-        on_done("Rows processed:" + rows + ". Updates:" + stats.changed + " Failed updates:" + fail + ". See log for details");
+        on_done("Rows processed:" + rows + ". New:" + stats.new + " Updates:" + stats.changed + " Failed updates:" + fail + ". See log for details");
     });
     
 

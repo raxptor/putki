@@ -1371,7 +1371,7 @@ ipcRenderer.on('configuration', function(evt, config) {
 });
 
 ipcRenderer.on("excel-import", function(evt, path) {
-    excelimport.do_import(path, Data, function(message) {
+    excelimport.do_import(path, Data, UserTypes, function(message) {
         dialogs.alert(message);
     });
 });
