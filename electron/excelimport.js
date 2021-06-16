@@ -91,6 +91,8 @@ exports.do_import = function(filename, Data, on_done)
                 rows++;
                 for (var j=2;j<=header.cellCount;j++)
                 {
+                    if (header.getCell(j).text.startsWith("!"))
+                        continue;
                     var path = cr.getCell(1) + header.getCell(j);
                     var value = cr.getCell(j).value;
                     if (value)
