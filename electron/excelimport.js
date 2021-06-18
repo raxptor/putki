@@ -30,21 +30,22 @@ exports.do_import = function(filename, Data, Types, on_done)
     }
 
 
-    var stats = { changed: 0, new: 0 };
+    var stats = { changed: 0, new: 0, created:0 };
     function set_value(root, path, value, def_type)
     {
-        var obj_type = def_type;
-        if (root.hasOwnProperty('_type'))
-            obj_type = root._type;
-
         if (typeof(root) === 'string' || root instanceof String)
         {
             root = DataExt[root];
         }
         if (root == undefined)
-        {
+        {            
             return false;
         }
+
+        var obj_type = def_type;
+        if (root.hasOwnProperty('_type'))
+            obj_type = root._type;
+
         var dot  = path.indexOf('.');
         if (dot == -1)
         {
@@ -144,8 +145,29 @@ exports.do_import = function(filename, Data, Types, on_done)
                     {
                         if (!set_value(DataExt, path, value))
                         {
-                            console.log("Failed to set value at path ", path);
-                            fail++;
+                            var bp = basePath.toString();
+                            if (bp.length > 0 && bp.indexOf('.') == -1 && DataExt[bp] === undefined && ws.name[0] == '@')
+                            {
+                                console.log("Allowed to create new instance of ", ws.Name);
+                                var new_obj = {
+                                    _type: ws.name.substr(1).toLowerCase(),
+                                    _path: bp,
+                                    _file: "excel-imports.txt"
+                                };
+                                DataExt[bp] = new_obj;
+                                Data[bp] = new_obj;
+                                stats.created++;
+                                if (!set_value(DataExt, path, value))                                                                
+                                {
+                                    console.log("Failed to set value at path ", path);
+                                    fail++;       
+                                }
+                            }
+                            else
+                            {
+                                console.log("Failed to set value at path ", path);
+                                fail++;
+                            }
                         }
                         else
                         {
@@ -155,7 +177,7 @@ exports.do_import = function(filename, Data, Types, on_done)
                 }
            }
         }
-        on_done("Rows processed:" + rows + ". New:" + stats.new + " Updates:" + stats.changed + " Failed updates:" + fail + ". See log for details");
+        on_done("Rows processed:" + rows + ". NewFields:" + stats.new + " ObjCreated:" + stats.created + " FieldUpdates:" + stats.changed + " Failed updates:" + fail + ". See log for details");
     });
     
 
