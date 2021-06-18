@@ -31,8 +31,12 @@ exports.do_import = function(filename, Data, Types, on_done)
 
 
     var stats = { changed: 0, new: 0 };
-    function set_value(root, path, value)
+    function set_value(root, path, value, def_type)
     {
+        var obj_type = def_type;
+        if (root.hasOwnProperty('_type'))
+            obj_type = root._type;
+
         if (typeof(root) === 'string' || root instanceof String)
         {
             root = DataExt[root];
@@ -50,9 +54,9 @@ exports.do_import = function(filename, Data, Types, on_done)
                 if (root[field] === undefined)
                 {                    
                     var isDefault = false;
-                    if (root._type !== undefined && Types[root._type] !== undefined)
+                    if (obj_type !== undefined && Types[obj_type] !== undefined)
                     {
-                        var flds = Types[root._type].ExpandedFields;
+                        var flds = Types[obj_type].ExpandedFields;
                         for (var x in flds)
                         {
                             if (flds[x].Name === field && flds[x].Default == value)
@@ -62,7 +66,6 @@ exports.do_import = function(filename, Data, Types, on_done)
                             }
                         }
                     }
-
                     if (!isDefault)
                     {
                         console.log("NEW ." + field + " => [" + value + "]");
@@ -83,7 +86,30 @@ exports.do_import = function(filename, Data, Types, on_done)
         {
             var base = path.substr(0, dot).toLowerCase();
             var extra = path.substr(dot + 1);
-            return set_value(root[base], extra, value);
+
+            var sub_type, value_type;
+            if (obj_type !== undefined && Types[obj_type] !== undefined)
+            {
+                var flds = Types[obj_type].ExpandedFields;
+                for (var x in flds)
+                {
+                    if (flds[x].Name === base)
+                    {
+                        sub_type = flds[x].Type;
+                        value_type = Types[sub_type].IsValueType;
+                        break;
+                    }
+                }
+            }         
+
+            if (root[base] === undefined && sub_type !== undefined)
+            {
+                console.log("Creating object because it was missing ", sub_type, " value_type=", value_type);
+                root[base] = {};
+                if (!value_type) root[base]._type = sub_type;
+            }
+            
+            return set_value(root[base], extra, value, sub_type);
         }
     }
 
