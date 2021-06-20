@@ -4,6 +4,13 @@ const fsextra = require('fs-extra');
 const md5 = require('js-md5');
 const exceljs = require('exceljs');
 
+function str2bool(s)
+{
+    if (s.toLowerCase() == "true") return true;
+    if (s == "1") return true;
+    return false;
+}
+
 exports.do_import = function(filename, Data, Types, on_done)
 {
     console.log("doing import of ", filename);    
@@ -46,36 +53,52 @@ exports.do_import = function(filename, Data, Types, on_done)
         if (root.hasOwnProperty('_type'))
             obj_type = root._type;
 
-        var dot  = path.indexOf('.');
+        var dot = path.indexOf('.');
         if (dot == -1)
         {
             var field = path.toLowerCase();
             if (root[field] != value)
             {
-                if (root[field] === undefined)
-                {                    
-                    var isDefault = false;
-                    if (obj_type !== undefined && Types[obj_type] !== undefined)
+                var defVal = undefined;
+                var isBool = false;
+                var isDefault = false;
+                if (obj_type !== undefined && Types[obj_type] !== undefined)
+                {
+                    var flds = Types[obj_type].ExpandedFields;
+                    for (var x in flds)
                     {
-                        var flds = Types[obj_type].ExpandedFields;
-                        for (var x in flds)
+                        if (flds[x].Name == field)
                         {
-                            if (flds[x].Name === field && flds[x].Default == value)
+                            defVal = flds[x].Default;
+                            isBool = flds[x].Type == "Bool";
+                            if (defVal === undefined)
+                                defVal = (flds[x].Type == "Bool") ? "false" : 0;
+                            if (defVal == value)
+                                isDefault = true;
+                            if (flds[x].Type == "Bool" && (str2bool(defVal) == str2bool(value)))
                             {
                                 isDefault = true;
-                                break;
                             }
+                            break;
                         }
                     }
+                }                
+                if (root[field] === undefined)
+                {                    
                     if (!isDefault)
                     {
-                        console.log("NEW ." + field + " => [" + value + "]");
+                        console.log("NEW ." + field + " => [" + value + "] default=[" + defVal + "])");
                         root[field] = value;
                         stats.new++;                    
                     }
                 }
                 else
                 {
+                    if (isBool && (str2bool(root[field]) == str2bool(value)))
+                    {
+                        return true;
+                    }
+
                     console.log("UPDATE ." + field + " [" + root[field] + "] => [" + value + "]");
                     root[field] = value;
                     stats.changed++;
