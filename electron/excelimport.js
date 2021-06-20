@@ -162,7 +162,7 @@ exports.do_import = function(filename, Data, Types, on_done)
                 {
                     if (header.getCell(j).text.startsWith("!"))
                         continue;
-                    var path = cr.getCell(1) + header.getCell(j);
+                    var path = cr.getCell(1).text + (header.getCell(j).text.startsWith('$') ? "" : header.getCell(j).text);
                     var value = cr.getCell(j).value;
                     if (value)
                     {
