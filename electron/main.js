@@ -180,7 +180,7 @@ ipcMain.on('request-configuration', function(evt, ed) {
       root: path.dirname(configPath),
       data: JSON.parse(data),
       raw: data
-    });
+    }, process.argv);
   });
 });
   
@@ -206,6 +206,10 @@ app.on('activate', function () {
     createWindow()
   }
 })
+
+ipcMain.on('quit', function() {
+  app.quit();
+});
 
 ipcMain.on('choose-menu', (event, args) => {
   var submenu = [];

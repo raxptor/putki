@@ -1171,40 +1171,45 @@ ipcRenderer.on('choose-menu', function(event, data) {
     }
 });
 
+function saveSync()
+{
+    var root = Configuration.root;
+    if (Configuration.data["data-root"] !== undefined) {
+        // untag those that remain.
+        for (var k in Data) {
+            FileSet[Data[k]._file] = false;
+        }
+        for (var k in FileSet) {
+            if (FileSet[k]) {
+                fs.unlinkSync(path.join(root, Configuration.data["data-root"], k));
+                FileSet[k] = false;
+            }
+        }
+        datawriter.write(path.join(root, Configuration.data["data-root"]), UserTypes, Data, undefined, PluginBuildObject);
+        for (var k in Data) {
+            FileSet[Data[k]._file] = true;
+        }
+    }
+    if (Configuration.data["data-bundle"] !== undefined) {
+        var data = {
+            revision: Revision,
+            data: Data
+        };
+        var pth = path.join(root, Configuration.data["data-bundle"]);
+        fs.writeFileSync(pth, JSON.stringify(data, null, 10), "utf-8");
+        console.log("Wrote bundle to ", pth, "with revision", data.revision);
+    }
+    if (Configuration.data["game-export"] !== undefined) {
+        console.log("Writing game export bundle to", Configuration.data["game-export"]);
+        datawriter.write(root, UserTypes, Data, Configuration.data["game-export"]);
+    }
+    document.title = Configuration.data["title"];
+}
+
 ipcRenderer.on('save', function(event) {
     document.getElementById('dummy').focus();
     setTimeout(function() {
-        var root = Configuration.root;
-        if (Configuration.data["data-root"] !== undefined) {
-            // untag those that remain.
-            for (var k in Data) {
-                FileSet[Data[k]._file] = false;
-            }
-            for (var k in FileSet) {
-                if (FileSet[k]) {
-                    fs.unlinkSync(path.join(root, Configuration.data["data-root"], k));
-                    FileSet[k] = false;
-                }
-            }
-            datawriter.write(path.join(root, Configuration.data["data-root"]), UserTypes, Data, undefined, PluginBuildObject);
-            for (var k in Data) {
-                FileSet[Data[k]._file] = true;
-            }
-        }
-        if (Configuration.data["data-bundle"] !== undefined) {
-            var data = {
-                revision: Revision,
-                data: Data
-            };
-            var pth = path.join(root, Configuration.data["data-bundle"]);
-            fs.writeFileSync(pth, JSON.stringify(data, null, 10), "utf-8");
-            console.log("Wrote bundle to ", pth, "with revision", data.revision);
-        }
-        if (Configuration.data["game-export"] !== undefined) {
-            console.log("Writing game export bundle to", Configuration.data["game-export"]);
-            datawriter.write(root, UserTypes, Data, Configuration.data["game-export"]);
-        }
-        document.title = Configuration.data["title"];
+        saveSync();
         event.sender.send("saved");
     }, 50);
 });
@@ -1247,7 +1252,7 @@ function dig_with_type(obj, def_type, cb)
     }
 }
 
-ipcRenderer.on('configuration', function(evt, config) {
+ipcRenderer.on('configuration', function(evt, config, processArgs) {
     var js = config.data["gen-js"];
     var plugins = config.data["plugins"];
     var root = config.root;
@@ -1368,6 +1373,22 @@ ipcRenderer.on('configuration', function(evt, config) {
     });
     if (process.env["EDIT_OBJ"])
         open_editor(process.env["EDIT_OBJ"]);
+
+
+    for (a=0;a<processArgs.length;a++)
+    {
+        if (processArgs[a] == "--excelimport")
+        {      
+            console.log("Doing batchmode excel import.")
+            console.log("Source file", processArgs[a+1]);
+            excelimport.do_import(processArgs[a+1], Data, UserTypes, function(message) {
+                console.log(message);
+                console.log("Import finished, saving.");
+                saveSync();
+                ipcRenderer.send("quit");
+            });            
+        }
+    }          
 });
 
 ipcRenderer.on("excel-import", function(evt, path) {
