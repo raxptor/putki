@@ -1,0 +1,19 @@
+plugins {
+    id 'java'
+}
+
+sourceSets {
+    main {
+        java {
+            srcDirs = ['src']
+        }
+    }
+}
+
+jar {
+    destinationDir = file('dist')
+    archiveName = 'putki-compiler.jar'
+    manifest {
+        attributes 'Main-Class': 'putki.Compiler'
+    }
+}
