@@ -45,6 +45,25 @@ where
     fn follow(&mut self, path: &str);
 }
 
+pub trait TrackingResolver<T> {
+    fn resolve(&self, trk: &mut dyn Tracker) -> Option<Arc<T>>;
+}
+
+impl<T> TrackingResolver<T> for Ptr<T>
+where
+    T: 'static + source::ParseFromKV,
+{
+    fn resolve(&self, trk: &mut dyn Tracker) -> Option<Arc<T>> {
+        match self.target {
+            PtrTarget::ObjPath { ref path, .. } => {
+                trk.follow(path);
+                (self as &dyn PtrInkiResolver<T>).resolve_notrack()
+            }
+            _ => (self as &dyn PtrInkiResolver<T>).resolve_notrack(),
+        }
+    }
+}
+
 impl<T> PtrInkiResolver<T> for Ptr<T>
 where
     T: 'static + source::ParseFromKV,
