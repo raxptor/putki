@@ -349,7 +349,7 @@ impl Pipeline
         true
     }
 
-    pub fn peek_build_records(&self) -> LockResult<RwLockReadGuard<HashMap<String, BuildRecord>>>
+    pub fn peek_build_records(&self) -> LockResult<RwLockReadGuard<'_, HashMap<String, BuildRecord>>>
     {
         self.built.read()
     }

@@ -143,7 +143,7 @@ pub fn get_string(data: Option<&LexedData>, default: &str) -> String
 	}).unwrap_or_else(|| String::from(default))
 }
 
-pub fn get_array(data: Option<&LexedData>) -> Option<slice::Iter<LexedData>>
+pub fn get_array(data: Option<&LexedData>) -> Option<slice::Iter<'_, LexedData>>
 {
 	data.and_then(|v| { 
 		match v {
@@ -173,7 +173,7 @@ pub fn get_kv(data: Option<&LexedData>) -> Option<&LexedKv>
 	})
 }
 
-fn make_parse_error(err: &str) -> ScanResult
+fn make_parse_error(err: &str) -> ScanResult<'_>
 {
 	println!("Parse error. {}", err);
 	ScanResult {
@@ -187,7 +187,7 @@ fn is_syntax_delimiter(c : char) -> bool
 	c == '[' || c == '{' || c == '=' || c == ':' || c == ']' || c == '}' || c == ',' || c.is_whitespace()
 }
 
-fn parse_keyword_or_string(data: &str) -> ScanResult
+fn parse_keyword_or_string(data: &str) -> ScanResult<'_>
 {
 	let mut it = data.char_indices().enumerate(); 
 	let mut inside_string = false;
@@ -243,7 +243,7 @@ fn parse_keyword_or_string(data: &str) -> ScanResult
 	}    
 }
 
-pub fn parse_array(data: &str) -> ScanResult
+pub fn parse_array(data: &str) -> ScanResult<'_>
 {
 	let mut cur = data;
 	let mut it = data.char_indices().enumerate();		
@@ -284,7 +284,7 @@ pub fn parse_array(data: &str) -> ScanResult
 	}
 }
 
-fn parse_auto_detect(data: &str, require_value:bool) -> ScanResult
+fn parse_auto_detect(data: &str, require_value:bool) -> ScanResult<'_>
 {
 	// first should be {
 	let mut it = data.char_indices().enumerate().peekable();
@@ -325,7 +325,7 @@ fn parse_auto_detect(data: &str, require_value:bool) -> ScanResult
 	}	
 }
 
-pub fn parse_object_data(data: &str) -> ScanResult
+pub fn parse_object_data(data: &str) -> ScanResult<'_>
 {
 	let mut cur = data;
 	let mut it = data.char_indices().enumerate();
@@ -396,7 +396,7 @@ pub fn parse_object_data(data: &str) -> ScanResult
 }
 
 // Parse one @type id { block }
-fn parse_object_with_header(data: &str) -> ScanResult
+fn parse_object_with_header(data: &str) -> ScanResult<'_>
 {
 	let cur = data;
 	let mut it = data.char_indices().enumerate();
