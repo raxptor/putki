@@ -267,14 +267,20 @@ public class RustGenerator
     {
         for (Compiler.ParsedTree tree : comp.allTrees("rust"))
         {
-	        Path lib = tree.genCodeRoot.resolve("rust").resolve("src");
-	        Path fn = lib.resolve("lib.rs");
+	        // gen-outki lib.rs
+	        Path outkiLib = tree.genCodeRoot.resolve("rust").resolve("gen-outki").resolve("src");
 	        StringBuilder sb = new StringBuilder();
-	        sb.append("#![recursion_limit=\"128\"]");
-	        sb.append("\nextern crate putki;");
-	        sb.append("\npub mod inki;");
+	        sb.append("extern crate putki;");
 	        sb.append("\npub mod outki;");
-	        writer.addOutput(fn, sb.toString().getBytes());
+	        writer.addOutput(outkiLib.resolve("lib.rs"), sb.toString().getBytes());
+
+	        // gen-inki lib.rs
+	        Path inkiLib = tree.genCodeRoot.resolve("rust").resolve("gen-inki").resolve("src");
+	        sb = new StringBuilder();
+	        sb.append("extern crate putki;");
+	        sb.append("\npub mod inki;");
+	        writer.addOutput(inkiLib.resolve("lib.rs"), sb.toString().getBytes());
+
 	        generateInkiStructs(comp, tree, writer);
 	        generateInkiParsers(comp, tree, writer);
 	        generateOutkiStructs(comp, tree, writer);
@@ -310,7 +316,7 @@ public class RustGenerator
 
     public static void generateInkiStructs(Compiler comp, Compiler.ParsedTree tree, CodeWriter writer)
     {
-        Path lib = tree.genCodeRoot.resolve("rust").resolve("src").resolve("inki");
+        Path lib = tree.genCodeRoot.resolve("rust").resolve("gen-inki").resolve("src").resolve("inki");
         Path fn = lib.resolve("mod.rs");
         StringBuilder sb = new StringBuilder();
         sb.append("#![allow(unused_imports)]");
@@ -684,21 +690,24 @@ public class RustGenerator
 
         writer.addOutput(fn, sb.toString().getBytes());
 
-        Path manifest = tree.genCodeRoot.resolve("rust");
-        Path mfn = manifest.resolve("Cargo.toml");
+        Path inkiCrate = tree.genCodeRoot.resolve("rust").resolve("gen-inki");
+        Path inkiManifest = inkiCrate.resolve("Cargo.toml");
+        String putkiInkiPath = inkiCrate.relativize(tree.putkiPath.resolve("rust").resolve("putki-inki")).toString().replaceAll("\\\\", "/");
         sb = new StringBuilder();
+        
         sb.append("[package]\n");
-        sb.append("name = \"putki_gen\"\n");
+        sb.append("name = \"" + moduleName(tree.moduleName) + "-inki\"\n");
         sb.append("version = \"0.1.0\"\n");
         sb.append("[lib]\n");
-        sb.append("name = \"" + moduleName(tree.moduleName) + "\"\n");
-        sb.append("[dependencies]\r\nputki = { path = \""  + tree.putkiPath.resolve("rust").relativize(manifest).toString().replaceAll("\\\\",  "/") + "\" }");
-        writer.addOutput(mfn, sb.toString().getBytes());
+        sb.append("name = \"" + moduleName(tree.moduleName) + "_inki\"\n");
+        sb.append("[dependencies]\n");
+        sb.append("putki = { package = \"putki-inki\", path = \"" + putkiInkiPath + "\" }\n");
+        writer.addOutput(inkiManifest, sb.toString().getBytes());
     }
 
     public static void generateOutkiStructs(Compiler comp, Compiler.ParsedTree tree, CodeWriter writer)
     {
-        Path lib = tree.genCodeRoot.resolve("rust").resolve("src").resolve("outki");
+        Path lib = tree.genCodeRoot.resolve("rust").resolve("gen-outki").resolve("src").resolve("outki");
         Path fn = lib.resolve("mod.rs");
         StringBuilder sb = new StringBuilder();
         sb.append("#![allow(unused_imports)]");
@@ -939,16 +948,19 @@ public class RustGenerator
 
         writer.addOutput(fn, sb.toString().getBytes());
 
-        Path manifest = tree.genCodeRoot.resolve("rust");
-        Path mfn = manifest.resolve("Cargo.toml");
+        Path outkiCrate = tree.genCodeRoot.resolve("rust").resolve("gen-outki");
+        Path outkiManifest = outkiCrate.resolve("Cargo.toml");
+        String putkiOutkiPath = outkiCrate.relativize(tree.putkiPath.resolve("rust").resolve("putki-outki")).toString().replaceAll("\\\\", "/");
         sb = new StringBuilder();
+        
         sb.append("[package]\n");
-        sb.append("name = \"putki_gen\"\n");
+        sb.append("name = \"" + moduleName(tree.moduleName) + "-outki\"\n");
         sb.append("version = \"0.1.0\"\n");
         sb.append("[lib]\n");
-        sb.append("name = \"" + moduleName(tree.moduleName) + "\"\n");
-        sb.append("[dependencies]\r\nputki = { path = \""  + manifest.relativize(tree.putkiPath.resolve("rust")).toString().replaceAll("\\\\",  "/") + "\" }");
-        writer.addOutput(mfn, sb.toString().getBytes());
+        sb.append("name = \"" + moduleName(tree.moduleName) + "_outki\"\n");
+        sb.append("[dependencies]\n");
+        sb.append("putki = { package = \"putki-outki\", path = \"" + putkiOutkiPath + "\" }\n");
+        writer.addOutput(outkiManifest, sb.toString().getBytes());
     }
 
     static void allChildrenTags(StringBuilder sb, Compiler.ParsedStruct struct)
@@ -961,7 +973,7 @@ public class RustGenerator
 
     public static void generateInkiParsers(Compiler comp, Compiler.ParsedTree tree, CodeWriter writer)
     {
-        Path lib = tree.genCodeRoot.resolve("rust").resolve("src").resolve("inki");
+        Path lib = tree.genCodeRoot.resolve("rust").resolve("gen-inki").resolve("src").resolve("inki");
         Path fn = lib.resolve("parse.rs");
         StringBuilder sb = new StringBuilder();
         sb.append("#![allow(unused_imports)]\nuse std::rc;\n" +
