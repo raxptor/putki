@@ -698,6 +698,7 @@ public class RustGenerator
         sb.append("[package]\n");
         sb.append("name = \"" + moduleName(tree.moduleName) + "-inki\"\n");
         sb.append("version = \"0.1.0\"\n");
+        sb.append("edition = \"2015\"\n");
         sb.append("[lib]\n");
         sb.append("name = \"" + moduleName(tree.moduleName) + "_inki\"\n");
         sb.append("[dependencies]\n");
@@ -956,6 +957,7 @@ public class RustGenerator
         sb.append("[package]\n");
         sb.append("name = \"" + moduleName(tree.moduleName) + "-outki\"\n");
         sb.append("version = \"0.1.0\"\n");
+        sb.append("edition = \"2015\"\n");
         sb.append("[lib]\n");
         sb.append("name = \"" + moduleName(tree.moduleName) + "_outki\"\n");
         sb.append("[dependencies]\n");
