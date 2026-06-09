@@ -124,6 +124,7 @@ public class Compiler {
 	HashMap<String, ParsedTree> allModules = new HashMap<String, ParsedTree>();
 	List<String> buildConfigs = new ArrayList<String>();
 
+	public boolean mixki = true;
 	public boolean mixkiOnly = false;
 
 	public void error(String path, int line, String err) {
@@ -583,6 +584,8 @@ public class Compiler {
 					} else if (line.startsWith("name:")) {
 						pt.moduleName = line.substring(5);
 						pt.loaderName = line.substring(5);
+					} else if (line.startsWith("mixki:")) {
+						mixki = Boolean.parseBoolean(line.substring(11));
 					} else if (line.startsWith("mixki-only:")) {
 						mixkiOnly = Boolean.parseBoolean(line.substring(11));
 					} else if (line.startsWith("src:")) {
@@ -768,7 +771,8 @@ public class Compiler {
 		}
 
 		CodeWriter writer = new CodeWriter();
-		CSharpGenerator.generateMixkiParsers(c, writer);
+		if (c.mixki) 
+			CSharpGenerator.generateMixkiParsers(c, writer);
 		CSharpGenerator.generateOutkiStructs(c, writer);
 		if (!c.mixkiOnly) {
 			CSharpGenerator.generateOutkiDataLoader(c, writer);
