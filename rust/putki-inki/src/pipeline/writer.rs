@@ -1,8 +1,8 @@
-use outki;
-use pipeline;
-use ptr;
-use shared;
-use shared::PutkiError;
+use crate::outki;
+use crate::pipeline;
+use crate::ptr;
+use crate::shared;
+use crate::shared::PutkiError;
 use std::any::Any;
 use std::collections::HashMap;
 use std::collections::HashSet;

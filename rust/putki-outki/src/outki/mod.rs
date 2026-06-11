@@ -9,7 +9,7 @@ use std::mem::forget;
 use std::hash::{Hash, Hasher};
 use std::io;
 use std::fmt;
-use shared;
+use crate::shared;
 mod binreader;
 mod pkmanifest;
 

@@ -63,7 +63,7 @@ impl ToString for LexedData
 	fn to_string(&self) -> String {
 		let mut tmp = String::new();
 		match self {
-			LexedData::Object { ref kv, ref id, ref type_name } => {
+			LexedData::Object { kv, id, type_name } => {
 				if !type_name.is_empty() {
 					tmp.push('@');
 					tmp.push_str(type_name);
@@ -75,13 +75,13 @@ impl ToString for LexedData
 				}
 				tmp.push_str(kv_to_string(kv).as_str());
 			},
-			LexedData::Value(ref val) => tmp.push_str(val),
-			LexedData::StringLiteral(ref val) => {
+			LexedData::Value(val) => tmp.push_str(val),
+			LexedData::StringLiteral(val) => {
 				tmp.push_str(&escape_string(val));
 			}
-			LexedData::Array(ref vec) => {
+			LexedData::Array(vec) => {
 				tmp.push('[');
-				for val in vec {				
+				for val in vec {
 					tmp.push_str(val.to_string().as_str());
 					tmp.push(',');
 				}
@@ -96,7 +96,7 @@ impl ToString for LexedData
 
 fn parse_val<T : FromStr + Default>(val: &LexedData) -> T
 {
-	if let LexedData::Value(ref x) = val {
+	if let LexedData::Value(x) = val {
 		if let Ok(val) = T::from_str(x) {
 			return val;
 		}
@@ -119,7 +119,7 @@ pub fn get_bool(data: Option<&LexedData>, default: bool) -> bool
 {
 	data.and_then(|val| {
 		match val {
-			LexedData::Value(ref x) => {
+			LexedData::Value(x) => {
 				match x.as_ref() {
 					"True" => Some(true),
 					"true" => Some(true),
@@ -136,8 +136,8 @@ pub fn get_string(data: Option<&LexedData>, default: &str) -> String
 {
 	data.map(|val| {
 		match val {
-			LexedData::Value(ref x) => x.clone(),
-			LexedData::StringLiteral(ref x) => x.clone(),
+			LexedData::Value(x) => x.clone(),
+			LexedData::StringLiteral(x) => x.clone(),
 			_ => String::from(default)
 		}
 	}).unwrap_or_else(|| String::from(default))
@@ -147,7 +147,7 @@ pub fn get_array(data: Option<&LexedData>) -> Option<slice::Iter<'_, LexedData>>
 {
 	data.and_then(|v| { 
 		match v {
-			LexedData::Array(ref arr) => Some(arr.iter()),
+			LexedData::Array(arr) => Some(arr.iter()),
 			_ => None
 		}
 	})
@@ -157,7 +157,7 @@ pub fn get_object(data: Option<&LexedData>) -> Option<(&LexedKv, &str)>
 {
 	data.and_then(|val| {
 		match val {
-			LexedData::Object{ref kv, ref type_name, ..} => Some((kv, type_name.as_ref())),
+			LexedData::Object{kv, type_name, ..} => Some((kv, type_name.as_ref())),
 			_ => None
 		}
 	})
@@ -167,7 +167,7 @@ pub fn get_kv(data: Option<&LexedData>) -> Option<&LexedKv>
 {
 	data.and_then(|val| {
 		match val {
-			LexedData::Object{ref kv, ..} => Some(kv),
+			LexedData::Object{kv, ..} => Some(kv),
 			_ => None
 		}
 	})
@@ -201,7 +201,7 @@ fn parse_keyword_or_string(data: &str) -> ScanResult<'_>
 					data: LexedData::Empty
 				}
 			},
-			Some(ref x) => {
+			Some(x) => {
 				let value = &x.1;
 				if inside_string {
 					if escaped {

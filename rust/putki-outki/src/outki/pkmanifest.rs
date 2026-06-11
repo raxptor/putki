@@ -1,6 +1,6 @@
 use std::io::Read;
 use std::ops::DerefMut;
-use outki::*;
+use crate::outki::*;
 
 pub struct Slot
 {

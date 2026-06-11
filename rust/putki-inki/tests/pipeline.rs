@@ -16,8 +16,8 @@ use putki_inki::FieldWriter;
 use putki_inki::Ptr;
 use putki_inki::BinWriter;
 use putki_outki::outki as outki;
-use outki::PackageManifest;
-use outki::BinReader;
+use crate::outki::PackageManifest;
+use crate::outki::BinReader;
 
 #[derive(Debug, Clone, Default)]
 struct TestValues {

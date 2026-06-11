@@ -1,8 +1,8 @@
-use inki::lexer;
+use crate::inki::lexer;
 use std::rc::Rc;
 use std::sync::Arc;
-use shared::TypeDescriptor;
-use shared::PutkiError;
+use crate::shared::TypeDescriptor;
+use crate::shared::PutkiError;
 
 pub enum ResolveStatus<T> {
     Resolved(Rc<T>),

@@ -17,20 +17,20 @@ use std::default::Default;
 use std::vec;
 use std::marker::PhantomData;
 use std::collections::*;
-use inki::ptr::PtrInkiResolver;
-use shared;
+use crate::inki::ptr::PtrInkiResolver;
+use crate::shared;
 use std::io;
 use std::io::prelude::*;
 use std::fs::File;
 use std::path;
-use inki;
-use source;
-use ptr;
-use source::WriteAsText;
-use shared::PutkiError;
+use crate::inki;
+use crate::source;
+use crate::ptr;
+use crate::source::WriteAsText;
+use crate::shared::PutkiError;
 
 pub mod writer;
-use writer::*;
+use crate::writer::*;
 
 pub struct BuilderDesc {
     pub description: &'static str    
@@ -113,7 +113,7 @@ impl BuildRecord
         Ok(buffer)
     }
     pub fn built_object(&self) -> Option<&dyn BuildResultObj> {
-        if let Some(ref b) = &self.built_obj {
+        if let Some(b) = &self.built_obj {
             Some(&(**b))
         } else {
             None

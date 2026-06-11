@@ -1,4 +1,4 @@
-use outki::{BinLoader, BinResolverContext, OutkiResult};
+use crate::outki::{BinLoader, BinResolverContext, OutkiResult};
 
 pub struct BinDataStream<'a> {
     slice: &'a [u8]

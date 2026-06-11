@@ -1,7 +1,7 @@
-use inki::lexer;
-use inki::source;
+use crate::inki::lexer;
+use crate::inki::source;
 use seahash;
-use shared;
+use crate::shared;
 use std::fmt;
 use std::result;
 use std::sync::Arc;

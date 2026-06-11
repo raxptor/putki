@@ -45,19 +45,19 @@ fn visit_dirs(dir: &Path, cb: &mut dyn FnMut(&DirEntry)) -> io::Result<()> {
 fn process_jsony_obj(base:&Path, file:&Path, idx: &mut LoadAll, ld:&lexer::LexedData)
 {
 	match ld {
-		lexer::LexedData::Object { ref kv, .. } => {
+		lexer::LexedData::Object { kv, .. } => {
 			if let Ok(ref_) = file.strip_prefix(base) {
 				let bp = String::from(ref_.to_string_lossy());				
 				let mut obj_ref = bp.trim_end_matches(".json").replace('\\', "/");
 				if let Some(refval) = kv.get("ref") {
-					if let lexer::LexedData::StringLiteral(ref path_piece) = refval {
+					if let lexer::LexedData::StringLiteral(path_piece) = refval {
 						obj_ref.push_str(path_piece);
 					}
 				}
 				if let Some(val) = kv.get("type") {
-					if let lexer::LexedData::StringLiteral(ref type_name) = val {
+					if let lexer::LexedData::StringLiteral(type_name) = val {
 						if let Some(val) = kv.get("data") {
-							if let lexer::LexedData::Object{ref kv, ..} = val {
+							if let lexer::LexedData::Object{kv, ..} = val {
 								let entry = ObjEntry {
 									type_: (*type_name).clone(),
 									data: (*kv).clone()
@@ -68,7 +68,7 @@ fn process_jsony_obj(base:&Path, file:&Path, idx: &mut LoadAll, ld:&lexer::Lexed
 					}
 				}
 				if let Some(val) = kv.get("aux") {
-					if let lexer::LexedData::Array(ref arr) = val {
+					if let lexer::LexedData::Array(arr) = val {
 						for auxobj in arr {
 							process_jsony_obj(base, file, idx, auxobj);
 						}
@@ -93,7 +93,7 @@ fn index_jsony_data(base:&Path, path:&Path, idx: &mut LoadAll) -> io::Result<()>
 
 fn collect_txty_inline_objs(idx: &mut LoadAll, obj: &lexer::LexedData)
 {
-	if let lexer::LexedData::Object{ ref type_name, ref kv, ref id } = obj {
+	if let lexer::LexedData::Object{ type_name, kv, id } = obj {
 		if !id.is_empty() {
 			idx.objs.insert(id.clone(), ObjEntry {
 				type_: type_name.clone(),
@@ -104,7 +104,7 @@ fn collect_txty_inline_objs(idx: &mut LoadAll, obj: &lexer::LexedData)
 			collect_txty_inline_objs(idx, sub);
 		}		
 	}
-	if let lexer::LexedData::Array(ref arr) = obj {
+	if let lexer::LexedData::Array(arr) = obj {
 		for obj in arr {
 			collect_txty_inline_objs(idx, obj);
 		}
@@ -117,7 +117,7 @@ fn index_txty_data(_base:&Path, path:&Path, idx: &mut LoadAll) -> io::Result<()>
 	let mut reader = BufReader::new(file);
 	let mut contents = String::new();	
 	reader.read_to_string(&mut contents)?;
-	for (_, obj) in lexer::lex_file(&contents) {		
+	for (_, obj) in lexer::lex_file(&contents) {
 		collect_txty_inline_objs(idx, &obj);
 	}	
 	Ok(())

@@ -9,6 +9,6 @@ pub use putki_outki::*;
 pub mod inki;
 pub mod pipeline;
 
-pub use inki::*;
-pub use pipeline::*;
-pub use pipeline::writer::*;
+pub use crate::inki::*;
+pub use crate::pipeline::*;
+pub use crate::pipeline::writer::*;
