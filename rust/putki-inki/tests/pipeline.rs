@@ -111,19 +111,19 @@ impl putki_inki::BuildFields for Pointer {
 }
 
 impl putki_inki::BuildCandidate for TestValues {
-    fn as_any_ref(&mut self) -> &mut any::Any { return self; }    
+    fn as_any_ref(&mut self) -> &mut dyn any::Any { return self; }    
     fn build(&mut self, p:&putki_inki::Pipeline, br: &mut putki_inki::BuildRecord) -> Result<(), putki_inki::PutkiError> { p.build(br, self) }
 	fn scan_deps(&self, _p:&putki_inki::Pipeline, _br: &mut putki_inki::BuildRecord) { }
 }
 
 impl putki_inki::BuildCandidate for Multi {
-    fn as_any_ref(&mut self) -> &mut any::Any { return self; }    
+    fn as_any_ref(&mut self) -> &mut dyn any::Any { return self; }    
     fn build(&mut self, p:&putki_inki::Pipeline, br: &mut putki_inki::BuildRecord) -> Result<(), putki_inki::PutkiError> { p.build(br, self) }
 	fn scan_deps(&self, _p:&putki_inki::Pipeline, _br: &mut putki_inki::BuildRecord) { }
 }
 
 impl putki_inki::BuildCandidate for Pointer {
-    fn as_any_ref(&mut self) -> &mut any::Any { return self; }    
+    fn as_any_ref(&mut self) -> &mut dyn any::Any { return self; }    
     fn build(&mut self, p:&putki_inki::Pipeline, br: &mut putki_inki::BuildRecord) -> Result<(), putki_inki::PutkiError> { p.build(br, self) }
 	fn scan_deps(&self, p:&putki_inki::Pipeline, br: &mut putki_inki::BuildRecord) { 
 		p.add_output_dependency(br, &self.next);
@@ -247,7 +247,7 @@ struct ReadFromVec {
 
 impl outki::PackageRandomAccess for ReadFromVec
 {
-   fn read_chunk(&self, begin:usize, end:usize, f:&mut FnMut(outki::OutkiResult<&[u8]>) -> outki::OutkiResult<()>) -> outki::OutkiResult<()> {
+   fn read_chunk(&self, begin:usize, end:usize, f:&mut dyn FnMut(outki::OutkiResult<&[u8]>) -> outki::OutkiResult<()>) -> outki::OutkiResult<()> {
         (*f)(Ok(&self.data[begin..end]))
     }
 }
