@@ -11,8 +11,8 @@ sourceSets {
 }
 
 jar {
-    destinationDir = file('dist')
-    archiveName = 'putki-compiler.jar'
+    destinationDirectory = file('dist')
+    archiveBaseName = 'putki-compiler'
     manifest {
         attributes 'Main-Class': 'putki.Compiler'
     }
