@@ -615,12 +615,12 @@ public class RustGenerator
                 	if (isEnumVariant(struct))
                     	sb.append(pfx).append("\t\t\t" + structName(struct) + "::" + structName(struct) + " => Ok(()),");
                 	else
-                		sb.append(pfx).append("\t\t\t" + structName(struct) + "::" + structName(struct) + "(ref mut c) => c.build_fields(_p, _br),");
+                		sb.append(pfx).append("\t\t\t" + structName(struct) + "::" + structName(struct) + "(c) => c.build_fields(_p, _br),");
 	                for (Compiler.ParsedStruct s : struct.possibleChildren) {
 	                	if (isEnumVariant(s))
 	                		sb.append(pfx).append("\t\t\t" + structName(struct) + "::" + structName(s) + " => Ok(()),");
 	                	else
-	                		sb.append(pfx).append("\t\t\t" + structName(struct) + "::" + structName(s) + "(ref mut c) => c.build_fields(_p, _br),");
+	                		sb.append(pfx).append("\t\t\t" + structName(struct) + "::" + structName(s) + "(c) => c.build_fields(_p, _br),");
 	                }
 	                sb.append(pfx).append("\t\t}");
 	                sb.append(pfx).append("\t}");
@@ -698,7 +698,7 @@ public class RustGenerator
         sb.append("[package]\n");
         sb.append("name = \"" + moduleName(tree.moduleName) + "-inki\"\n");
         sb.append("version = \"0.1.0\"\n");
-        sb.append("edition = \"2015\"\n");
+        sb.append("edition = \"2024\"\n");
         sb.append("[lib]\n");
         sb.append("name = \"" + moduleName(tree.moduleName) + "_inki\"\n");
         sb.append("[dependencies]\n");
@@ -957,7 +957,7 @@ public class RustGenerator
         sb.append("[package]\n");
         sb.append("name = \"" + moduleName(tree.moduleName) + "-outki\"\n");
         sb.append("version = \"0.1.0\"\n");
-        sb.append("edition = \"2015\"\n");
+        sb.append("edition = \"2024\"\n");
         sb.append("[lib]\n");
         sb.append("name = \"" + moduleName(tree.moduleName) + "_outki\"\n");
         sb.append("[dependencies]\n");
@@ -979,7 +979,7 @@ public class RustGenerator
         Path fn = lib.resolve("parse.rs");
         StringBuilder sb = new StringBuilder();
         sb.append("#![allow(unused_imports)]\nuse std::rc;\n" +
-        	"use inki;\n" +
+        	"use crate::inki;\n" +
     		"use putki;\n" +
     		"use std::sync::Arc;\n" +
         	"use std::ops::Deref;\n" +
