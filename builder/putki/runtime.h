@@ -1,11 +1,9 @@
-#ifndef __PUTKI_RUNTIME_H__
-#define __PUTKI_RUNTIME_H__
+#pragma once
 
 namespace putki
 {
 	namespace runtime
 	{
-
 		enum platform_t
 		{
 			PLATFORM_32BIT   = 0,
@@ -48,6 +46,4 @@ namespace putki
 		}
 	}
 }
-
-#endif
 

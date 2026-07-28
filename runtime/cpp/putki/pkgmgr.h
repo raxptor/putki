@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <stddef.h>
 #include "types.h"
 
 namespace putki
@@ -9,12 +10,19 @@ namespace putki
 	{
 		struct loaded_package;
 		struct resolve_status;
+
+		struct resource_data
+		{
+			const char* data;
+			size_t size;
+			intptr_t internal;
+		};
 		
 		// will call back and send beg/end/target to 0 when done, then expects everything to be loaded after that.
-		typedef bool (*load_external_file_fn)(int file_index, const char *path, uint32_t beg, uint32_t end, void *target);
+		typedef bool(*load_external_file_fn)(int file_index, const char *path, size_t beg, size_t end, void *target);
 
 		// look at the first bytes and say if valid and how big the header is.
-		bool get_header_info(char *beg, char *end, uint32_t *total_header_size, uint32_t *total_data_size);
+		bool get_header_info(char *beg, char *end, size_t *total_header_size, size_t *total_data_size);
 
 		// parse from buffer, takes ownership.
 		// if opt_out is passed in, it will be filled with resolve stauts.
@@ -36,5 +44,13 @@ namespace putki
 		const char *path_in_package_slot(loaded_package *, unsigned int slot, bool only_if_content);
 		int num_unresolved_slots(loaded_package *);
 		int next_unresolved_slot(loaded_package *p, int start);
+
+		// load resource by path
+		bool load_resource(loaded_package* p, const char* path, resource_data* res);
+
+		// load by id.
+		bool load_resource(resource_id id, resource_data* res, loaded_package* extra);
+
+		void free_resource(resource_data* res);
 	}
 }

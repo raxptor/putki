@@ -7,7 +7,7 @@ namespace Mixki
 {
 	public class SourceLoader
 	{
-		public delegate object ParseFn(SourceLoader loader, string path, object obj);
+		public delegate object ParseFn(SourceLoader loader, string path, Dictionary<string, object> obj, object parseInto, bool addAsInline);
 		public delegate void LogFn(string txt);
 
 		public struct Parser
@@ -24,7 +24,13 @@ namespace Mixki
 		string m_root;
 		Dictionary<String, object> m_raw;
 		Dictionary<String, object> m_parsed;
-		Dictionary<String, ParseFn> m_parsers;
+        Dictionary<String, ParseFn> m_parsers;
+		List<String> m_pathStack = new List<string>();
+
+        public Dictionary<String, object> AllParsed()
+        {
+            return m_parsed;
+        }
 
 		public LogFn Logger;
 
@@ -38,12 +44,44 @@ namespace Mixki
 			{
 				m_parsers.Add(p.Type, p.Fn);
 			}
-			Logger = delegate {				
+			Logger = delegate {
 			};
 		}
 
-		public Type Resolve<Type>(string assetPath, string path)
+        Dictionary<Type, object[]> s_emptyArrays = new Dictionary<Type, object[]>();
+
+        public Type[] AllocateRefArray<Type>(int count) where Type:class
+        {
+            if (count == 0)
+            {
+                object[] arr;
+                if (s_emptyArrays.TryGetValue(typeof(Type), out arr))
+                {
+                    return (Type[])arr;
+                }
+                else
+                {
+                    var empty = new Type[0];
+                    s_emptyArrays[typeof(Type)] = empty;
+                }
+            }
+            return new Type[count];
+        }
+
+        public Type[] AllocateObjArray<Type>(int count)
+        {
+            return new Type[count];
+        }
+
+        public Type Resolve<Type>(string assetPath, object value, ParseFn inlineFn = null)
 		{
+			// inline object such as auxptr with { }
+			if (value is Dictionary<string, object>)
+			{
+				return Resolve<Type>(value, inlineFn);
+			}
+
+			string path = value.ToString();
 			if (path == null || path == "")
 				return default(Type);
 			
@@ -52,9 +90,71 @@ namespace Mixki
 			else
 				return Resolve<Type>(path);
 		}
-
-		public Type Resolve<Type>(string path)
+		static string Normalize(string s)
 		{
+			return s.ToLowerInvariant().Replace("-", "").Replace("_", "");
+		}
+
+		static int m_inlineCounter = 0;
+
+        static public bool AssignPathsToAllObjects = false;
+        static public bool RecordLoadOrder = false;
+        static public Dictionary<object, int> s_loadOrderData = new Dictionary<object, int>();
+        static int s_loadOrder;
+
+        static void RecordLoaded(object obj)
+        {
+            if (RecordLoadOrder)
+            {
+                s_loadOrderData[obj] = s_loadOrder++;
+            }
+        }
+
+        public static int GetLoadOrder(object obj)
+        {
+            int order = -1;
+            s_loadOrderData.TryGetValue(obj, out order);
+            return order;
+        }
+
+        // This happens when an object pointed to
+        public void PostInlineResolve(string path, object obj)
+        {
+            if (AssignPathsToAllObjects) {
+                string ipath = path + "##inline" + ((m_inlineCounter++).ToString());
+                m_parsed.Add(ipath, obj);
+                RecordLoaded(obj);
+            }
+        }
+
+        public Type Resolve<Type>(object value, ParseFn inlineFn = null)
+		{
+			if (value is Dictionary<string, object>)
+			{
+				string ipath;
+				if (m_pathStack.Count > 0)
+				{
+					ipath = "!" + m_pathStack[m_pathStack.Count - 1] + "/" + (m_inlineCounter++);
+				}
+				else
+				{
+					ipath = "##inline" + ((m_inlineCounter++).ToString());
+				}
+
+				object parsed = inlineFn(this, ipath, value as Dictionary<string, object>, inlineFn(this, null, null, null, false), false);
+				m_parsed.Add(ipath, parsed);
+                RecordLoaded(parsed);
+                Putki.PackageManager.RegisterLoaded(ipath, parsed);                
+                return (Type) parsed;
+			}
+				
+			string path = value.ToString();
+			if (value is String)
+			{
+				path = value.ToString();
+			}
+			else 
+
 			if (path == null || path == "")
 				return default(Type);
 			
@@ -73,39 +173,50 @@ namespace Mixki
 			else
 			{
 				object raw;
-				if (!m_raw.TryGetValue(path, out raw))
+				if (m_raw.TryGetValue(path, out raw))
 				{
-					Load(assetPath);
+					LoadJson(assetPath);
 					if (!m_raw.TryGetValue(path, out raw))
 					{
+						Logger("Resolve error on path [" + path + "]");
 						return default(Type);
 					}
 				}
 
-				MicroJson.Object ro = raw as MicroJson.Object;
+				Dictionary<string, object> ro = raw as Dictionary<string, object>;
 				object typeObj;
-				if (!ro.Data.TryGetValue("type", out typeObj))
+				if (!ro.TryGetValue("type", out typeObj))
 				{
 					Logger("Failed to read type field of [" + path + "]");
 					return default(Type);
 				}
 
 				object dataObj;
-				if (!ro.Data.TryGetValue("data", out dataObj))
+				if (!ro.TryGetValue("data", out dataObj))
 				{
 					Logger("Failed to read data field of [" + path + "]");
 					return default(Type);
 				}
 
+				Dictionary<string, object> datas = dataObj as Dictionary<string, object>;
+				if (datas == null)
+				{
+					Logger("Not a dictionary for object at [" + path + "]");
+					return default(Type);
+				}
+
 				string type = typeObj.ToString();
 				ParseFn p;
-				if (m_parsers.TryGetValue(type, out p))
+				if (m_parsers.TryGetValue(Normalize(type), out p))
 				{
-					object parsed = p(this, assetPath, dataObj);
-					Logger("Parsed [" + path + "] as [" + type + "]");
-					m_parsed.Add(path, parsed);
-					Putki.PackageManager.RegisterLoaded(path, parsed);
-					return (Type) parsed;
+					object prep = p(null, null, null, null, false);
+					m_parsed.Add(path, prep);
+					RecordLoaded(prep);
+					m_pathStack.Add(path);
+					prep = p(this, assetPath, datas, prep, false);
+					m_pathStack.RemoveAt(m_pathStack.Count - 1);
+					Putki.PackageManager.RegisterLoaded(path, prep);
+					return (Type) prep;
 				}
 				else
 				{
@@ -124,15 +235,25 @@ namespace Mixki
 			}
 			else
 			{
-				Load(path);
+				LoadJson(path);
 				m_raw.TryGetValue(path, out val);
 				return val;
 			}
 		}
 
-		public void InsertRawData(string path, byte[] bytes)
+		public void InsertRawObj(string path, Dictionary<string, object> obj)
 		{
-			MicroJson.Object file = MicroJson.Parse(bytes);
+			if (m_raw.ContainsKey(path))
+			{
+				Logger("DUPLICATE OBJECT ON PATH [" + path + "]");
+				//return;
+			}
+			m_raw.Add(path, obj);
+		}
+
+		public void InsertRawJsonData(string path, byte[] bytes)
+		{
+			Dictionary<string, object> file = MicroJson.Parse(bytes);
 			if (file == null)
 			{
 				Logger("Failed to load [" + path + "]");
@@ -143,19 +264,19 @@ namespace Mixki
 			Logger("Raw: adding main " + path);
 
 			object auxesObj;
-			file.Data.TryGetValue("aux", out auxesObj);
-			MicroJson.Array auxesArr = auxesObj as MicroJson.Array;
+			file.TryGetValue("aux", out auxesObj);
+			var auxesArr = auxesObj as List<object>;
 			if (auxesArr != null)
 			{
-				for (int i=0;i<auxesArr.Data.Count;i++)
+				for (int i=0;i<auxesArr.Count;i++)
 				{
-					MicroJson.Object ao = auxesArr.Data[i] as MicroJson.Object;
+					var ao = auxesArr[i] as Dictionary<string, object>;
 					if (ao == null)
 					{
 						continue;
 					}
 					object refObj;
-					if (!ao.Data.TryGetValue("ref", out refObj))
+					if (!ao.TryGetValue("ref", out refObj))
 					{
 						continue;
 					}
@@ -167,8 +288,12 @@ namespace Mixki
 			}
 		}
 
-		void Load(string path)
+		void LoadJson(string path)
 		{
+			if (m_root == null)
+			{
+				return;
+			}
 			string fn = m_root;
 			string tmp = path;
 			while (tmp.Length > 0)
@@ -186,11 +311,17 @@ namespace Mixki
 
 			fn = fn + ".json";
 
-			Logger("Opening file [" + fn + "]");
-			byte[] bytes = System.IO.File.ReadAllBytes(fn);
-			if (bytes != null)
+			try
 			{
-				InsertRawData(path, bytes);
+				byte[] bytes = System.IO.File.ReadAllBytes(fn);
+				if (bytes != null)
+				{
+					InsertRawJsonData(path, bytes);
+				}
+			}
+			catch (IOException)
+			{
+				Logger("Could not read file [" + fn + "]");
 			}
 		}
 	}

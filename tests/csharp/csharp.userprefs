@@ -1,0 +1,31 @@
+﻿<Properties StartupConfiguration="{DDDB1FE0-16B1-41B7-80FC-3435743989FA}|Default">
+  <MonoDevelop.Ide.Workbench ActiveDocument="../../runtime/csharp/netki/PacketLane.cs">
+    <Files>
+      <File FileName="Program.cs" Line="54" Column="19" />
+      <File FileName="../../runtime/csharp/netki/PacketLane.cs" Line="573" Column="1" />
+    </Files>
+    <Pads>
+      <Pad Id="ProjectPad">
+        <State name="__root__">
+          <Node name="csharp" expanded="True">
+            <Node name="csharp" expanded="True">
+              <Node name="csharp" expanded="True">
+                <Node name="netki" expanded="True">
+                  <Node name="PacketLane.cs" selected="True" />
+                </Node>
+              </Node>
+            </Node>
+          </Node>
+        </State>
+      </Pad>
+    </Pads>
+  </MonoDevelop.Ide.Workbench>
+  <MonoDevelop.Ide.Workspace ActiveConfiguration="Debug|x86" />
+  <MonoDevelop.Ide.DebuggingService.Breakpoints>
+    <BreakpointStore>
+      <Breakpoint file="/Users/dannilsson/git/putki/runtime/csharp/netki/PacketLane.cs" line="573" column="1" />
+    </BreakpointStore>
+  </MonoDevelop.Ide.DebuggingService.Breakpoints>
+  <MonoDevelop.Ide.DebuggingService.PinnedWatches />
+  <MonoDevelop.Ide.ItemProperties.csharp PreferredExecutionTarget="MonoDevelop.Default" />
+</Properties>

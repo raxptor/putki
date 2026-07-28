@@ -206,7 +206,7 @@ public class DataLoader
 				});
 				return null;
 			}
-			if (Character.isDigit(b) || b == '.')
+			if (Character.isDigit(b) || b == '.' || b == '-')
 			{
 				if (number == -1)
 					number = pos;
@@ -353,8 +353,10 @@ public class DataLoader
 				case STRUCT_INSTANCE:
 				{
 					Tmp t = new Tmp();
-					t.result = new DataObject(field.resolvedRefStruct, obj.getRootAsset(), obj.getPath() + ":" + field.name);
+					t.result = new DataObject(field.resolvedRefStruct, obj.getAuxRoot(), obj.getRoot(), obj.getPath());
+					t.result.setTrackChanges(false);
 					parseData(status, t);
+					t.result.setTrackChanges(true);
 					if (!status.error)
 					{
 						obj.setField(field.index, arrayIndex, t.result);
@@ -367,7 +369,7 @@ public class DataLoader
 					int aux = s.indexOf('#');
 					if (aux != -1)
 					{
-						obj.setField(field.index, arrayIndex, obj.getRootAsset().getPath() + s.substring(aux));
+						obj.setField(field.index, arrayIndex, obj.getAuxRoot().getPath() + s.substring(aux));
 					}
 					else
 					{
@@ -470,14 +472,19 @@ public class DataLoader
 						{
 							ParsedStruct struct = Main.s_compiler.getTypeByName(parseValue(status));
 							if (!status.error && struct != null)
-								tmp2.result = new DataObject(struct, tmp.result.getRootAsset(), tmp.result.getPath() + tmp2.ref);
+								tmp2.result = new DataObject(struct, tmp.result.getAuxRoot(), null, tmp.result.getPath() + tmp2.ref);
 						}
 						else if (name.equals("data"))
 						{
-							parseData(status,  tmp2);
-							if (!status.error)
+							if (tmp2.result != null)
 							{
-								tmp.result.getRootAsset().addAux(tmp2.ref, tmp2.result);
+								tmp2.result.setTrackChanges(false);
+								parseData(status,  tmp2);
+								tmp2.result.setTrackChanges(true);
+								if (!status.error)
+								{
+									tmp.result.getAuxRoot().addAux(tmp2.ref, tmp2.result);
+								}
 							}
 						}
 					}
@@ -552,7 +559,9 @@ public class DataLoader
 					}
 					else if (name.equals("data") && tmp.result != null)
 					{
+						tmp.result.setTrackChanges(false);
 						parseData(status, tmp);
+						tmp.result.setTrackChanges(true);
 					}
 					else if (name.equals("aux") && tmp.result != null)
 					{

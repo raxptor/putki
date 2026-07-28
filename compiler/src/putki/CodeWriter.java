@@ -26,6 +26,28 @@ public class CodeWriter
 			try
 			{
 				Files.createDirectories(entry.getKey().getParent());
+				if (Files.exists(entry.getKey()))
+				{
+					byte[] data = Files.readAllBytes(entry.getKey());
+					byte[] toWrite = entry.getValue();
+					if (data.length == toWrite.length)
+					{
+
+						boolean same = true;
+						for (int i=0;i<data.length;i++)
+						{
+							if (data[i] != toWrite[i])
+							{
+								same = false;
+								break;
+							}
+						}
+						if (same)
+						{
+							continue;
+						}
+					}
+				}
 				Files.write(entry.getKey(),  entry.getValue());
 			}
 			catch (IOException e)

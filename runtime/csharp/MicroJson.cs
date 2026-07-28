@@ -5,16 +5,6 @@ namespace Putki
 {
 	public static class MicroJson
 	{
-		public class Object
-		{
-			public Dictionary<String, object> Data;
-		}
-
-		public class Array
-		{
-			public List<object> Data;
-		}
-
 		public struct ParseStatus
 		{
 			public byte[] data;
@@ -34,9 +24,43 @@ namespace Putki
 			ARRAY
 		};
 
+		public static int unhex(byte x)
+		{
+			if (x >= '0' && x <= '9')
+				return x - '0';
+			if (x >= 'a' && x <= 'f')
+				return 10 + x - 'a';
+			return 0;
+		}
+
 		public static String DecodeString(byte[] buf, int begin, int end)
 		{
-			return System.Text.Encoding.ASCII.GetString(buf, begin, end-begin);
+			byte[] tmp = new byte[end-begin];
+			int len = 0;
+			for (int i=begin;i<end;i++)
+			{
+				if (buf[i] != '\\')
+				{
+					tmp[len++] = buf[i];
+				}
+				else if ((i+1) < end)
+				{
+					if (buf[i+1] == 'u')
+					{
+						if ((i+5) < end)
+						{
+							int code = 
+								16*16*16*unhex(buf[i+2]) + 
+								16*16*unhex(buf[i+3]) +
+								16*unhex(buf[i+4]) +
+								unhex(buf[i+5]);
+							tmp[len++] = (byte) code;
+							i += 5;
+						}
+					}
+				}
+			}
+			return System.Text.Encoding.UTF8.GetString(tmp, 0, len);
 		}
 
 		public static bool IsWhitespace(char c)
@@ -44,11 +68,16 @@ namespace Putki
 			return c == ' ' || c == '\t' || c == 0xD || c == 0xA;
 		}
 
+		static string Normalize(string s)
+		{
+			return s.ToLowerInvariant().Replace("-", "").Replace("_", "");
+		}
+
 		public static object Parse(ref ParseStatus status)
 		{
 			Parsing state = Parsing.NOTHING;
-			Object o = null;
-			Array a = null;
+			Dictionary<string, object> o = null;
+			List<object> a = null;
 			String name = null;
 			for (int i=status.pos;i<status.data.Length;i++)
 			{
@@ -60,8 +89,8 @@ namespace Putki
 					{
 						switch (c)
 						{
-							case '{': state = Parsing.OBJECT; o = new Object(); o.Data = new Dictionary<string, object>(); break;
-							case '[': state = Parsing.ARRAY; a = new Array(); a.Data = new List<object>(); break;
+							case '{': state = Parsing.OBJECT; o = new Dictionary<string, object>(); break;
+							case '[': state = Parsing.ARRAY; a = new List<object>(); break;
 							case ' ': case '\n': case '\t': break;
 							case '"': state = Parsing.QUOTED_VALUE; status.pos = i+1; break;
 							default: state = Parsing.VALUE; status.pos = i; break;
@@ -70,6 +99,11 @@ namespace Putki
 					}
 					case Parsing.QUOTED_VALUE:
 					{
+						if (c == '\\')
+						{
+							i++;
+							break;
+						}
 						if (c == '"')
 						{
 							String v = DecodeString(status.data, status.pos, i);
@@ -123,7 +157,7 @@ namespace Putki
 									status.error = true;
 									return null;
 								}
-								o.Data.Add(name, val);
+								o.Add(Normalize(name), val);
 								i = status.pos - 1;
 								name = null;
 							}
@@ -147,7 +181,7 @@ namespace Putki
 								status.error = true;
 								return null;
 							}
-							a.Data.Add(val);
+							a.Add(val);
 							i = status.pos - 1;
 							break;
 						}
@@ -159,7 +193,7 @@ namespace Putki
 			return null;
 		}
 
-		public static Object Parse(byte[] buffer)
+		public static Dictionary<string, object> Parse(byte[] buffer)
 		{
 			ParseStatus status = new ParseStatus();
 			status.data = buffer;
@@ -171,7 +205,7 @@ namespace Putki
 			}
 			else
 			{
-				return root as MicroJson.Object;
+				return root as Dictionary<string, object>;
 			}
 		}
 	}

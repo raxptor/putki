@@ -8,15 +8,13 @@
 
 #include "build.h"
 
-#include <putki/builder/db.h>
 #include <putki/builder/typereg.h>
-#include <putki/builder/builder.h>
-#include <putki/builder/source.h>
 #include <putki/builder/package.h>
-#include <putki/builder/resource.h>
 #include <putki/builder/write.h>
 #include <putki/builder/build-db.h>
 #include <putki/builder/log.h>
+#include <putki/builder/objstore.h>
+#include <putki/builder/builder.h>
 
 #include <putki/sys/files.h>
 #include <putki/sys/thread.h>
@@ -29,152 +27,14 @@
 #include <vector>
 #include <set>
 
-namespace
-{
-	const unsigned long xbufSize = 512*1024*1024;
-	char xbuf[xbufSize];
-
-
-	struct domain_switch : public putki::db::enum_i
-	{
-		putki::db::data *input, *output;
-		bool create_unresolved;
-		bool traverse_children;
-	
-		domain_switch()
-		{
-			create_unresolved = true;
-			traverse_children = false;
-		}
-
-		struct depwalker : public putki::depwalker_i
-		{
-			domain_switch *parent;
-			putki::instance_t source;
-
-			bool pointer_pre(putki::instance_t *on, const char *ptr_type)
-			{
-				// ignore nulls.
-				if (!*on) {
-					return false;
-				}
-
-				putki::type_handler_i *th;
-				putki::instance_t obj = 0;
-
-				const char *path = putki::db::pathof_including_unresolved(parent->input, *on);
-				if (!path)
-				{
-					// this would mean the object exists neither in the input nor output domain.
-					if (!putki::db::pathof_including_unresolved(parent->output, *on)) 
-					{
-						APP_ERROR("!!! A wild object appears! [" << *on << "]. Might be a [" << ptr_type << "]");
-						putki::db::pathof_including_unresolved(parent->output, *on);
-					}
-					return false;
-				}
-
-				if (!putki::db::fetch(parent->output, path, &th, &obj))
-				{
-					if (parent->create_unresolved)
-					{
-						*on = putki::db::create_unresolved_pointer(parent->output, path);
-						return false;
-					}
-					else
-					{
-						APP_WARNING("domain_switch: could not find [" << path << " in neither source nor output")
-						return false;
-					}
-				}
-
-				if (*on != obj)
-				{
-					*on = obj;
-				}
-
-				return true;
-			}
-
-			void pointer_post(putki::instance_t *on)
-			{
-			}
-		};
-
-		void record(const char *path, putki::type_handler_i* th, putki::instance_t obj)
-		{
-			// ignore deferred objects.
-			if (obj && th)
-			{
-				depwalker dp;
-				dp.parent = this;
-				dp.source = obj;
-				th->walk_dependencies(obj, &dp, traverse_children);
-			}
-		}
-	};
-
-	struct db_record_inserter : public putki::db::enum_i
-	{
-		putki::db::data *input;
-		putki::db::data *output;
-
-		void record(const char *path, putki::type_handler_i* th, putki::instance_t obj)
-		{
-			putki::db::copy_obj(input, output, path);
-		}
-	};
-	
-	// TODO TODO - Read this from external manifest instead / subsystem which can track
-	//             a database of input files, particularly along with their aux refs.
-	struct build_source_file : public putki::db::enum_i
-	{
-		putki::builder::build_context *context;
-		putki::db::data *input;
-		void record(const char *path, putki::type_handler_i* th, putki::instance_t obj)
-		{
-			putki::builder::context_add_to_build(context, path);
-		}
-	};
-
-	struct write_cache_json : public putki::db::enum_i
-	{
-		putki::builder::data *builder;
-		putki::db::data *db;
-		std::string path_base;
-		int written;
-
-		write_cache_json() 
-		{
-			written = 0;
-		}
-
-		void record(const char *path, putki::type_handler_i* th, putki::instance_t obj)
-		{
-			if (putki::db::is_aux_path(path)) {
-				return;
-			}
-
-			// forward all objects directly to the output db. we can't clone them here or all
-			// pointers to them will become wild.
-			std::string out_path = path_base;
-			out_path.append("/");
-			out_path.append(path);
-			out_path.append(".json");
-
-			putki::sstream tmp;
-			putki::write::write_object_into_stream(tmp, db, th, obj);
-
-			putki::sys::mk_dir_for_path(out_path.c_str());
-			putki::sys::write_file(out_path.c_str(), tmp.str().c_str(), tmp.str().size());
-			written++;
-		}
-	};
-
-}
-
 namespace putki
 {
+	namespace
+	{
+		const size_t xbufSize = 64 * 1024 * 1024;
+		char xbuf[xbufSize];
+	}
+
 	namespace build
 	{
 		struct pkg_conf
@@ -189,58 +49,69 @@ namespace putki
 
 		struct packaging_config
 		{
+			builder::config* config;
+			bool find_roots_only;
 			std::string package_path;
 			runtime::descptr rt;
 			build_db::data *bdb;
-			builder::build_context *context;
 			std::vector<pkg_conf> packages;
 			bool make_patch;
 		};
 
-		void post_build_ptr_update(db::data *input, db::data *output)
+		static builder_setup_fn s_config_fn = 0;
+		static packaging_fn s_packaging_fn = 0;
+		static std::vector<postbuild_fn> s_postbuild_fns;
+
+		void set_builder_configurator(builder_setup_fn configurator)
 		{
-			// Move all references from objects in the output
-			domain_switch dsw;
-			dsw.input = input;
-			dsw.output = output;
-			db::read_all_no_fetch(output, &dsw);
+			s_config_fn = configurator;
 		}
 
-		void resolve_object(putki::db::data *source, const char *path)
+		void set_packager(packaging_fn packaging)
 		{
-			type_handler_i *th;
-			instance_t obj;
-			if (!fetch(source, path, &th, &obj))
+			s_packaging_fn = packaging;
+		}
+
+		void add_postbuild_fn(postbuild_fn fn)
+		{
+			s_postbuild_fns.push_back(fn);
+		}
+
+		void invoke_packager(putki::objstore::data* out, packaging_config* pconf)
+		{
+			s_packaging_fn(out, pconf);
+		}
+
+		void invoke_post_build(postbuild_info* info)
+		{
+			for (size_t i=0;i<s_postbuild_fns.size();i++)
 			{
-				APP_WARNING("resolve[" << path << "] could not find object")
-				return;
+				s_postbuild_fns[i](info);
 			}
-			domain_switch dsw;
-			dsw.input = source;
-			dsw.output = source;
-			dsw.traverse_children = true;
-			dsw.record(path, th, obj);
 		}
 
-		// merges objects from source into target.
-		void post_build_merge_database(putki::db::data *source, db::data *target)
+		package::data* create_package(packaging_config* config)
 		{
-			db_record_inserter ri;
-			ri.input = source;
-			ri.output = target;
-			putki::db::read_all_no_fetch(source, &ri);
-
-			domain_switch dsw;
-			dsw.input = source;
-			dsw.output = target;
-			dsw.create_unresolved = true;
-			db::read_all_no_fetch(source, &dsw);
+			objstore::data* filesrc[] = {
+				config->config->input,
+				config->config->temp,
+				0
+			};
+			return package::create(config->config->built, filesrc);
 		}
 
 		void commit_package(putki::package::data *package, packaging_config *packaging, const char *out_path)
 		{
+			if (packaging->find_roots_only)
+			{
+				pkg_conf pk;
+				pk.path = std::string("dummy-path/") + out_path;
+				pk.pkg = package;
+				packaging->packages.push_back(pk);
+				return;
+			}
+
 			pkg_conf pk;
-			
 			bool make_patch = packaging->make_patch;
 		
 			// expect old packages to be there.
@@ -292,15 +163,13 @@ namespace putki
 			
 			if (make_patch)
 			{
-				for (int i=old_ones.size()-1;i>=0;i--)
+				for (int i=(int)old_ones.size()-1;i>=0;i--)
 				{
 					package::add_previous_package(package, packaging->package_path.c_str(), old_ones[i].c_str());
 				}
 				APP_DEBUG("Registered package " << out_path << " and it will be a patch [" << pk.final_path << "] with " << old_ones.size() << " previous files to use");
 			}
-			
-			
-					
+
 			pk.pkg = package;
 			pk.path = out_path;
 			packaging->packages.push_back(pk);
@@ -332,32 +201,103 @@ namespace putki
 			ptr.close();
 		}
 
-		void do_build(putki::builder::data *builder, const char *single_asset, bool make_patch)
+		
+		void write_prefix(char pfx[1024], runtime::descptr rt, const char* build_config)
 		{
-			sys::mutex in_db_mtx, tmp_db_mtx, out_db_mtx;
-			db::data *input = putki::db::create(0, &in_db_mtx);
-			db::data *tmp = putki::db::create(input, &tmp_db_mtx);
-			db::data *output = putki::db::create(tmp, &out_db_mtx);
+			sprintf(pfx, "out/%s-%s", runtime::desc_str(rt), build_config);
+		}
 
-			load_tree_into_db(builder::obj_path(builder), input);
+		// Must free all the things written into conf
+		void init_builder_configuration(builder::config* conf, runtime::descptr rt, const char* build_config, bool incremental)
+		{
+			char pfx[1024];
+			write_prefix(pfx, rt, build_config);
 
-			builder::build_context *ctx = builder::create_context(builder, input, tmp, output);
+			size_t len = strlen(pfx);
+			for (int i = 0; i<len; i++)
+				pfx[i] = ::tolower(pfx[i]);
+			
+			std::string prefix(pfx);
+			conf->input = objstore::open("data/", (prefix + "/.input_cache").c_str(), false);
+			conf->temp = objstore::open((prefix + "/.tmp").c_str(), (prefix + "/.tmp_cache").c_str(), true);
+			conf->built = objstore::open((prefix + "/.built").c_str(), (prefix + "/.built_cache").c_str(), true);
+			conf->build_db = build_db::create((prefix + "/.builddb").c_str(), incremental);
+			conf->build_config = build_config;
+		}
 
-			APP_INFO("Application packager...")
+		void destroy_builder_configuration(builder::config* conf)
+		{
+			objstore::free(conf->input);
+			objstore::free(conf->temp);
+			objstore::free(conf->built);
+			build_db::store(conf->build_db);
+			build_db::release(conf->build_db);
+		}
 
-			char pkg_path[1024];
-			sprintf(pkg_path, "%s/packages/", builder::out_path(builder));
+		builder::data* create_and_config_builder(builder::config* conf)
+		{
+			builder::data* builder = builder::create(conf);
+			if (builder)
+			{
+				s_config_fn(builder);
+			}
+			return builder;
+		}
+
+		void add_build_roots(builder::data* builder_data, builder::config* conf, runtime::descptr rt, const char* build_config)
+		{
 			packaging_config pconf;
-			pconf.package_path = pkg_path;
-			pconf.rt = builder::runtime(builder);
-			pconf.bdb = builder::get_build_db(builder);
-			pconf.context = ctx;
-			pconf.make_patch = make_patch;
-			putki::builder::invoke_packager(output, &pconf);
+			pconf.find_roots_only = true;
+			pconf.rt = rt;
+			pconf.bdb = conf->build_db;
+			pconf.make_patch = false;
+			pconf.config = conf;
+			invoke_packager(conf->built, &pconf);
 
 			// Required assets
 			std::set<std::string> req;
-			for (unsigned int i=0;i!=pconf.packages.size();i++)
+			for (size_t i = 0; i != pconf.packages.size(); i++)
+			{
+				for (unsigned int j = 0;; j++)
+				{
+					const char *path = package::get_needed_asset(pconf.packages[i].pkg, j);
+					if (path)
+						req.insert(path);
+					else
+						break;
+				}
+			}
+
+			std::set<std::string>::iterator j = req.begin();
+			while (j != req.end())
+			{
+				putki::builder::add_build_root(builder_data, j->c_str(), 0);
+				j++;
+			}
+		}
+
+		void make_packages(runtime::descptr rt, const char* build_config, bool incremental, bool make_patch)
+		{
+			builder::config conf;
+			init_builder_configuration(&conf, rt, build_config, incremental);
+			builder::data* bld = create_and_config_builder(&conf);
+
+			char pkg_path[1024];
+			char pfx[1024];
+			write_prefix(pfx, rt, build_config);
+			sprintf(pkg_path, "%s/packages/", pfx);
+			packaging_config pconf;
+			pconf.find_roots_only = false;
+			pconf.package_path = pkg_path;
+			pconf.rt = rt;
+			pconf.bdb = conf.build_db;
+			pconf.make_patch = make_patch;
+			pconf.config = &conf;
+			invoke_packager(conf.built, &pconf);
+
+			// Required assets
+			std::set<std::string> req;
+			for (size_t i=0;i!=pconf.packages.size();i++)
 			{
 				for (unsigned int j=0;;j++)
 				{
@@ -372,46 +312,29 @@ namespace putki
 			std::set<std::string>::iterator j = req.begin();
 			while (j != req.end())
 			{
-				context_add_to_build(ctx, (*j++).c_str());
+				putki::builder::add_build_root(bld, j->c_str(), 0);
+				j++;
 			}
 
-			builder::context_finalize(ctx);
-			builder::context_build(ctx);
+			putki::builder::do_build(bld, incremental);
 
-			post_build_ptr_update(input, output);
+			APP_INFO("Done building. Performing post-build steps.")
 
-			// save built objects.
-			write_cache_json js;
-			js.path_base = builder::built_obj_path(builder);
-			js.db = output;
-			js.builder = builder;
-			for (unsigned int i=0;;i++)
-			{
-				const char *path = context_get_built_object(ctx, i);
-				if (!path)
-					break;
+			postbuild_info pbi;
+			pbi.input = conf.input;
+			pbi.temp = conf.temp;
+			pbi.output = conf.built;
+			pbi.pconf = &pconf;
+			pbi.builder = bld;
+			invoke_post_build(&pbi);
 
-				if (db::is_aux_path(path))
-					continue;
-				
-				type_handler_i *th;
-				instance_t obj;
-				if (db::fetch(output, path, &th, &obj, false))
-				{
-					js.record(path, th, obj);
-				}
-			}
+			// Post-build step may create new packages, but it must make sure they get built too.
+			// So it is up to the post_build_step to run add_build_root for the objects it would like
+			// to package.
+			putki::builder::do_build(bld, incremental);
+			builder::free(bld);
 
-			if (js.written > 0)
-			{
-				APP_INFO("Wrote " << js.written << " JSON objects to output")
-			}
-
-			APP_INFO("Done building. Performing reporting step.")
-
-			builder::invoke_reporting(output, &pconf);
-
-			APP_INFO("Done reporting. Writing packages")
+			APP_INFO("Done post-build. Writing packages")
 
 			for (unsigned int i=0;i!=pconf.packages.size();i++)
 			{
@@ -419,21 +342,7 @@ namespace putki
 				putki::package::free(pconf.packages[i].pkg);
 			}
 
-			// there should be no objects outside these database now.
-			db::free_and_destroy_objs(input);
-			db::free_and_destroy_objs(tmp);
-			db::free_and_destroy_objs(output);
-			builder::context_destroy(ctx);
-		}
-
-		void full_build(putki::builder::data *builder, bool make_patch)
-		{
-			do_build(builder, 0, make_patch);
-		}
-
-		void single_build(putki::builder::data *builder, const char *single_asset)
-		{
-			do_build(builder, single_asset, false);
+			destroy_builder_configuration(&conf);
 		}
 	}
 }

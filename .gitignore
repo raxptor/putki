@@ -18,5 +18,8 @@ Debug
 build
 .DS_Store
 _gen
-
+dist
+target
+node_modules
+.gradle
 

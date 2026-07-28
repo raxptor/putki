@@ -1,13 +1,11 @@
-#ifndef __PUTKI_DOMAINS_H__
-#define __PUTKI_DOMAINS_H__
+#pragma once
 
 namespace putki
 {
 	enum
 	{
 		DOMAIN_INPUT     = 1,
-		DOMAIN_RUNTIME   = 2
+		DOMAIN_RUNTIME   = 2,
+        DOMAIN_NETKI     = 4
 	};
 }
-
-#endif

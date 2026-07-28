@@ -37,6 +37,28 @@ class StringEditor implements FieldEditor
     }
 }
 
+class TextEditor implements FieldEditor
+{
+    FieldAccess<String> m_f;
+
+    public TextEditor(DataObject mi, Compiler.ParsedField f, int index)
+    {
+        m_f = new FieldAccess<String>(mi, f, index);
+    }
+
+    @Override
+    public Node createUI()
+    {
+        TextArea tf = new TextArea(m_f.get());
+        tf.setPrefRowCount(6);
+        tf.setWrapText(true);
+        tf.textProperty().addListener( (obs, oldValue, newValue) -> {
+            m_f.set(newValue);
+        });
+        return tf;
+    }
+}
+
 class FileEditor implements FieldEditor
 {
     FieldAccess<String> m_f;
@@ -56,7 +78,8 @@ class FileEditor implements FieldEditor
         	java.io.File f = new java.io.File(Main.s_instance.translateResPath(newValue));
         	if (!f.exists() || f.isDirectory())
         		tf.getStyleClass().add("error");
-        	m_f.set(newValue);
+        	if (!newValue.equals(m_f.get()))
+        		m_f.set(newValue);
         });
         tf.setText(m_f.get());
         return tf;
@@ -449,6 +472,39 @@ class ArrayEditor implements FieldEditor
         return rm;
     }
 
+    public MenuItem makeMoveItem(int from, int to)
+    {
+		MenuItem mi = new MenuItem("Move to " + to);
+		mi.setOnAction( (actionEvt) -> {
+			if (to > from)
+			{
+				m_mi.arrayInsert(m_f.index, to + 1);
+				m_mi.setField(m_f.index, to + 1, m_mi.getField(m_f.index, from));
+				m_mi.arrayErase(m_f.index, from);
+			}
+			else if (to < from)
+			{
+				m_mi.arrayInsert(m_f.index, to);
+				m_mi.setField(m_f.index, to, m_mi.getField(m_f.index, from + 1));
+				m_mi.arrayErase(m_f.index, from + 1);
+			}
+
+			rebuild();
+		});
+		return mi;
+    }
+
+	public ContextMenu makeMoveContextMenu(int from)
+	{
+    	ContextMenu mn = new ContextMenu();
+    	for (int i=0;i<m_mi.getArraySize(m_f.index);i++)
+    	{
+			mn.getItems().add(makeMoveItem(from, i));
+    	}
+    	return mn;
+	}
+
+
     private GridPane buildGridPane()
     {
         m_editors = new ArrayList<>();
@@ -478,6 +534,8 @@ class ArrayEditor implements FieldEditor
             lbl.getStyleClass().add("array-index");
             if ((i&1) == 1)
                 lbl.getStyleClass().add("odd");
+
+            lbl.setContextMenu(makeMoveContextMenu(i));
 
             gridpane.add(lbl,  0,  i);
             GridPane.setValignment(lbl, VPos.TOP);
@@ -687,7 +745,10 @@ public class ObjectEditor
             case ENUM:
                 return new EnumEditor(mi, field, index);
             default:
+            	if (field.stringIsText)
+                    return new TextEditor(mi, field, index);
                 return new StringEditor(mi, field, index);
         }
     }
 }
+

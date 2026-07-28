@@ -1,7 +1,8 @@
-PUTKI_PATH = path.getdirectory(_SCRIPT) .. "../"
+PUTKI_PATH = path.getdirectory(_SCRIPT) .. "/../"
+BUILDER_PATH = path.getdirectory(_SCRIPT)
 ZLIB_PATH = PUTKI_PATH .. "/external/libz"
 ZLIB_INCLUDES = { ZLIB_PATH }
-PUTKI_LIB_INCLUDES = { PUTKI_PATH .. "/builder" }
+PUTKI_LIB_INCLUDES = { BUILDER_PATH }
 PUTKI_LIB_LINKS = { "putki-lib", "jsmn", "libz" }
 
 function putki_use_builder_lib()

@@ -1,7 +1,7 @@
 #ifndef __PUTKI_RUNTIME_LIVEUPDATE_H__
 #define __PUTKI_RUNTIME_LIVEUPDATE_H__
 
-#include <putki/types.h>
+#include "putki/types.h"
 
 #if defined(LIVEUPDATE_ENABLE)
 	// This macro can be used for checks that should be compiled away when

@@ -1,0 +1,308 @@
+const { ipcRenderer } = require('electron');
+var popups = require('./popups');
+var annotations = require('./annotations');
+var Dialogs = require("dialogs");
+var dialogs = new Dialogs({});
+
+function levenshtein(a, b) {
+    if(a.length == 0) return b.length; 
+    if(b.length == 0) return a.length; 
+    var matrix = [];
+    var i;
+    for(i = 0; i <= b.length; i++){
+      matrix[i] = [i];
+    }
+    var j;
+    for(j = 0; j <= a.length; j++){
+      matrix[0][j] = j;
+    }
+    for(i = 1; i <= b.length; i++){
+      for(j = 1; j <= a.length; j++){
+        if(b.charAt(i-1) == a.charAt(j-1)){
+          matrix[i][j] = matrix[i-1][j-1];
+        } else {
+          matrix[i][j] = Math.min(matrix[i-1][j-1] + 1, Math.min(matrix[i][j-1] + 1, matrix[i-1][j] + 1)); 
+        }
+      }
+    }  
+    return matrix[b.length][a.length];
+};
+
+function mk_button(command, fn)
+{
+    var _input = document.createElement('input');
+    _input.type = "submit";
+    _input.id = command;
+    _input.name = command;
+    _input.value = command;
+    _input.addEventListener("click", fn);
+    return _input;
+}
+
+exports.create = function(onto, types, data, plugins, config, data_browser_preview, start_editing) {
+    var base = document.createElement('x-browser');
+
+    var form = document.createElement('form');    
+    var filter = document.createElement('input');
+    filter.type = "text";
+    form.appendChild(document.createTextNode("Type parts of a path or type to search for objects."));
+    form.style.width = "80%";
+    form.appendChild(filter);
+    base.appendChild(form);
+    var grid = null;
+    var fn_map = {};
+
+    var picks = [];
+
+    var rebuild = function(deep_dig) {
+        if (grid)
+            base.removeChild(grid);
+        grid = document.createElement('x-browser-objlist');
+        fn_map = {};
+        for (var x in data) {
+            var fn = data[x]._file || "new.txt";
+            if (fn_map[fn] === undefined) {
+                var hdr = document.createElement('x-browser-file');
+                hdr.appendChild(document.createTextNode(fn));
+                var controls = document.createElement('x-browser-controls');
+                fn_map[fn] = {
+                    header: hdr,
+                    controls: controls,
+                    items: []
+                };
+                (function(fn) {
+                    controls.appendChild(mk_button("New instance", function() {
+                        popups.ask_type(types, null, function(which) { 
+                            dialogs.prompt("Enter path", "example/path", function (p) {
+                                if (p != null)
+                                {
+                                    data[p.toLowerCase()] = {
+                                        _path: p.toLowerCase().replace( /\\/g, '/').replace(' ', '-'),
+                                        _type: which,
+                                        _file: fn
+                                    };
+                                    rebuild();
+                                }
+                            });
+                        });
+                    }));
+                })(fn);
+            }
+            var e = fn_map[fn];
+            var path = document.createElement('x-browser-path');
+            path.appendChild(document.createTextNode(data[x]._path));
+            var type = document.createElement('x-browser-type');
+            if (types[data[x]._type] === undefined) {
+                console.log("unknown type ", data[x]._type);
+            }
+            type.appendChild(document.createTextNode("@" + types[data[x]._type].PrettyName));
+            var preview = document.createElement('x-browser-preview');
+            //if (data_browser_preview !== null) {
+            {
+                preview.appendChild(document.createTextNode(data_browser_preview(data[x])));
+            }
+            (function(_path) {
+                path.addEventListener('click', function() {
+                    start_editing(_path);
+                });
+                path.addEventListener('contextmenu', function() {
+                    var opts = [
+                        { Title:"Edit", Data: { command: "edit", path: _path } },
+                        { Title:"Move", Data: { command: "move", path: _path } },                        
+                        { Title:"Delete", Data: { command: "delete", path: _path } }
+                    ];                    
+                    for (var i=0;i<plugins.length;i++) {
+                        var editors = plugins[i].object_editors;
+                        for (var j=0;j<editors.length;j++)
+                        {
+                            if (editors[i].types.indexOf(data[_path]._type) != -1)
+                            {
+                                opts.push( { Title:"Edit with " + editors[j].description, Data: { command: "plugin-edit", path:_path, plugin:i, editor:j } } );
+                            }
+                        }
+                    }
+                    ipcRenderer.send('choose-menu', opts);
+                });
+            })(data[x]._path);
+            e.items.push({ path:data[x]._path, type:data[x]._type, elements: [path, type, preview] });
+
+            var anchor_counter = 0;
+            if (deep_dig) {
+                var dig = function(root_path, d, type_name, skip) {
+                    if (d === null || d === undefined)
+                        return;
+                    var t = type_name;
+                    if (d.hasOwnProperty('_type'))
+                        t = d._type;
+                    if (d instanceof Array) {
+                        for (var i=0;i<d.length;i++)
+                            dig(root_path, d[i], t);
+                    } else if (d instanceof Object) {
+                        if (!skip && t == deep_dig.type) {
+                            var path = document.createElement('x-browser-dig-path');
+                            var spath;
+                            var anchor = null;
+                            if (d.hasOwnProperty("_path"))
+                            {
+                                spath = d._path;
+                                d["_anchor"] = spath;
+                                anchor = spath;
+                            }
+                            else
+                            {
+                                anchor = root_path + "!" + anchor_counter;
+                                spath = root_path + "#embed-" + anchor_counter;
+                                d["_anchor"] = anchor;
+                                ++anchor_counter;
+                            }   
+                            path.appendChild(document.createTextNode(spath));
+                            path.style.gridRow = e.count;
+                            path.addEventListener('click', function() {
+                                start_editing(root_path, anchor);
+                            });                            
+                            var type = document.createElement('x-browser-type');
+                            type.appendChild(document.createTextNode("@" + types[t].PrettyName));
+                            type.style.gridRow = e.count;
+                            var preview = document.createElement('x-browser-preview');
+                            {
+                                preview.appendChild(document.createTextNode(data_browser_preview(d)));
+                                preview.style.gridRow = e.count;
+                            }
+                            e.items.push({ path:root_path, anchor: spath, type:t, elements: [path, type, preview] });
+                        }
+                        var flds = types[t].ExpandedFields;
+                        for (var i=0;i<flds.length;i++)
+                        {
+                            if (d.hasOwnProperty(flds[i].Name))
+                                dig(root_path, d[flds[i].Name], flds[i].Type);
+                        }        
+                    }
+                }
+                dig(data[x]._path, data[x], data[x]._type, true);
+            }
+        }
+        var count = 0;        
+        for (var x in fn_map) {
+            var e = fn_map[x];
+            e.header.style.gridRow = ++count;
+            grid.appendChild(e.header);            
+            for (var i in e.items) {
+                var row = ++count;
+                var els = e.items[i].elements;                
+                for (var j in els) {
+                    els[j].style.gridRow = row;
+                    grid.appendChild(els[j]);
+                }
+            }
+            e.controls.style.gridRow = ++count;
+            grid.appendChild(e.controls);            
+        }
+        filtrate();
+        base.appendChild(grid);        
+    };
+    rebuild();
+    if (onto != null)
+        onto.appendChild(base);
+    form.focus();
+    filter.focus();
+
+    function filtrate() {
+        var search = filter.value.toLowerCase();
+        var totFound = 0;
+        var last = null;
+        var type_search = "^";
+        if (search.startsWith("@")) {
+            type_search = search.substr(1);
+            search = "^";
+        }
+        var gridRow = 0;
+
+        picks.length = 0;
+
+        for (var x in fn_map) {
+            var e = fn_map[x];            
+            e.header.classList.remove('hidden');
+            e.controls.classList.remove('hidden');
+            e.header.style.gridRow = ++gridRow;            
+            var found = 0;
+            for (var i in e.items) {
+                if (gridRow > 900)
+                {
+                    e.header.classList.add('hidden');
+                    e.controls.classList.add('hidden');
+                    for (var j in els) {
+                        els[j].classList.add('hidden');
+                    }
+                }                    
+                var els = e.items[i].elements;
+                for (var j in els) {
+                    els[j].classList.remove('hidden');
+                }
+                if (search.length > 0 && (e.items[i].anchor == undefined || e.items[i].anchor.indexOf(search) == -1) && e.items[i].path.indexOf(search) == -1 && x.indexOf(search) == -1 && e.items[i].type.indexOf(type_search) == -1)
+                {
+                    for (var j in els) {
+                        els[j].classList.add('hidden');
+                    }
+                }
+                else
+                {
+                    picks.push({path: e.items[i].path, anchor: e.items[i].anchor});
+                    var row = ++gridRow;
+                    for (var j in els) {
+                        els[j].style.gridRow = row; 
+                    }
+                    totFound++;
+                    found++;
+                }
+            }
+            e.controls.style.gridRow = ++gridRow;
+            if (found == 0)
+            {
+                e.header.classList.add('hidden');
+                e.controls.classList.add('hidden');
+            }
+        }                
+    }
+
+    filtrate();
+
+    form.onsubmit = function(event) {
+        event.preventDefault();
+        if (filter.value.startsWith("@")) {
+            rebuild({ type: filter.value.substring(1).toLowerCase() });
+            filtrate();
+            filter.value = "";
+        } else {
+            if (picks.length > 0) {
+                var best = levenshtein(picks[0].path, filter.value);
+                console.log(picks[0].path, best);
+                var bi = 0;
+                for (var k=1;k<picks.length;k++)
+                {
+                    var l = levenshtein(picks[k].path, filter.value);
+                    console.log(picks[k].path, filter.value, l);
+                    if (l < best)
+                    {
+                        best = l;
+                        bi = k;
+                    }
+                }
+                console.log("picked ", picks[bi], "@index", bi, "with lev", best);
+                start_editing(picks[bi].path, picks[bi].anchor);
+            }
+        }
+    };
+
+    filter.addEventListener("input", function() { 
+        setTimeout(filtrate, 10)
+    });
+    base._x_reload = function() {
+        rebuild();
+    };
+
+    onto._x_on_activate = function() {
+        filter.focus();
+    };
+
+    return base;
+}

@@ -1,31 +1,44 @@
-#ifndef __putki_databuilder_lib__build__
-#define __putki_databuilder_lib__build__
+#pragma once
 
 #include <putki/runtime.h>
 #include <putki/builder/typereg.h>
+#include <putki/builder/objstore.h>
 
 namespace putki
 {
 	namespace package { struct data; }
 	namespace db { struct data; }
-	namespace builder { struct data; }
+	namespace builder { struct data; struct config; }
 
 	namespace build
 	{
 		struct packaging_config;
+		void make_packages(runtime::descptr rt, const char* build_config, bool incremental, bool make_patch);
 
-		void full_build(builder::data *builder, bool make_patch);
-		void single_build(builder::data *builder, const char *path);
-		
-		// make sure it is all resolved
-		void resolve_object(db::data *source, const char *path);
+		package::data* create_package(packaging_config* config);
+		void commit_package(package::data *package, packaging_config *packaging, const char *out_path);
 
-		void post_build_ptr_update(db::data *input, db::data *output);
-		void post_build_merge_database(putki::db::data *source, db::data *target);
+		typedef void(*builder_setup_fn)(builder::data *builder);
+		typedef void(*packaging_fn)(objstore::data *out, build::packaging_config *pconf);
 
-		// can be called from user functions.
-		void commit_package(putki::package::data *package, packaging_config *packaging, const char *out_path);
+		struct postbuild_info
+		{
+			objstore::data* input;
+			objstore::data* temp;
+			objstore::data* output;
+			builder::data* builder;
+			build::packaging_config* pconf;
+		};
+
+		typedef void(*postbuild_fn)(postbuild_info* info);
+
+		void set_builder_configurator(builder_setup_fn fn);
+		void set_packager(packaging_fn fn);
+		void add_postbuild_fn(postbuild_fn fn);
+
+		void init_builder_configuration(builder::config* conf, runtime::descptr rt, const char* build_config, bool incremental);
+		builder::data* create_and_config_builder(builder::config* conf);
+		void add_build_roots(builder::data* builder_data, builder::config* conf, runtime::descptr rt, const char* build_config);
+		void destroy_builder_configuration(builder::config* conf);
 	}
 }
-
-#endif

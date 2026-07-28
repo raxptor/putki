@@ -1,0 +1,45 @@
+Main
+{
+	int Value = 90000
+}
+
+InlineContainer
+{
+	int Value1
+	int Value2
+	int Value3 = 333
+}
+
+PointerContainer
+{
+	ptr! Main Required
+	ptr Main Optional
+}
+
+StructContainer
+{
+	Main Main
+}
+
+enum TestEnum
+{
+	HEJ_KALLE_KULA 
+	GURKA_TRUBADUR = 1
+	TO_INDEX = 2
+}
+
+TestTypes
+{
+	string String = "defaultstring"
+	int Int
+	byte Byte
+	float Float
+	bool BoolHelvete
+	enum TestEnum EnumValue
+}
+
+TestArrays
+{
+	float[] ArrF
+	bool[] ArrB
+}

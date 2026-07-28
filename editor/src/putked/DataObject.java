@@ -15,16 +15,20 @@ public class DataObject
 		m_data = new Object[struct.fields.size()];
 		m_type = struct;
 		m_path = path;
+		m_auxRoot = this;
 		m_root = this;
+		m_trackChanges = true;
 		initData();
 	}
 
-	public DataObject(Compiler.ParsedStruct struct, DataObject root, String path)
+	public DataObject(Compiler.ParsedStruct struct, DataObject auxRoot, DataObject root, String path)
 	{
 		m_data = new Object[struct.fields.size()];
 		m_type = struct;
 		m_path = path;
+		m_auxRoot = auxRoot;
 		m_root = root;
+		m_trackChanges = true;
 		initData();
 	}
 
@@ -38,14 +42,25 @@ public class DataObject
 			}
 			else if (fld.type == FieldType.STRUCT_INSTANCE)
 			{
-				m_data[fld.index] =  new DataObject(fld.resolvedRefStruct, m_root, m_path);
+				m_data[fld.index] =  new DataObject(fld.resolvedRefStruct, getAuxRoot(), this, m_path + ":" + fld.name);
 			}
 		}
 	}
 
-	public DataObject getRootAsset()
+	public void setTrackChanges(boolean track)
 	{
-		return m_root;
+		m_trackChanges = track;
+	}
+
+	public DataObject getAuxRoot()
+	{
+		return m_auxRoot;
+	}
+
+	// A struct instance in an object points to root
+	public DataObject getRoot()
+	{
+		return m_root == null ? this : m_root;
 	}
 
 	public Object makeDefaultValue(Compiler.ParsedField field)
@@ -98,6 +113,14 @@ public class DataObject
 				{
 					return false;
 				}
+			case STRING:
+			{
+				// strip away "", should parse escapes too etc.
+				if (field.defValue == null || field.defValue.length() < 2)
+					return "";
+				else
+					return field.defValue.substring(1, field.defValue.length()-1);
+			}
 			default:
 				if (field.defValue == null)
 					return "";
@@ -132,15 +155,24 @@ public class DataObject
 		return m_data[index];
 	}
 
+	void onChanged()
+	{
+		if (m_trackChanges)
+		{
+			BuilderConnection.onObjectChanged(this);
+			m_version++;
+		}
+	}
+
 	@SuppressWarnings("unchecked")
 	public void setField(int index, int arrayIndex, Object value)
 	{
-		System.out.println(m_path + ":" + m_type.fields.get(index).name + "[" + arrayIndex +"] = " + value.toString());
 		Compiler.ParsedField fld = m_type.fields.get(index);
 		if (!fld.isArray)
 		{
 			// Maybe check type?
 			m_data[index] = value;
+			onChanged();
 			return;
 		}
 
@@ -148,10 +180,12 @@ public class DataObject
 		if (arrayIndex == list.size())
 		{
 			list.add(value);
+			onChanged();
 		}
 		else if (arrayIndex < list.size())
 		{
 			list.set(arrayIndex, value);
+			onChanged();
 		}
 		else
 		{
@@ -176,9 +210,9 @@ public class DataObject
 
 	public DataObject createAuxInstance(Compiler.ParsedStruct type)
 	{
-		if (this != m_root)
+		if (this != m_auxRoot)
 		{
-			return m_root.createAuxInstance(type);
+			return m_auxRoot.createAuxInstance(type);
 		}
 
 		if (m_auxObjects == null)
@@ -199,9 +233,10 @@ public class DataObject
 			String ref = tmp.toString();
 			if (!m_auxObjects.containsKey(ref))
 			{
-				DataObject aux = new DataObject(type, this, m_path + ref);
+				DataObject aux = new DataObject(type, this, null, m_path + ref);
 				System.out.println("Created aux [" + ref + "] onto [" + m_path + "]");
 				m_auxObjects.put(ref, aux);
+				onChanged();
 				return aux;
 			}
 		}
@@ -226,6 +261,7 @@ public class DataObject
 		@SuppressWarnings("unchecked")
 		List<Object> list = (List<Object>) m_data[field];
 		list.remove(index);
+		onChanged();
 	}
 
 	public void arrayInsert(int field, int index)
@@ -241,12 +277,13 @@ public class DataObject
 		Compiler.ParsedField fld = m_type.fields.get(field);
 		if (fld.type == FieldType.STRUCT_INSTANCE)
 		{
-			list.add(index, new DataObject(fld.resolvedRefStruct, getRootAsset(), ""));
+			list.add(index, new DataObject(fld.resolvedRefStruct, getAuxRoot(), this, ""));
 		}
 		else
 		{
 			list.add(index, null);
 		}
+		onChanged();
 	}
 
 	public DataObject getAux(String ref)
@@ -266,9 +303,16 @@ public class DataObject
 		m_auxObjects.put(ref, aux);
 	}
 
+	public int getVersion()
+	{
+		return m_version;
+	}
+
 	Object[] m_data;
 	Compiler.ParsedStruct m_type;
 	String m_path;
 	HashMap<String, DataObject> m_auxObjects;
-	DataObject m_root;
+	DataObject m_root, m_auxRoot;
+	int m_version;
+	boolean m_trackChanges;
 }

@@ -1,6 +1,6 @@
 #include "config.h"
 
-#include <putki/runtime.h>
+#include "putki/runtime.h"
 #include <ctype.h>
 #include <cstring>
 #include <cstdio>

@@ -1,5 +1,4 @@
-#ifndef __FIELDTYPES_H__
-#define __FIELDTYPES_H__
+#pragma once
 
 namespace putki
 {
@@ -18,5 +17,3 @@ namespace putki
 		FIELDTYPE_FILE
 	};
 }
-
-#endif

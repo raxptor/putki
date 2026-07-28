@@ -1,0 +1,20 @@
+{
+  "name": "putked",
+  "version": "1.0.0",
+  "description": "Putki default editor",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "author": "Dan Nilsson",
+  "license": "CC0-1.0",
+  "devDependencies": {},
+  "dependencies": {
+    "dialogs": "^1.1.20",
+    "electron": "^4.1.0",
+    "exceljs": "^4.2.1",
+    "fs-extra": "^7.0.1",
+    "js-md5": "^0.7.3",
+    "require.js": "^1.0.0"
+  }
+}

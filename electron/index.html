@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <link rel="stylesheet" href="style.css">    
+    <link rel="stylesheet" href="popup.css">    
+    <link rel="stylesheet" href="lib/auto-complete.css">    
+    <style>
+      body {
+        margin: 0px;
+        padding: 0px;
+      }
+    </style>
+  </head>
+  <body>      
+      <script src="lib/auto-complete.js"></script>
+      <datalist id="mylist">
+          <option>Ada</option>
+          <option>Java</option>
+          <option>JavaScript</option>
+          <option>Brainfuck</option>
+          <option>LOLCODE</option>
+          <option>Node.js</option>
+          <option>Ruby on Rails</option>
+        </datalist>
+    <x-all id="content">
+      <x-tabs id="tabs"></x-tabs>
+    </x-all>
+    <script>
+      require('./renderer.js')      
+    </script>
+    
+
+
+    <input type="text" id="dummy" style="width:1px;height:1px;position:fixed;left:-1000px;">
+  </body>
+</html>

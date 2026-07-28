@@ -1,0 +1,11 @@
+[package]
+name = "putki-outki"
+version = "0.1.0"
+edition = "2024"
+authors = ["Dan Nilsson <raxptor@gmail.com>"]
+
+[lib]
+name = "putki_outki"
+
+[features]
+outki-leak-memory = []

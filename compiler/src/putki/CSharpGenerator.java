@@ -12,6 +12,26 @@ import putki.Compiler.ParsedTree;;
 
 public class CSharpGenerator
 {
+	public static String sourceName(String name)
+	{
+		StringBuilder sb = new StringBuilder();
+		for (int i=0;i<name.length();i++)
+		{
+			if (name.charAt(i) == '_')
+				continue;
+			sb.append(Character.toLowerCase(name.charAt(i)));
+		}
+		return sb.toString();
+	}
+	
+	public static String actualFieldName(ParsedField fld)
+	{
+		if (fld.localizationCategory != null)
+			return "_LocSrc" + fld.name;
+		else
+			return fld.name;
+	}	
+
     public static void writeParserList(StringBuilder sb, ParsedTree tree, HashSet<ParsedTree> included)
     {
         if (included != null)
@@ -32,11 +52,11 @@ public class CSharpGenerator
                 if ((struct.domains & Compiler.DOMAIN_INPUT) == 0 ||
                     (struct.domains & Compiler.DOMAIN_OUTPUT) == 0)
                         continue;
-                sb.append("\t\t\tnew SourceLoader.Parser(\"" + struct.name + "\", " + struct.name + "Fn),\n");
+                sb.append("\t\t\tnew SourceLoader.Parser(\"" + sourceName(struct.name) + "\", " + struct.name + "Fn),\n");
             }
             for (ParsedEnum e : file.enums)
             {
-                sb.append("\t\t\tnew SourceLoader.Parser(\"" + e.name + "\", " + e.name + "EnumFn),\n");
+                sb.append("\t\t\tnew SourceLoader.Parser(\"" + sourceName(e.name) + "\", " + e.name + "EnumFn),\n");
             }
         }
     }
@@ -50,6 +70,7 @@ public class CSharpGenerator
                 case BOOL: return "bool";
                 case UINT32: return "uint";
                 case INT32: return "int";
+                case HASH: return "Putki.Hash";
                 case BYTE: return "byte";
                 case STRING: return "string";
                 case POINTER: return namespace + "." + field.refType;
@@ -78,11 +99,15 @@ public class CSharpGenerator
     {
         switch (field.type)
         {
+        	case FILE:
             case STRING:
                 sb.append(src + ".ToString()");
                 break;
+            case HASH:
+                sb.append("Putki.Hash.Construct(" + src + ".ToString())");
+                break;                
             case POINTER:
-                sb.append("loader.Resolve<Outki." + field.refType + ">(path, " + src + ".ToString())");
+                sb.append("loader.Resolve<Outki." + field.refType + ">(path, " + src + ", " + field.resolvedRefStruct.name + "Fn)");
                 break;
             case INT32:
                 sb.append("int.Parse(" + src + ".ToString())");
@@ -94,16 +119,16 @@ public class CSharpGenerator
                 sb.append("byte.Parse(" + src + ".ToString())");
                 break;
             case BOOL:
-                sb.append("int.Parse(" + src + ".ToString()) != 0");
+                sb.append("(" + src + ".ToString() == \"True\" || " + src + ".ToString() == \"true\" || " + src + ".ToString() == \"1\")");
                 break;
             case FLOAT:
                 sb.append("float.Parse(" + src + ".ToString(), System.Globalization.CultureInfo.InvariantCulture)");
                 break;
             case STRUCT_INSTANCE:
-                sb.append("(Outki." + field.resolvedRefStruct.name + ")" + field.resolvedRefStruct.loaderName + "." + field.resolvedRefStruct.name + "Fn(loader, path, " + src + ")");
+                sb.append("(Outki." + field.resolvedRefStruct.name + ")" + field.resolvedRefStruct.loaderName + "." + field.resolvedRefStruct.name + "Fn(loader, path, " + src + ", null, true)");
                 break;
             case ENUM:
-                sb.append("(Outki." + field.resolvedEnum.name + ")" + field.resolvedEnum.loaderName + "." + field.resolvedEnum.name + "EnumFn(loader, path, " + src + ")");
+                sb.append("(Outki." + field.resolvedEnum.name + ")" + field.resolvedEnum.loaderName + "." + field.resolvedEnum.name + "EnumFn(loader, path, " + src + ", null, false)");
                 break;
             default:
                 sb.append("0 /* TODO: Implement me */");
@@ -124,11 +149,24 @@ public class CSharpGenerator
                 String npfx = "\n\t\t\t";
                 String outki = "Outki." + struct.name;
                 sb.append("\n");
-                sb.append("\t\tstatic object " + struct.name + "Fn(SourceLoader loader, string path, object obj) {");
-                sb.append(npfx).append(outki + " target = new " + outki + "();");
-                sb.append(npfx).append("return " + struct.name + "ParseInto(loader, path, obj as MicroJson.Object, target);");
+                sb.append("\t\tstatic object " + struct.name + "Fn(SourceLoader loader, string path, object dict_or_path, object parseInto, bool addAsInline) {");
+                sb.append(npfx).append("var obj = dict_or_path as Dictionary<string, object>;");
+                sb.append(npfx).append("if (obj == null && dict_or_path != null)");
+                sb.append(npfx).append("\treturn loader.Resolve<Outki." + struct.name + ">(dict_or_path.ToString());");
+                
+                sb.append(npfx).append(outki + " target = parseInto == null ? new " + outki + "() : (" + outki + ")parseInto;");
+                sb.append(npfx).append("if (obj == null) return target;");
+                sb.append(npfx).append("var result = " + struct.name + "ParseInto(loader, path, obj, target);");
+                if (!struct.isValueType)
+                {
+                	sb.append(npfx).append("if (addAsInline) {");
+                	sb.append(npfx).append("\tloader.PostInlineResolve(path, result);");
+                	sb.append(npfx).append("}");
+                }
+                
+                sb.append(npfx).append("return result;");
                 sb.append("\n\t\t}\n");
-                sb.append("\n\t\tstatic Outki." + struct.name + " " + struct.name + "ParseInto(SourceLoader loader, string path, object src, Outki." + struct.name + " target) {");
+                sb.append("\n\t\tstatic Outki." + struct.name + " " + struct.name + "ParseInto(SourceLoader loader, string path, Dictionary<string, object> source, Outki." + struct.name + " target) {");
 
                 boolean first = true;
                 for (ParsedField fld : struct.fields)
@@ -141,49 +179,149 @@ public class CSharpGenerator
                     {
                         continue;
                     }
-                    String tmp = "__" + fld.name;
-                    String ref = "target." + fld.name;
+                    
+                    String ref = "target." + actualFieldName(fld);
 
-                    if (first)
-                    {
-                        sb.append(npfx).append("MicroJson.Object source = src as MicroJson.Object;");
-                        first = false;
-                    }
+
                     if (fld.isParentField)
                     {
-                        sb.append(npfx).append("object parentObj;");
-                        sb.append(npfx).append("if (source.Data.TryGetValue(\"" + fld.name + "\", out parentObj))");
+                        if (first)
+                        {
+                            sb.append(npfx).append("object tmp;");
+                            first = false;
+                        }                    	
+                    	// TODO: Load through 'parent' field if one is available in the data, otherwise load on 'self', this is to support
+                    	//       parsing that that is structured either way. This makes life easier but might introduce some bugs so maybe
+                    	//       get rid of the 'parent' field in the json format.
+                        sb.append(npfx).append("if (source.TryGetValue(\"" + sourceName(fld.name) + "\", out tmp))");
                         sb.append(npfx).append("{");
-                        sb.append(npfx).append("\t" + struct.resolvedParent.loaderName + "." + struct.resolvedParent.name + "ParseInto(loader, path, parentObj, target);");
+                        sb.append(npfx).append("\t" + struct.resolvedParent.loaderName + "." + struct.resolvedParent.name + "ParseInto(loader, path, (Dictionary<string, object>)tmp, target);");
+                        sb.append(npfx).append("}");
+                        sb.append(npfx).append("else");
+                        sb.append(npfx).append("{");
+                        sb.append(npfx).append("\t" + struct.resolvedParent.loaderName + "." + struct.resolvedParent.name + "ParseInto(loader, path, source, target);");
                         sb.append(npfx).append("}");
                         continue;
                     }
                     if (!fld.isArray)
                     {
-                        sb.append(npfx).append("object " + tmp + "Obj;");
-                        sb.append(npfx).append("if (source.Data.TryGetValue(\"" + fld.name + "\", out " + tmp + "Obj))");
-                        sb.append(npfx).append("{");
-                        sb.append(npfx).append("\t" + ref + " = ");
-                        writeExpr(sb, tmp + "Obj", fld);
-                        sb.append(";");
-                        sb.append(npfx).append("}");
+                    	if (fld.type == FieldType.STRING) 
+                    	{
+                    		sb.append(npfx).append(ref + " = Mixki.Parse.String(source, \"" + sourceName(fld.name) + "\", ");
+                    		if (fld.defValue != null) sb.append(fld.defValue); else sb.append("null");
+                    		sb.append(");");
+                    	}                  	
+                    	else if (fld.type == FieldType.FLOAT) 
+                    	{
+                    		sb.append(npfx).append(ref + " = Mixki.Parse.Float(source, \"" + sourceName(fld.name) + "\", ");
+                    		if (fld.defValue != null) sb.append("(float)" + fld.defValue); else sb.append("0");
+                    		sb.append(");");
+                    	}
+                    	else if (fld.type == FieldType.INT32) 
+                    	{
+                    		sb.append(npfx).append(ref + " = Mixki.Parse.Int(source, \"" + sourceName(fld.name) + "\", ");
+                    		if (fld.defValue != null) sb.append(fld.defValue); else sb.append("0");
+                    		sb.append(");");
+                    	}                    	
+                    	else if (fld.type == FieldType.BOOL) 
+                    	{
+                    		sb.append(npfx).append(ref + " = Mixki.Parse.Bool(source, \"" + sourceName(fld.name) + "\", ");
+                    		if (fld.defValue != null) sb.append(fld.defValue); else sb.append("false");
+                    		sb.append(");");
+                    	}                    	
+                    	else                    		
+                    	{
+                            if (first)
+                            {
+                                sb.append(npfx).append("object tmp;");
+                                first = false;
+                            }                    		
+	                        sb.append(npfx).append("if (source.TryGetValue(\"" + sourceName(fld.name) + "\", out tmp))");
+	                        sb.append(npfx).append("{");
+	                        sb.append(npfx).append("\t" + ref + " = ");
+	                        writeExpr(sb, "tmp", fld);
+	                        sb.append(";");
+	                        sb.append(npfx).append("}");
+	                        if (fld.resolvedDefaultStruct != null)
+	                        {
+	                        	sb.append(npfx).append("else");
+	                        	sb.append(npfx).append("{");
+	                        	sb.append(npfx).append("\tvar defv = new Outki." + fld.resolvedDefaultStruct.name + "();");
+	                        	sb.append(npfx).append("\t" + fld.resolvedDefaultStruct.name + "ParseInto(loader, null, new Dictionary<string, object>(), defv);");
+	                        	sb.append(npfx).append("\t" + ref + " = defv;");
+	                        	sb.append(npfx).append("}");
+	                        	
+	                        }
+	                        if (fld.defValue != null)
+	                        {
+	                        	sb.append(npfx).append("else");
+	                        	sb.append(npfx).append("{");
+	                        	String cast = "";
+	                        	String valuePrefix = "";
+	                        	if (fld.type == FieldType.FLOAT)
+	                        		cast = "(float)";
+	                        	if (fld.type == FieldType.ENUM)
+	                        		valuePrefix = "Outki." + fld.resolvedEnum.name + ".";
+	                        	sb.append(npfx).append("\t" + ref + " = " + cast + valuePrefix + fld.defValue + ";");
+	                        	sb.append(npfx).append("}");
+	                        }
+	                        else if (fld.resolvedRefStruct != null && fld.resolvedRefStruct.isValueType)
+	                        {
+	                        	// Need to parse a dummy into here to get default values. 
+	                        	sb.append(npfx).append("else");
+	                        	sb.append(npfx).append("{");
+	                        	sb.append(npfx).append("\t" + ref + " = ");
+	                        	writeExpr(sb, "new Dictionary<string, object>()", fld);
+	                        	sb.append(";");
+	                        	sb.append(npfx).append("}");
+	                        }
+                    	}
                     }
                     else
                     {
-                        String arrTmp = "__Arr" + tmp;
-                        sb.append(npfx).append("object " + tmp + "Obj;");
-                        sb.append(npfx).append("List<" + csharpType(fld, "Outki", false) + "> " + arrTmp + " = new List<" + csharpType(fld, "Outki", false) + ">();");
-                        sb.append(npfx).append("if (source.Data.TryGetValue(\"" + fld.name + "\", out " + tmp + "Obj))");
+                        if (first)
+                        {
+                            sb.append(npfx).append("object tmp;");
+                            first = false;
+                        }                     	
+                        sb.append(npfx).append("if (source.TryGetValue(\"" + sourceName(fld.name) + "\", out tmp))");
                         sb.append(npfx).append("{");
-                        sb.append(npfx).append("\tMicroJson.Array array = " + tmp + "Obj as MicroJson.Array;");
-                        sb.append(npfx).append("\tfor (int i=0;i<array.Data.Count;i++)");
+                        sb.append(npfx).append("\tList<object> array = tmp as List<object>;");
+                        sb.append(npfx).append("\t" + ref + " = new " + csharpType(fld, "Outki", false) + "[array.Count];");
+                        sb.append(npfx).append("\tfor (int i=0;i<array.Count;i++)");
                         sb.append(npfx).append("\t{");
-                        sb.append(npfx).append("\t\t" + arrTmp + ".Add(");
-                        writeExpr(sb, "array.Data[i]", fld);
-                        sb.append(");");
+
+                        
+                    	if (fld.type == FieldType.FLOAT) 
+                    	{
+                    		sb.append(npfx).append("\t\t" + ref + "[i] = Mixki.Parse.Float(array[i], ");
+                    		if (fld.defValue != null) sb.append("(float)" + fld.defValue); else sb.append("0");
+                    		sb.append(");");
+                    	}
+                    	else if (fld.type == FieldType.INT32) 
+                    	{
+                    		sb.append(npfx).append("\t\t" + ref + "[i] = Mixki.Parse.Int(array[i], ");
+                    		if (fld.defValue != null) sb.append("(float)" + fld.defValue); else sb.append("0");
+                    		sb.append(");");
+                    	}
+                    	else if (fld.type == FieldType.BOOL) 
+                    	{
+                    		sb.append(npfx).append("\t\t" + ref + "[i] = Mixki.Parse.Bool(array[i], ");
+                    		if (fld.defValue != null) sb.append("(float)" + fld.defValue); else sb.append("false");
+                    		sb.append(");");
+                    	}                    	
+                    	else
+                    	{
+                    		sb.append(npfx).append("\t\t" + ref+  "[i] = ");
+                    		writeExpr(sb, "array[i]", fld);
+                    		sb.append(";");
+                    	}
                         sb.append(npfx).append("\t}");
                         sb.append(npfx).append("}");
-                        sb.append(npfx).append(ref + " = " + arrTmp + ".ToArray();");
+                        sb.append(npfx).append("else");
+                        sb.append(npfx).append("{");
+                        sb.append(npfx).append("\t" + ref + " = new " + csharpType(fld, "Outki", false) + "[0];");
+                        sb.append(npfx).append("}");
                     }
                 }
                 sb.append(npfx).append("return target;\n");
@@ -192,7 +330,7 @@ public class CSharpGenerator
             for (ParsedEnum e : file.enums)
             {
                 sb.append("\n");
-                sb.append("\t\tstatic object " + e.name + "EnumFn(SourceLoader loader, string path, object obj)");
+                sb.append("\t\tstatic object " + e.name + "EnumFn(SourceLoader loader, string path, object obj, object parseInto, bool addAsInline)");
                 sb.append("\n\t\t{");
                 String npfx = "\n\t\t\t";
                 sb.append(npfx).append("string tmp = obj.ToString();");
@@ -211,7 +349,7 @@ public class CSharpGenerator
 
     public static void generateMixkiParsers(Compiler comp, CodeWriter writer)
     {
-        for (Compiler.ParsedTree tree : comp.allTrees())
+        for (Compiler.ParsedTree tree : comp.allTrees("cs"))
         {
             Path mixki = tree.genCodeRoot.resolve("csharp").resolve("mixki");
             Path fn = mixki.resolve(tree.loaderName + ".cs");
@@ -290,7 +428,7 @@ public class CSharpGenerator
 
     public static void generateOutkiStructs(Compiler comp, CodeWriter writer)
     {
-        for (Compiler.ParsedTree tree : comp.allTrees())
+        for (Compiler.ParsedTree tree : comp.allTrees("cs"))
         {
             Path mixki = tree.genCodeRoot.resolve("csharp").resolve("outki");
             Path fn = mixki.resolve(tree.moduleName + ".cs");
@@ -305,7 +443,17 @@ public class CSharpGenerator
                 String pfx = "\n\t";
                 for (Compiler.ParsedEnum en : file.enums)
                 {
+                	int min = 0;
+                	int max = 0;
+                    for (Compiler.EnumValue value : en.values)                    	
+                    {
+                    	if (value.value < min) min = value.value;
+                    	if (value.value > max) max = value.value;
+                    }
+                	
                     sb.append(pfx).append("public enum " + en.name);
+                    if (max < 256 && min >= 0)
+                    	sb.append(": byte");
                     sb.append(pfx).append("{");
                     String sep = "";
                     for (Compiler.EnumValue value : en.values)
@@ -321,6 +469,12 @@ public class CSharpGenerator
                     if ((struct.domains & Compiler.DOMAIN_OUTPUT) == 0)
                         continue;
                     sb.append("\n");
+                    
+                    for (Compiler.Annotation a : struct.annotations)
+                    	sb.append(pfx).append("// " + a.Type + ": " + a.Text);
+                    
+// TODO: make option for this
+//                  sb.append(pfx).append("[System.Serializable]");
                     if (struct.isValueType)
                         sb.append(pfx).append("public struct " + struct.name);
                     else
@@ -357,10 +511,28 @@ public class CSharpGenerator
                     {
                         if ((field.domains & Compiler.DOMAIN_OUTPUT) == 0)
                             continue;
-                        sb.append(spfx).append("public " + csharpType(field, "Outki", true) + " " + field.name + ";");
+                        if (field.isParentField)
+                        	continue;  
+                        for (Compiler.Annotation a : field.annotations)
+                        	sb.append(spfx).append("// " + a.Type + ": " + a.Text);
+                        if (field.localizationCategory != null)
+                        {
+                        	if (field.localizationPlural)
+                            	sb.append(spfx).append("public " + csharpType(field, "Outki", true) + " " + field.name + "(Putki.Translation iti, int plural_n) { return iti.Translate(" +
+            	                        actualFieldName(field) + ", \"" + field.localizationCategory + "\", plural_n); } ");
+                        	else
+                        		sb.append(spfx).append("public " + csharpType(field, "Outki", true) + " " + field.name + "(Putki.Translation iti) { return iti.Translate(" +
+                        	            actualFieldName(field) + ", \"" + field.localizationCategory + "\"); } ");
+
+                    		sb.append(spfx).append("public " + csharpType(field, "Outki", true) + " " + field.name + "() { return \"<" + field.localizationCategory + "." + field.name + "=\" + " + actualFieldName(field) + "+\">\"; } ");
+                        	sb.append(spfx).append("[Putki.TranslatedField(Category=\"" + field.localizationCategory + "\", Plural=" + field.localizationPlural + ")]");
+                        }
+
+                        sb.append(spfx).append("public " + csharpType(field, "Outki", true) + " " + actualFieldName(field) + ";");
                         if (field.type == FieldType.POINTER)
                         {
-                            sb.append(spfx).append("public int" + (field.isArray ? "[]" : "") + " __slot_" + field.name + ";");
+                        	if (!comp.mixkiOnly)
+                        		sb.append(spfx).append("public int" + (field.isArray ? "[]" : "") + " __slot_" + actualFieldName(field) + ";");
                         }
                     }
                     sb.append(pfx).append("}");
@@ -374,7 +546,7 @@ public class CSharpGenerator
 
     public static void generateOutkiDataLoader(Compiler comp, CodeWriter writer)
     {
-        for (Compiler.ParsedTree tree : comp.allTrees())
+        for (Compiler.ParsedTree tree : comp.allTrees("cs"))
         {
             Path mixki = tree.genCodeRoot.resolve("csharp").resolve("outki");
             Path fn = mixki.resolve(tree.moduleName + "Loader.cs");
@@ -448,6 +620,12 @@ public class CSharpGenerator
 
                     String spfx = pfx + "\t";
 
+                    if (struct.resolvedParent != null)
+                    {
+                    	sb.append(spfx).append("var parent = (" + struct.resolvedParent.name + ")target;");
+                    	sb.append(spfx).append("ParseFromPackage_" + struct.resolvedParent.name + "(ref parent, reader, aux);");
+                    }
+
                     if (struct.isTypeRoot)
                     {
                         sb.append(spfx).append("target._rtti_type = reader.ReadInt32();");
@@ -457,6 +635,8 @@ public class CSharpGenerator
                     {
                         if ((field.domains & Compiler.DOMAIN_OUTPUT) == 0)
                             continue;
+                        if (field.isParentField)
+                        	continue;
 
                         String upfx = spfx;
                         String ref = "target." + field.name;
@@ -466,6 +646,7 @@ public class CSharpGenerator
                         {
                             ref = "target.__slot_" + field.name;
                         }
+
 
                         if (field.isArray)
                         {
@@ -625,7 +806,7 @@ public class CSharpGenerator
 
     public static void generateNetkiStructs(Compiler comp, CodeWriter writer)
     {
-        for (Compiler.ParsedTree tree : comp.allTrees())
+        for (Compiler.ParsedTree tree : comp.allTrees("cs"))
         {
             Path mixki = tree.genCodeRoot.resolve("csharp").resolve("netki");
             Path fn = mixki.resolve(tree.moduleName + ".cs");

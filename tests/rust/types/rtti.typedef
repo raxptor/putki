@@ -1,0 +1,39 @@
+IScriptNode rtti no-asset
+{
+
+}
+
+Scropt : IScriptNode
+{
+
+}
+
+Scrupt : IScriptNode
+{
+    
+}
+
+IDlgNode rtti no-asset
+{
+    string Id
+    string Next
+}
+
+DlgSay : IDlgNode
+{
+    int Who
+    string Text
+}
+
+DlgMood : IDlgNode
+{
+    int Who
+    string Text
+}
+
+Dialog
+{
+    string Id
+    ptr! IDlgNode Node1    
+    ptr! IDlgNode Node2
+}

@@ -1,0 +1,12 @@
+[package]
+name = "putki-inki"
+version = "0.1.0"
+edition = "2024"
+authors = ["Dan Nilsson <raxptor@gmail.com>"]
+
+[lib]
+name = "putki_inki"
+
+[dependencies]
+putki-outki = { path = "../putki-outki" }
+seahash = "3.0.5"

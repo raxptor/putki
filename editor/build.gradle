@@ -1,0 +1,39 @@
+plugins {
+    id 'java'
+    id 'org.openjfx.javafxplugin' version '0.1.0'
+}
+
+repositories {
+    mavenCentral()
+}
+
+javafx {
+    version = '21'
+    modules = ['javafx.controls']
+}
+
+dependencies {
+    implementation project(':compiler')
+}
+
+sourceSets {
+    main {
+        java {
+            srcDirs = ['src']
+        }
+        resources {
+            srcDirs = ['src']
+        }
+    }
+}
+
+jar {
+    destinationDirectory = file('dist')
+    archiveFileName = 'putked.jar'
+    // Bundle compiler classes into editor jar
+    from project(':compiler').sourceSets.main.output
+    manifest {
+        attributes 'Main-Class': 'putked.Main'
+    }
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}

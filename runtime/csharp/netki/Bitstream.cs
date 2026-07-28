@@ -65,29 +65,21 @@ namespace Netki
 			Bitstream.Buffer tmp = new Bitstream.Buffer();
 			Copy(tmp, source);
 
-			while (tmp.BitsLeft() > 0)
-			{
-				if (tmp.bitpos > 0)
-				{
-					uint bits = (uint)(8 - tmp.bitpos);
-					if (bits > tmp.BitsLeft())
-					{
-						bits = tmp.BitsLeft();
-					}
-					Bitstream.PutBits(dest, bits, Bitstream.ReadBits(tmp, bits));
-				}
-				if (tmp.BitsLeft() > 32)
-					Bitstream.PutBits(dest, 32, Bitstream.ReadBits(tmp, 32));
+			uint left = tmp.BitsLeft();
 
-				uint left = tmp.BitsLeft();
-				if (left >= 8)
-				{
-					Bitstream.PutBits(dest, 8, Bitstream.ReadBits(tmp, 8));
-				}
-				else if (left > 0)
-				{
-					Bitstream.PutBits(dest, left, Bitstream.ReadBits(tmp, left));
-				}
+			while (left > 32)
+			{
+				Bitstream.PutBitsU(dest, 32, Bitstream.ReadBitsU(tmp, 32));
+				left -= 32;
+			}
+			while (left > 8)
+			{
+				Bitstream.PutBitsU(dest, 8, Bitstream.ReadBitsU(tmp, 8));
+				left -= 8;
+			}
+			if (left > 0)
+			{
+				Bitstream.PutBitsU(dest, left, Bitstream.ReadBitsU(tmp, left));
 			}
 			return true;
 		}
@@ -296,6 +288,11 @@ namespace Netki
 				buf.error = 1;
 				return 0;
 			}
+			return ReadBitsU(buf, bits);
+		}
+
+		public static UInt32 ReadBitsU(Buffer buf, uint bits)
+		{
 			CheatEntry ce = CheatTable[bits * 8 + buf.bitpos];
 			uint dpos = buf.bytepos;
 			byte[] data = buf.buf;
