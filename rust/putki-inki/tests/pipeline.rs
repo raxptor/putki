@@ -19,6 +19,27 @@ use putki_outki::outki as outki;
 use crate::outki::PackageManifest;
 use crate::outki::BinReader;
 
+// kv_to_string feeds both the text output and the hash that gives anonymous
+// inline objects their identity, so it must not depend on hash iteration order.
+// Two separately-lexed copies of the same object get distinct HashMap seeds,
+// which is what makes an unordered walk observable here.
+#[test]
+fn test_kv_to_string_is_ordered() {
+	let src = r#"@Thing thing { zebra: 1, alpha: 2, middle: 3, beta: 4 }"#;
+	let lex_once = || {
+		let objs = putki_inki::lex_file(src);
+		match objs.get("thing") {
+			Some(putki_inki::LexedData::Object { kv, .. }) => putki_inki::kv_to_string(kv),
+			_ => panic!("expected to lex an object"),
+		}
+	};
+	let first = lex_once();
+	assert_eq!(first, "{alpha:2,beta:4,middle:3,zebra:1,}");
+	for _ in 0..16 {
+		assert_eq!(first, lex_once(), "kv_to_string output is not deterministic");
+	}
+}
+
 #[derive(Debug, Clone, Default)]
 struct TestValues {
 	value1: i32,
@@ -321,6 +342,19 @@ fn test_pipeline() {
 	rcp.add_object(&(*pipeline), "multi", true);
 
 	let data = putki_inki::write_package(&(*pipeline), &rcp).expect("It should have worked");
+
+	// Slot and type indices are assigned by iteration order, so the package
+	// layout must not depend on hash seeding: rebuilding the same recipe has to
+	// produce identical bytes or content hashing and incremental builds break.
+	// Each new HashSet in a thread gets a distinct RandomState, so an unordered
+	// container shows up within a single process.
+	for _ in 0..16 {
+		let mut again_rcp = putki_inki::PackageRecipe::new();
+		again_rcp.add_object(&(*pipeline), "ptr", true);
+		again_rcp.add_object(&(*pipeline), "multi", true);
+		let again = putki_inki::write_package(&(*pipeline), &again_rcp).expect("It should have worked");
+		assert_eq!(data, again, "write_package output is not deterministic");
+	}
 
 	let mfest;
 	{

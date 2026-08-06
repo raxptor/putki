@@ -46,13 +46,19 @@ pub fn escape_string(input:&str) -> String
 
 pub fn kv_to_string(kv: &HashMap<String, LexedData>) -> String
 {
+	// Emit keys in sorted order. `HashMap` iteration is seeded per process, and
+	// this output is both written back out as text and hashed to derive the
+	// identity of anonymous inline objects, so an arbitrary order would make
+	// both differ between otherwise identical runs.
+	let mut keys: Vec<&String> = kv.keys().collect();
+	keys.sort();
 	let mut tmp = String::new();
 	tmp.push('{');
-	for (key, value) in kv {
+	for key in keys {
 		tmp.push_str(key);
-		tmp.push_str(":");
-		tmp.push_str(value.to_string().as_str());
-		tmp.push_str(",");
+		tmp.push(':');
+		tmp.push_str(kv[key].to_string().as_str());
+		tmp.push(',');
 	}
 	tmp.push('}');
 	tmp

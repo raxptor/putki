@@ -19,8 +19,9 @@ public class CodeWriter
 		m_results.put(p,  blob);
 	}
 
-	public void write()
+	public boolean write()
 	{
+		boolean ok = true;
 		for (Map.Entry<Path, byte[]> entry : m_results.entrySet())
 		{
 			try
@@ -52,8 +53,10 @@ public class CodeWriter
 			}
 			catch (IOException e)
 			{
-				e.printStackTrace();
+				System.err.println("Error! Could not write [" + entry.getKey().toAbsolutePath() + "]: " + e);
+				ok = false;
 			}
 		}
+		return ok;
 	}
 }

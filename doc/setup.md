@@ -34,14 +34,25 @@ putki-compiler.conf
 -------------------
 
 ```
-version:1.0
+config-version:1.0
 name:CustomEdTest
 genpath:_gen
+outputs:rust
 ```
 
-The version is identifies syntax verison of the config file.  The name is the project name, which will affect
-namespaces and file names for the generated files. The genpath field is the folder name
-where generated code will go.
+`config-version:1.0` must be the first line; it identifies the syntax version of the config file. Without
+it the file is read in the legacy format, where the first two lines are taken to be the module name and
+the loader name. The name is the project name, which will affect namespaces and file names for the
+generated files. The genpath field is the folder name where generated code will go.
+
+Other keys are `src:` (folder holding the `.typedef` files, default `src`), `outputs:` (space-separated
+list of languages to generate: `cpp cs rust js java`; defaults to all of them), `putkipath:`, `dep:`,
+`config:`, `mixki:` and `mixki-only:`. Blank lines and lines starting with `#` are ignored. Unrecognized
+keys are reported as a warning and otherwise ignored.
+
+The compiler exits with status 1 if any typedef fails to parse or resolve, or if generated code could not
+be written; diagnostics go to stderr. Build scripts should check the exit code — on failure no code is
+generated, so a previously generated tree will still be present and would otherwise be silently stale.
 
 /data/objs
 ----------

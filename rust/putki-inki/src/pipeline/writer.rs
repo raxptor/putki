@@ -4,8 +4,8 @@ use crate::ptr;
 use crate::shared;
 use crate::shared::PutkiError;
 use std::any::Any;
+use std::collections::BTreeSet;
 use std::collections::HashMap;
-use std::collections::HashSet;
 use std::rc::Rc;
 
 pub struct Slot {
@@ -123,10 +123,14 @@ where
     }
 }
 
+/// Ordered sets, not hash sets: slot and type indices are assigned by
+/// iteration order below, and `HashSet` iteration is seeded per process, which
+/// would make the emitted package bytes differ between otherwise identical
+/// builds.
 #[derive(Default)]
 pub struct PackageRecipe {
-    paths: HashSet<String>,
-    types: HashSet<&'static str>,
+    paths: BTreeSet<String>,
+    types: BTreeSet<&'static str>,
 }
 
 impl PackageRecipe {

@@ -127,8 +127,20 @@ public class Compiler {
 	public boolean mixki = true;
 	public boolean mixkiOnly = false;
 
+	private int errorCount = 0;
+
 	public void error(String path, int line, String err) {
-		System.out.println(path + ":" + line + " Error! " + err);
+		// Line numbers are 0-based while scanning; report them 1-based.
+		error(path + ":" + (line + 1) + " " + err);
+	}
+
+	public void error(String err) {
+		errorCount++;
+		System.err.println("Error! " + err);
+	}
+
+	public boolean hasErrors() {
+		return errorCount > 0;
 	}
 
 	public List<ParsedTree> allTrees(String lang) {
@@ -533,6 +545,12 @@ public class Compiler {
 		}
 	}
 
+	// Value of a "key:value" config line. Deriving the offset from the key
+	// itself avoids the hand-counted substring() offsets this used to use.
+	private static String configValue(String line, String key) {
+		return line.substring(key.length()).trim();
+	}
+
 	public ParsedTree scanModule(Path start) {
 		try {
 			System.out.println("Scanning [" + start.toString() + "]");
@@ -554,48 +572,60 @@ public class Compiler {
 			pt.putkiPath = start;
 			pt.deps = new HashMap<>();
 
-			if (lines.size() > 0 && !lines.get(0).trim().equals("config-version:1.0")) {
-				if (lines.size() > 1) {
-					pt.moduleName = lines.get(0);
-					pt.loaderName = lines.get(1);
-				}
+			// Legacy format: no version marker, first two lines are the module
+			// and loader name. Those lines are not key:value pairs, so don't
+			// warn about them below.
+			boolean legacyHeader = lines.size() > 0 && !lines.get(0).trim().equals("config-version:1.0");
+			if (legacyHeader && lines.size() > 1) {
+				pt.moduleName = lines.get(0);
+				pt.loaderName = lines.get(1);
 			}
 
 			String sourceFolder = "src";
 
 			for (int i = 0; i < lines.size(); i++) {
-				String line = lines.get(i);
-				if (line.length() > 4) {
-					if (line.startsWith("dep:")) {
-						String name = line.substring(4);
-						ParsedTree module = scanModule(start.resolve(name));
-						if (module == null) {
-							return null;
-						}
-						pt.deps.put(module.moduleName, module);
-					} else if (line.startsWith("config:")) {
-						String target = line.substring(7);
-						if (!buildConfigs.contains(target))
-							buildConfigs.add(target);
-					} else if (line.startsWith("genpath:")) {
-						pt.genCodeRoot = start.resolve(line.substring(8));
-					} else if (line.startsWith("putkipath:")) {
-						pt.putkiPath = start.resolve(line.substring(10));
-					} else if (line.startsWith("name:")) {
-						pt.moduleName = line.substring(5);
-						pt.loaderName = line.substring(5);
-					} else if (line.startsWith("mixki:")) {
-						mixki = Boolean.parseBoolean(line.substring(11));
-					} else if (line.startsWith("mixki-only:")) {
-						mixkiOnly = Boolean.parseBoolean(line.substring(11));
-					} else if (line.startsWith("src:")) {
-						sourceFolder = line.substring(4);
-					} else if (line.startsWith("outputs:")) {
-						pt.outputs.clear();
-						for (String wh : line.substring(8).split(" ")) {
-							pt.outputs.add(wh);
-						}
+				if (legacyHeader && i < 2) {
+					continue;
+				}
+				String line = lines.get(i).trim();
+				if (line.isEmpty() || line.startsWith("#") || line.equals("config-version:1.0")) {
+					continue;
+				}
+				if (line.startsWith("dep:")) {
+					String name = configValue(line, "dep:");
+					ParsedTree module = scanModule(start.resolve(name));
+					if (module == null) {
+						return null;
 					}
+					pt.deps.put(module.moduleName, module);
+				} else if (line.startsWith("config:")) {
+					String target = configValue(line, "config:");
+					if (!buildConfigs.contains(target))
+						buildConfigs.add(target);
+				} else if (line.startsWith("genpath:")) {
+					pt.genCodeRoot = start.resolve(configValue(line, "genpath:"));
+				} else if (line.startsWith("putkipath:")) {
+					pt.putkiPath = start.resolve(configValue(line, "putkipath:"));
+				} else if (line.startsWith("name:")) {
+					pt.moduleName = configValue(line, "name:");
+					pt.loaderName = pt.moduleName;
+				} else if (line.startsWith("mixki-only:")) {
+					mixkiOnly = Boolean.parseBoolean(configValue(line, "mixki-only:"));
+				} else if (line.startsWith("mixki:")) {
+					mixki = Boolean.parseBoolean(configValue(line, "mixki:"));
+				} else if (line.startsWith("src:")) {
+					sourceFolder = configValue(line, "src:");
+				} else if (line.startsWith("outputs:")) {
+					pt.outputs.clear();
+					for (String wh : configValue(line, "outputs:").split("\\s+")) {
+						if (!wh.isEmpty())
+							pt.outputs.add(wh);
+					}
+				} else {
+					// Not an error: unknown keys have always been ignored, and
+					// failing here would break configs that already contain them.
+					System.err.println(
+							"Warning! " + configPath + ":" + (i + 1) + " unrecognized config key [" + line + "]");
 				}
 			}
 
@@ -609,7 +639,7 @@ public class Compiler {
 			allTrees.add(pt);
 			return pt;
 		} catch (java.io.IOException e) {
-			System.out.println("Error " + e.toString());
+			error("Could not scan module: " + e.toString());
 		}
 		return null;
 	}
@@ -632,11 +662,11 @@ public class Compiler {
 				for (ParsedStruct struct : file.structs) {
 					if (struct.isValueType) {
 						if (struct.isTypeRoot) {
-							System.out.println("Type " + struct.name + " is value type; cannot be rtti");
+							error("Type " + struct.name + " is value type; cannot be rtti");
 							return false;
 						}
 						if (struct.resolvedParent != null) {
-							System.out.println("Type " + struct.name + " is value type; cannot have a parent.");
+							error("Type " + struct.name + " is value type; cannot have a parent.");
 							return false;
 						}
 					}
@@ -645,7 +675,7 @@ public class Compiler {
 					struct.uniqueId = unique_id++;
 					allTypes.add(struct);
 					if (typesByName.put(struct.name, struct) != null) {
-						System.out.println("Error: Duplicate entries of struct " + struct.name + "!");
+						error("Duplicate entries of struct " + struct.name + "!");
 						return false;
 					}
 					if (struct.parent != null) {
@@ -666,7 +696,7 @@ public class Compiler {
 					e.loaderName = tree.loaderName;
 					allEnums.add(e);
 					if (enumsByName.put(e.name, e) != null) {
-						System.out.println("Error: Duplicate entries of enum " + e.name + "!");
+						error("Duplicate entries of enum " + e.name + "!");
 						return false;
 					}
 				}
@@ -708,21 +738,21 @@ public class Compiler {
 				if (field.type == FieldType.ENUM) {
 					field.resolvedEnum = enumsByName.get(field.refType);
 					if (field.resolvedEnum == null) {
-						System.out.println("Unresolved enum name [" + field.refType + "] in field " + struct.name + "."
+						error("Unresolved enum name [" + field.refType + "] in field " + struct.name + "."
 								+ field.name); 
 						return false;
 					}
 				} else if (field.refType != null) {
 					field.resolvedRefStruct = typesByName.get(field.refType);
 					if (field.resolvedRefStruct == null) {
-						System.out.println("Unresolved type name [" + field.refType + "] in field " + struct.name + "."
+						error("Unresolved type name [" + field.refType + "] in field " + struct.name + "."
 								+ field.name);
 						return false;
 					}
 					if (field.type == FieldType.POINTER && field.defValue != null && !field.defValue.equals("null")) {
 						field.resolvedDefaultStruct = typesByName.get(field.defValue);
 						if (field.resolvedDefaultStruct == null) {
-							System.out.println("Unresolved default value type name [" + field.defValue + "] in field " + struct.name + "."
+							error("Unresolved default value type name [" + field.defValue + "] in field " + struct.name + "."
 									+ field.name);
 							return false;
 						}
@@ -733,7 +763,7 @@ public class Compiler {
 			if (struct.parent != null) {
 				struct.resolvedParent = typesByName.get(struct.parent);
 				if (struct.resolvedParent == null) {
-					System.out.println("Unresolved parent name [" + struct.parent + "] in struct " + struct.name);
+					error("Unresolved parent name [" + struct.parent + "] in struct " + struct.name);
 					return false;
 				}
 			}
@@ -755,19 +785,18 @@ public class Compiler {
 			return false;
 		if (!resolve())
 			return false;
-		return true;
+		// Parse errors don't abort the scan, so check the tally before
+		// declaring success; generating code from a half-parsed tree would
+		// silently produce stale or incomplete output.
+		return !hasErrors();
 	}
 
 	public static void main(String[] args) {
 		Compiler c = new Compiler();
-		if (args.length > 0) {
-			if (!c.compile(Paths.get(args[0]))) {
-				return;
-			}
-		} else {
-			if (!c.compile(Paths.get("."))) {
-				return;
-			}
+		Path start = args.length > 0 ? Paths.get(args[0]) : Paths.get(".");
+		if (!c.compile(start)) {
+			System.err.println("Compilation failed with " + c.errorCount + " error(s); no code generated.");
+			System.exit(1);
 		}
 
 		CodeWriter writer = new CodeWriter();
@@ -785,6 +814,9 @@ public class Compiler {
 		CppGenerator.generateOutkiImplementation(c, writer);
 		RustGenerator.generateCrate(c, writer);
 		JavascriptGenerator.generateDescriptors(c, writer);
-		writer.write();
+		if (!writer.write()) {
+			System.err.println("Failed to write generated code.");
+			System.exit(1);
+		}
 	}
 }
