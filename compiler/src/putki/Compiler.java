@@ -122,6 +122,8 @@ public class Compiler {
 	HashMap<String, ParsedEnum> enumsByName = new HashMap<String, ParsedEnum>();
 	List<ParsedTree> allTrees = new ArrayList<Compiler.ParsedTree>();
 	HashMap<String, ParsedTree> allModules = new HashMap<String, ParsedTree>();
+	HashMap<Path, ParsedTree> modulesByPath = new HashMap<Path, ParsedTree>();
+	HashSet<Path> modulesInProgress = new HashSet<Path>();
 	List<String> buildConfigs = new ArrayList<String>();
 
 	public boolean mixki = true;
@@ -552,6 +554,20 @@ public class Compiler {
 	}
 
 	public ParsedTree scanModule(Path start) {
+		// Keyed on path, not module name: "dep:" recursion happens while the
+		// config is still being read, so the module name isn't known yet. A
+		// module reached twice (diamond dependency) must return the tree that
+		// was already scanned, or its types get registered a second time and
+		// resolve() fails with spurious duplicate-struct errors.
+		Path moduleKey = start.toAbsolutePath().normalize();
+		ParsedTree already = modulesByPath.get(moduleKey);
+		if (already != null) {
+			return already;
+		}
+		if (!modulesInProgress.add(moduleKey)) {
+			error("Cyclic module dependency; [" + moduleKey + "] depends on itself");
+			return null;
+		}
 		try {
 			System.out.println("Scanning [" + start.toString() + "]");
 			Path configPath = start.resolve("putki-compiler.config");
@@ -629,17 +645,24 @@ public class Compiler {
 				}
 			}
 
-			// Don't scan again.
-			if (allModules.containsKey(pt.moduleName)) {
-				return allModules.get(pt.moduleName);
+			// Two distinct paths claiming the same module name would generate
+			// into the same namespace and silently clobber each other.
+			ParsedTree sameName = allModules.get(pt.moduleName);
+			if (sameName != null) {
+				error("Module name [" + pt.moduleName + "] is declared by more than one module path");
+				return null;
 			}
 
 			Path startPath = start.resolve(sourceFolder);
 			scanTree(pt, startPath, startPath);
 			allTrees.add(pt);
+			allModules.put(pt.moduleName, pt);
+			modulesByPath.put(moduleKey, pt);
 			return pt;
 		} catch (java.io.IOException e) {
 			error("Could not scan module: " + e.toString());
+		} finally {
+			modulesInProgress.remove(moduleKey);
 		}
 		return null;
 	}
