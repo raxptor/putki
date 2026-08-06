@@ -377,6 +377,13 @@ public class CSharpGenerator
         }
     }
 
+    // Types whose payload starts with an i32 rtti type id. Mirrors the Rust
+    // side, which models these as an enum and writes a tag before the variant.
+    static boolean isPolymorphic(Compiler.ParsedStruct s)
+    {
+        return s.isTypeRoot || (s.possibleChildren != null && s.possibleChildren.size() > 0);
+    }
+
     static String sizeExpr(Compiler.ParsedField field)
     {
         switch (field.type)
@@ -615,6 +622,27 @@ public class CSharpGenerator
                     sb.append(pfx).append("\treturn tmp;");
                     sb.append(pfx).append("}");
 
+                    if (isPolymorphic(struct))
+                    {
+                        // The payload leads with an i32 type id; construct the
+                        // concrete type so its own fields are read too. Reading
+                        // it as the base type would under-read and desynchronise
+                        // everything after it, because records are variable size.
+                        sb.append(pfx).append("public static " + struct.name + " LoadPolymorphic_" + struct.name + "(Putki.PackageReader reader)");
+                        sb.append(pfx).append("{");
+                        sb.append(pfx).append("\tint _rtti = reader.ReadInt32();");
+                        sb.append(pfx).append("\tswitch (_rtti)");
+                        sb.append(pfx).append("\t{");
+                        sb.append(pfx).append("\t\tcase " + struct.name + ".TYPE: return LoadFromPackage_" + struct.name + "(reader);");
+                        for (Compiler.ParsedStruct child : struct.possibleChildren)
+                        {
+                            sb.append(pfx).append("\t\tcase " + child.name + ".TYPE: return LoadFromPackage_" + child.name + "(reader);");
+                        }
+                        sb.append(pfx).append("\t\tdefault: throw new Putki.PackageFormatException(\"unknown rtti type id \" + _rtti + \" for " + struct.name + "\");");
+                        sb.append(pfx).append("\t}");
+                        sb.append(pfx).append("}");
+                    }
+
                     sb.append(pfx).append("public static void ParseFromPackage_" + struct.name + "(ref " + struct.name + " target, Putki.PackageReader reader)");
                     sb.append(pfx).append("{");
 
@@ -624,11 +652,6 @@ public class CSharpGenerator
                     {
                     	sb.append(spfx).append("var parent = (" + struct.resolvedParent.name + ")target;");
                     	sb.append(spfx).append("ParseFromPackage_" + struct.resolvedParent.name + "(ref parent, reader);");
-                    }
-
-                    if (struct.isTypeRoot)
-                    {
-                        sb.append(spfx).append("throw new Putki.PackageFormatException(\"polymorphic type '" + struct.name + "' cannot be read from a package yet; see doc/package-format.md\");");
                     }
 
                     for (Compiler.ParsedField field : struct.fields)
@@ -685,7 +708,10 @@ public class CSharpGenerator
                                 sb.append(upfx).append(ref + " = (" + field.resolvedEnum.name + ") " + contentReader + ".ReadInt32();");
                                 break;
                             case STRUCT_INSTANCE:
-                                sb.append(upfx).append(ref + " = LoadFromPackage_" + field.resolvedRefStruct.name + "(" + contentReader + ");");
+                                if (isPolymorphic(field.resolvedRefStruct))
+                                    sb.append(upfx).append(ref + " = LoadPolymorphic_" + field.resolvedRefStruct.name + "(" + contentReader + ");");
+                                else
+                                    sb.append(upfx).append(ref + " = LoadFromPackage_" + field.resolvedRefStruct.name + "(" + contentReader + ");");
                                 break;
                             case POINTER:
                                 sb.append(upfx).append(ref + " = " + contentReader + ".ReadSlotRef();");
@@ -783,7 +809,10 @@ public class CSharpGenerator
                         continue;
                     sb.append(pfx).append("case " + struct.name + ".TYPE:");
                     sb.append(pfx).append("{");
-                    sb.append(pfx).append("\treturn LoadFromPackage_" + struct.name + "(reader);");
+                    if (isPolymorphic(struct))
+                        sb.append(pfx).append("\treturn LoadPolymorphic_" + struct.name + "(reader);");
+                    else
+                        sb.append(pfx).append("\treturn LoadFromPackage_" + struct.name + "(reader);");
                     sb.append(pfx).append("}");
                 }
             }

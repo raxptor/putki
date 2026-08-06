@@ -504,9 +504,9 @@ public class RustGenerator
 	                		sb.append(",");
 	                	Compiler.ParsedStruct s = (i == 0) ? struct : struct.possibleChildren.get(i-1);
 	                	if (structNameWrap(s).length() > 0)
-	                		sb.append(spfx).append("\t" + structName(struct) + "::" + structName(s) + "(x) => { (" + i + " as u16).write(data); x.write(data, _refwriter) }");
+	                		sb.append(spfx).append("\t" + structName(struct) + "::" + structName(s) + "(x) => { (" + s.uniqueId + " as i32).write(data); x.write(data, _refwriter) }");
 	                	else
-	                		sb.append(spfx).append("\t" + structName(struct) + "::" + structName(s) + " => { (" + i + " as u16).write(data); Ok(()) }");
+	                		sb.append(spfx).append("\t" + structName(struct) + "::" + structName(s) + " => { (" + s.uniqueId + " as i32).write(data); Ok(()) }");
 	                }
 	                sb.append(spfx).append("}");
 	                sb.append(pfx).append("\t}");
@@ -895,14 +895,14 @@ public class RustGenerator
 	                sb.append(pfx).append("impl outki::BinLoader for " + structName(struct) + " {");
 	                sb.append(pfx).append("\tfn read(_stream:&mut outki::BinDataStream) -> Self {");
 	                String spfx = pfx + "\t\t";
-	                sb.append(spfx).append("match <u16 as outki::BinReader>::read(_stream) {");
+	                sb.append(spfx).append("match <i32 as outki::BinReader>::read(_stream) {");
 	                for (int i=struct.possibleChildren.size();i>=0;i--)
 	                {
 	                	Compiler.ParsedStruct s = (i == 0) ? struct : struct.possibleChildren.get(i-1);
 	                	if (i == 0)
 	                		sb.append(spfx).append("\t_");
 	                	else
-	                		sb.append(spfx).append("\t" + i);
+	                		sb.append(spfx).append("\t" + s.uniqueId);
 	                	if (isEnumVariant(s))
 	                		sb.append(" => " + structName(struct) + "::" + structName(s));
 	                	else
