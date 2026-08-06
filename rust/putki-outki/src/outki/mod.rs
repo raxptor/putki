@@ -1,3 +1,33 @@
+//! Runtime loading of built packages.
+//!
+//! # Ownership model
+//!
+//! Objects are not owned individually. A single `resolve` call boxes every
+//! object it needs, leaks the boxes, and records their addresses in one
+//! `MemoryPin`. Dropping the last handle derived from that call runs every
+//! destructor in the pin, freeing the whole batch together.
+//!
+//! Handles come in two flavours, on two axes:
+//!
+//! * `Ptr<T>` / `NullablePtr<T>` are bare addresses with no keepalive. These
+//!   are what generated struct fields hold. They are only valid while some
+//!   owning handle from the same `resolve` call is still alive; nothing in the
+//!   type system enforces that, so don't store them apart from their owner.
+//! * `Ref<T>` / `ArcRef<T>` own a share of the pin and keep the batch alive.
+//!   `Ref` uses `Rc` (cheap to clone, single-thread); `ArcRef` uses `Arc` and
+//!   can cross threads. Convert between them with `From`.
+//!
+//! Use `Ptr::make_ref` / `NullablePtr::make_ref` to turn a field into an owning
+//! handle, borrowing the pin from a `Ref` you already hold.
+//!
+//! # resolve is not idempotent
+//!
+//! Each `BinPackageManager::resolve` call builds a fresh batch. Resolving the
+//! same path twice yields two independent copies of the object graph at
+//! different addresses, not a shared one, and address-based `PartialEq` will
+//! report them as unequal. There is no object cache; resolve once and clone the
+//! `Ref` if you need the object in more than one place.
+
 #[allow(unused_imports)]
 use std::rc::Rc;
 use std::ops::Deref;
@@ -268,9 +298,14 @@ impl<T> Ptr<T> {
     }
 }
 
-impl<'a, T> NullablePtr<T>
+impl<T> NullablePtr<T>
 {
-    pub fn get(&self) -> Option<&'a T>
+    /// Borrow the target, if non-null.
+    ///
+    /// The borrow is tied to `self`, which is in turn only valid while an
+    /// owning handle from the same resolve call is alive. Use `make_ref` if the
+    /// target has to outlive the borrow.
+    pub fn get(&self) -> Option<&T>
     {
         unsafe {
             self.ptr.map(|x| {
@@ -279,12 +314,22 @@ impl<'a, T> NullablePtr<T>
             })
         }
     }
-    pub fn unwrap(&self) -> &'a T {
+    pub fn unwrap(&self) -> &T {
         self.get().unwrap()
+    }
+    /// Owning handle to the target, if non-null, sharing `r`'s keepalive.
+    ///
+    /// `r` must come from the same resolve call as `self`, which is the case
+    /// whenever `self` was reached by walking fields from `r`.
+    pub fn make_ref<K>(&self, r: &Ref<K>) -> Option<Ref<T>> {
+        self.ptr.map(|x| {
+            debug_assert!((x.get() & UNRESOLVED_MASK) != UNRESOLVED_VALUE);
+            Ptr::<T> { ptr: x.get(), _ph: PhantomData { } }.as_ref(r.pin())
+        })
     }
 }
 
-impl<'a, T> Ref<T>
+impl<T> Ref<T>
 {
     pub fn get_pointer(&self) -> *const T {
         self.ptr.ptr as *const T
