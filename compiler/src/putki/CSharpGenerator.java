@@ -608,14 +608,14 @@ public class CSharpGenerator
 
                     sb.append(pfx).append("}");
 
-                    sb.append(pfx).append("public static " + struct.name + " LoadFromPackage_" + struct.name + "(Putki.PackageReader reader, Putki.PackageReader aux)");
+                    sb.append(pfx).append("public static " + struct.name + " LoadFromPackage_" + struct.name + "(Putki.PackageReader reader)");
                     sb.append(pfx).append("{");
                     sb.append(pfx).append("\t" + struct.name + " tmp = new " + struct.name + "();");
-                    sb.append(pfx).append("\tParseFromPackage_" + struct.name + "(ref tmp, reader, aux);");
+                    sb.append(pfx).append("\tParseFromPackage_" + struct.name + "(ref tmp, reader);");
                     sb.append(pfx).append("\treturn tmp;");
                     sb.append(pfx).append("}");
 
-                    sb.append(pfx).append("public static void ParseFromPackage_" + struct.name + "(ref " + struct.name + " target, Putki.PackageReader reader, Putki.PackageReader aux)");
+                    sb.append(pfx).append("public static void ParseFromPackage_" + struct.name + "(ref " + struct.name + " target, Putki.PackageReader reader)");
                     sb.append(pfx).append("{");
 
                     String spfx = pfx + "\t";
@@ -623,12 +623,12 @@ public class CSharpGenerator
                     if (struct.resolvedParent != null)
                     {
                     	sb.append(spfx).append("var parent = (" + struct.resolvedParent.name + ")target;");
-                    	sb.append(spfx).append("ParseFromPackage_" + struct.resolvedParent.name + "(ref parent, reader, aux);");
+                    	sb.append(spfx).append("ParseFromPackage_" + struct.resolvedParent.name + "(ref parent, reader);");
                     }
 
                     if (struct.isTypeRoot)
                     {
-                        sb.append(spfx).append("target._rtti_type = reader.ReadInt32();");
+                        sb.append(spfx).append("throw new Putki.PackageFormatException(\"polymorphic type '" + struct.name + "' cannot be read from a package yet; see doc/package-format.md\");");
                     }
 
                     for (Compiler.ParsedField field : struct.fields)
@@ -651,20 +651,17 @@ public class CSharpGenerator
                         if (field.isArray)
                         {
                             sb.append(spfx).append("{");
-                            sb.append(spfx).append("\treader.ReadInt16();"); // read ptr.
-                            sb.append(spfx).append("\tint count = reader.ReadInt32();");
+                                                        sb.append(spfx).append("\tint count = reader.ReadUSize();");
                             if (field.type == FieldType.POINTER)
                             {
                                 sb.append(spfx).append("\ttarget.__slot_" + field.name + " = new int[count];");
                             }
                             sb.append(spfx).append("\ttarget." + field.name + " = new " + csharpType(field, "Outki", false) + "[count];");
                             ref = ref + "[i]";
-                            sb.append(spfx).append("\tPutki.PackageReader arrAux = aux.CloneAux(0);");
-                            sb.append(spfx).append("\taux.Skip(count * " + sizeExpr(field) + ");");
-                            sb.append(spfx).append("\tfor (int i=0;i!=count;i++)");
+                                                                                    sb.append(spfx).append("\tfor (int i=0;i!=count;i++)");
                             sb.append(spfx).append("\t{");
                             upfx = spfx + "\t\t";
-                            contentReader = "arrAux";
+                            contentReader = "reader";
                         }
 
                         switch (field.type)
@@ -673,13 +670,13 @@ public class CSharpGenerator
                                 sb.append(upfx).append(ref + " = " + contentReader + ".ReadInt32();");
                                 break;
                             case UINT32:
-                                sb.append(upfx).append(ref + " = (uint)" + contentReader + ".ReadInt32();");
+                                sb.append(upfx).append(ref + " = " + contentReader + ".ReadUInt32();");
                                 break;
                             case BYTE:
                                 sb.append(upfx).append(ref + " = " + contentReader + ".ReadByte();");
                                 break;
                             case BOOL:
-                                sb.append(upfx).append(ref + " = " + contentReader + ".ReadByte() != 0;");
+                                sb.append(upfx).append(ref + " = " + contentReader + ".ReadBool();");
                                 break;
                             case FLOAT:
                                 sb.append(upfx).append(ref + " = " + contentReader + ".ReadFloat();");
@@ -688,15 +685,15 @@ public class CSharpGenerator
                                 sb.append(upfx).append(ref + " = (" + field.resolvedEnum.name + ") " + contentReader + ".ReadInt32();");
                                 break;
                             case STRUCT_INSTANCE:
-                                sb.append(upfx).append(ref + " = LoadFromPackage_" + field.resolvedRefStruct.name + "(" + contentReader + ", aux);");
+                                sb.append(upfx).append(ref + " = LoadFromPackage_" + field.resolvedRefStruct.name + "(" + contentReader + ");");
                                 break;
                             case POINTER:
-                                sb.append(upfx).append(ref + " = " + contentReader + ".ReadInt16();");
+                                sb.append(upfx).append(ref + " = " + contentReader + ".ReadSlotRef();");
                                 break;
                             case STRING:
                             case FILE:
                             case PATH:
-                                sb.append(upfx).append(ref + " = aux.ReadString(" + contentReader + ".ReadInt16());");
+                                sb.append(upfx).append(ref + " = " + contentReader + ".ReadString();");
                                 break;
                             default:
                                 sb.append(upfx).append("// god help me");
@@ -786,10 +783,7 @@ public class CSharpGenerator
                         continue;
                     sb.append(pfx).append("case " + struct.name + ".TYPE:");
                     sb.append(pfx).append("{");
-                    sb.append(pfx).append("\tPutki.PackageReader aux = reader.CloneAux(LoadInfo_" + struct.name + ".SIZE);");
-                    sb.append(pfx).append("\tobject o = LoadFromPackage_" + struct.name + "(reader, aux);");
-                    sb.append(pfx).append("\treader.MoveTo(aux);");
-                    sb.append(pfx).append("\treturn o;");
+                    sb.append(pfx).append("\treturn LoadFromPackage_" + struct.name + "(reader);");
                     sb.append(pfx).append("}");
                 }
             }
