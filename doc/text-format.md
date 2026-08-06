@@ -63,6 +63,9 @@ which must be kept in sync with this table:
 * Rust: `rust/putki-inki/tests/pipeline.rs` (`ESCAPE_VECTORS`), via `cargo test`.
 * Electron editor: `electron/escapes.test.js` and `electron/parser.test.js`,
   via `node escapes.test.js && node parser.test.js` (no npm install needed).
+* C#: `tests/csharp/EscapeVectors.cs`, which needs only `MicroJson.cs`:
+  `csc -out:escapetest.exe ../../runtime/csharp/MicroJson.cs EscapeVectors.cs`.
+  C# only reads the format, so it covers decoding only.
 
 | Value | Encoded |
 |---|---|
@@ -85,21 +88,23 @@ are all rejected.
 Known divergences
 -----------------
 
-The Rust reader/writer and the Electron editor implement the above. These do
-not, and need bringing in line against the vectors:
+The Rust reader/writer, the Electron editor and the C# reader implement the
+above. This one does not, and needs bringing in line against the vectors:
 
-* **C# (`runtime/csharp/MicroJson.cs`)** — `DecodeString` handles `\uXXXX`, but
-  for any other escape it appends nothing and advances only one position, so it
-  never skips the escaped character. `\"` happens to come out right. `\\`
-  decodes to the *empty string*, meaning a literal backslash cannot survive a
-  round-trip. `\n` and `\t` decode to the letters `n` and `t`.
 * **C++ (`builder/putki/builder/parse.cpp`)** — `get_value_string` decodes
-  `\uXXXX` only and passes other escapes through with the backslash intact. It
-  also decodes into a byte, so it agrees with C# and with this spec on the
-  meaning of `\uXXXX`, unlike the Electron editor did before it was fixed.
+  `\uXXXX` only, and passes every other escape through with the backslash
+  intact. It does decode into a byte, so it already agrees with this spec on
+  what `\uXXXX` means.
 
-For reference, the Electron editor's reader previously decoded `\t` and `\r` to
-the letters `t` and `r`, silently dropped the backslash from unknown escapes,
-and decoded `\uXXXX` as a UTF-16 code unit rather than a byte — so legacy
-`Ã¥` came back as `Ã¥` rather than `å`. Anyone porting C# or C++
-should expect the same class of bug.
+For reference, the two readers that have been fixed were wrong in the same
+general way, and C++ should be expected to need the same treatment:
+
+* The C# reader appended nothing for an escape and advanced only one position,
+  so it never skipped the escaped character. `\"` happened to come out right,
+  but `\\` decoded to the *empty string* — a literal backslash could not
+  survive a round-trip — and `\n` and `\t` decoded to the letters `n` and `t`.
+* The Electron editor's reader decoded `\t` and `\r` to the letters `t` and
+  `r`, silently dropped the backslash from unknown escapes, and decoded
+  `\uXXXX` as a UTF-16 code unit rather than a byte, so legacy `\u00c3\u00a5`
+  came back as `Ã¥` rather than `å`. Its writer dropped `\r` instead of
+  normalising it.
