@@ -9,7 +9,6 @@ import putki.Compiler.ParsedField;
 import putki.Compiler.ParsedFile;
 import putki.Compiler.ParsedStruct;
 import putki.Compiler.ParsedTree;
-import putki.CppGenerator.Platform;
 import java.util.List;
 
 public class JavascriptGenerator

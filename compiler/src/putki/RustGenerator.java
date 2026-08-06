@@ -9,7 +9,7 @@ import putki.Compiler.ParsedField;
 import putki.Compiler.ParsedFile;
 import putki.Compiler.ParsedStruct;
 import putki.Compiler.ParsedTree;
-import putki.CppGenerator.Platform;
+
 
 public class RustGenerator
 {
