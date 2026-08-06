@@ -385,3 +385,78 @@ fn test_pipeline() {
 	}	
 	
 }
+
+// Normative escaping vectors, mirroring the table in doc/text-format.md.
+// (raw value, encoded form). Keep the two in sync; C# and JS should be checked
+// against the same table when they are brought in line.
+const ESCAPE_VECTORS: &[(&str, &str)] = &[
+	("plain",            "\"plain\""),
+	("with \"quote\"",   "\"with \\\"quote\\\"\""),
+	("back\\slash",      "\"back\\\\slash\""),
+	("trailing\\",       "\"trailing\\\\\""),
+	("two\\\\slashes",   "\"two\\\\\\\\slashes\""),
+	("line\nbreak",      "\"line\\nbreak\""),
+	("tab\there",        "\"tab\\there\""),
+	("quote\"then\\",    "\"quote\\\"then\\\\\""),
+	("\\\"",             "\"\\\\\\\"\""),
+	("unicode: \u{e5}\u{e4}\u{f6}", "\"unicode: \u{e5}\u{e4}\u{f6}\""),
+	("",                 "\"\""),
+];
+
+fn lex_one_string(encoded: &str) -> Option<String> {
+	let src = format!("@T o {{ f: {} }}", encoded);
+	match putki_inki::lex_file(&src).get("o") {
+		Some(putki_inki::LexedData::Object { kv, .. }) => match kv.get("f") {
+			Some(putki_inki::LexedData::StringLiteral(s)) => Some(s.clone()),
+			_ => None,
+		},
+		_ => None,
+	}
+}
+
+#[test]
+fn test_string_escapes_encode() {
+	for (raw, encoded) in ESCAPE_VECTORS {
+		assert_eq!(&putki_inki::escape_string(raw), encoded, "encoding {:?}", raw);
+	}
+}
+
+#[test]
+fn test_string_escapes_decode() {
+	for (raw, encoded) in ESCAPE_VECTORS {
+		assert_eq!(lex_one_string(encoded).as_deref(), Some(*raw), "decoding {:?}", encoded);
+	}
+}
+
+#[test]
+fn test_string_escapes_roundtrip() {
+	for (raw, _) in ESCAPE_VECTORS {
+		let once = putki_inki::escape_string(raw);
+		assert_eq!(lex_one_string(&once).as_deref(), Some(*raw), "roundtrip {:?}", raw);
+	}
+}
+
+#[test]
+fn test_legacy_escapes_accepted_but_never_emitted() {
+	// \uXXXX carries bytes of the original UTF-8, so a run reassembles into one
+	// char: U+00E5 is C3 A5 in UTF-8.
+	assert_eq!(lex_one_string("\"\\u00c3\\u00a5\"").as_deref(), Some("\u{e5}"));
+	assert_eq!(lex_one_string("\"pre \\u00c3\\u00a5 post\"").as_deref(), Some("pre \u{e5} post"));
+	// A lone \u00e5 is the Latin-1 byte, not UTF-8, so it is malformed legacy
+	// data. Reject it rather than emit a replacement character.
+	assert_eq!(lex_one_string("\"\\u00e5\""), None);
+	// Newline is newline: a legacy \r escape folds into one.
+	assert_eq!(lex_one_string("\"a\\rb\"").as_deref(), Some("a\nb"));
+	// ...and neither form is ever produced again.
+	assert!(!putki_inki::escape_string("\u{e5}\r\n\r").contains("\\u"));
+	assert!(!putki_inki::escape_string("\u{e5}\r\n\r").contains("\\r"));
+	// CRLF and lone CR both normalise to a single \n.
+	assert_eq!(putki_inki::escape_string("a\r\nb\rc"), "\"a\\nb\\nc\"");
+}
+
+#[test]
+fn test_invalid_escape_is_rejected_not_guessed() {
+	assert_eq!(lex_one_string("\"bad \\q escape\""), None);
+	assert_eq!(lex_one_string("\"short \\u00\""), None);
+	assert_eq!(lex_one_string("\"unterminated"), None);
+}

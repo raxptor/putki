@@ -35,13 +35,80 @@ pub struct ScanResult<'a>
 	pub data: LexedData
 }
 
+/// Encode a string as a quoted literal. See `doc/text-format.md`.
+///
+/// Emits only `\\`, `\"`, `\n` and `\t`; everything else goes out as raw UTF-8.
+/// Putki draws no distinction between carriage return and newline, so CRLF and
+/// a lone CR both normalise to `\n`. `\uXXXX` is accepted on read but is never
+/// produced, so it drains out of the data as files are re-saved.
 pub fn escape_string(input:&str) -> String
 {
 	let mut s = String::with_capacity(input.len() + 32);
 	s.push('\"');
-	s.push_str(&input.replace("\"", "\\\""));
+	let mut it = input.chars().peekable();
+	while let Some(c) = it.next() {
+		match c {
+			'\\' => s.push_str("\\\\"),
+			'\"' => s.push_str("\\\""),
+			'\n' => s.push_str("\\n"),
+			'\t' => s.push_str("\\t"),
+			'\r' => {
+				if it.peek() == Some(&'\n') {
+					it.next();
+				}
+				s.push_str("\\n");
+			}
+			_ => s.push(c),
+		}
+	}
 	s.push('\"');
 	s
+}
+
+/// Decode the body of a quoted literal, i.e. what sits between the quotes.
+///
+/// Returns None on an invalid escape rather than guessing, which is what the
+/// older readers did and what made bad data invisible.
+fn decode_string_body(body: &str) -> Option<String>
+{
+	// Accumulated as bytes because legacy `\uXXXX` encoded the individual bytes
+	// of the original UTF-8, not a code point, so a run of them has to be
+	// reassembled before it is valid text.
+	let mut out: Vec<u8> = Vec::with_capacity(body.len());
+	let mut it = body.chars().peekable();
+	while let Some(c) = it.next() {
+		if c == '\r' {
+			if it.peek() == Some(&'\n') {
+				it.next();
+			}
+			out.push(b'\n');
+			continue;
+		}
+		if c != '\\' {
+			let mut buf = [0u8; 4];
+			out.extend_from_slice(c.encode_utf8(&mut buf).as_bytes());
+			continue;
+		}
+		match it.next() {
+			Some('n') => out.push(b'\n'),
+			Some('t') => out.push(b'\t'),
+			Some('r') => out.push(b'\n'),
+			Some('\\') => out.push(b'\\'),
+			Some('\"') => out.push(b'\"'),
+			Some('u') => {
+				let mut code: u32 = 0;
+				for _ in 0..4 {
+					code = (code << 4) | it.next().and_then(|h| h.to_digit(16))?;
+				}
+				if code > 0xff {
+					return None;
+				}
+				out.push(code as u8);
+			}
+			_ => return None,
+		}
+	}
+	String::from_utf8(out).ok()
 }
 
 pub fn kv_to_string(kv: &HashMap<String, LexedData>) -> String
@@ -195,58 +262,64 @@ fn is_syntax_delimiter(c : char) -> bool
 
 fn parse_keyword_or_string(data: &str) -> ScanResult<'_>
 {
-	let mut it = data.char_indices().enumerate(); 
+	let mut it = data.char_indices();
 	let mut inside_string = false;
-	let mut string_start = 0;
+	let mut body_start = 0;
 	let mut escaped = false;
 	loop {
 		match it.next() {
-			None => { 
+			None => {
+				if inside_string {
+					return make_parse_error("Unterminated string literal.");
+				}
 				return ScanResult {
-					cont: &data[1 ..],
+					cont: "",
 					data: LexedData::Empty
 				}
 			},
-			Some(x) => {
-				let value = &x.1;
+			Some((pos, c)) => {
 				if inside_string {
+					// Only ever skips the one character after a backslash, so a
+					// `\\` pair cannot swallow the character that follows it.
 					if escaped {
 						escaped = false;
 						continue;
-					} else if value.1 == '\\' {
-						inside_string = true;
-						string_start = value.0;
+					}
+					if c == '\\' {
 						escaped = true;
 						continue;
 					}
-				} else if value.1 == '\"' {
-					inside_string = true;
-					string_start = value.0;
-					continue;
-				}
-				if (inside_string && value.1 == '\"') || (!inside_string && is_syntax_delimiter(value.1)) {
-					if !inside_string {
-						if value.0 > 0 {
-							return ScanResult {							
-								cont: &data[value.0 ..],
-								data: LexedData::Value(String::from(&data[0 .. value.0]))
-							};
-						} else {
-							return ScanResult {							
-								cont: "",
-								data: LexedData::Empty
-							};
-						}
-					} else {
-						return ScanResult {
-							cont: &data[(value.0 + 1) ..],
-							data: LexedData::StringLiteral(String::from(&data[(string_start + 1) .. value.0]))
+					if c == '\"' {
+						return match decode_string_body(&data[body_start .. pos]) {
+							Some(value) => ScanResult {
+								cont: &data[(pos + 1) ..],
+								data: LexedData::StringLiteral(value)
+							},
+							None => make_parse_error("Invalid escape sequence in string literal.")
 						};
 					}
+					continue;
+				}
+				if c == '\"' {
+					inside_string = true;
+					body_start = pos + 1;
+					continue;
+				}
+				if is_syntax_delimiter(c) {
+					if pos > 0 {
+						return ScanResult {
+							cont: &data[pos ..],
+							data: LexedData::Value(String::from(&data[0 .. pos]))
+						};
+					}
+					return ScanResult {
+						cont: "",
+						data: LexedData::Empty
+					};
 				}
 			}
 		}
-	}    
+	}
 }
 
 pub fn parse_array(data: &str) -> ScanResult<'_>
