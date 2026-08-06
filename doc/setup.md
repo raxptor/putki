@@ -7,8 +7,8 @@ Putki.
 ```
 Configuration files in the root:
 
-/putked.conf
-/putki-compiler.conf
+/myproject.putked
+/putki-compiler.config
 
 Type definition files in src/types (you can change this)
 
@@ -19,19 +19,22 @@ And all your data .jsons goes into a folder here:
 /data/objs 
 ```
 
-putked.conf
------------
+the .putked project file
+------------------------
 
-Below is an example of putked.conf. You can add plugin loading there when
-you get advanced, but for now it provides the title, and lets the editor
-know where your project root is (same place as the file).
+The Electron editor in `electron/` opens a `.putked` file, which is JSON and
+whose directory is taken as the project root. It provides the window title:
 
+```json
+{ "title": "My super editor!" }
 ```
-title=My super editor!
-```
 
-putki-compiler.conf
--------------------
+The editor builds its property editors from the type descriptors the compiler
+writes for the `js` output, so the project's `putki-compiler.config` needs `js`
+listed in `outputs:`.
+
+putki-compiler.config
+----------------------
 
 ```
 config-version:1.0

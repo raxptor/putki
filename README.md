@@ -3,7 +3,7 @@ Putki
 
 ![Putki](misc/putkico-5.png)
 
-Putki - Generic data system with C++ and C# support, with a JavaFx based data editor.
+Putki - Generic data system with C++, C# and Rust support, with an Electron based data editor.
 
 Types
 -----
@@ -98,13 +98,15 @@ The system also supports making incremental builds and writing patch packages, t
 Editor and live editing
 -----------------------
 
-Putki comes with a C#/Mono based editor which lets you edit your assets. It also supports live updates, so that you can get instant feedback in your application
-when you make changes in the editor (although your application needs to be aware of what goes on).
+Putki comes with an Electron based editor (in `electron/`) which lets you edit your assets. It reads a
+`.putked` project file and builds its property editors from the type descriptors the compiler emits for
+the `js` output, so add `js` to `outputs:` in your `putki-compiler.config` to use it.
+
+The runtime also supports live updates, so that you can get instant feedback in your application when you
+make changes (although your application needs to be aware of what goes on).
 
 Of course, if you have build steps on your objects, these are performed onto the edited assets. So you can sit in the editor and tweak build step parameters and
 enjoy direct feedback in your application.
-
-It is also possible to write custom editor plugins for your own data types, should the built-in property editor not be enough. (For instance for level maps).
 
 This functionality is enabled or disabled with the preprocessor, so it can be stripped out from your final builds.
 

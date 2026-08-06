@@ -579,7 +579,6 @@ public class Compiler {
 			pt.outputs.add("rust");
 			pt.outputs.add("js");
 			pt.outputs.add("cpp");
-			pt.outputs.add("java");
 			pt.moduleName = "module";
 			pt.loaderName = "loader";
 			pt.typeFileEnding = "typedef";
@@ -830,7 +829,6 @@ public class Compiler {
 			CSharpGenerator.generateOutkiDataLoader(c, writer);
 			CSharpGenerator.generateNetkiStructs(c, writer);
 		}
-		JavaGenerator.generateEditorProxys(c, writer);
 		CppGenerator.generateInkiHeader(c, writer);
 		CppGenerator.generateInkiImplementation(c, writer);
 		CppGenerator.generateOutkiHeader(c, writer);
