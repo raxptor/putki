@@ -532,14 +532,14 @@ public class RustGenerator
                 if (struct.isTypeRoot || struct.possibleChildren.size() > 0)
                 {
                     sb.append("\n");
-                	sb.append(pfx).append("impl putki::TypeDescriptor for " + structName(struct) + " { const TAG: &'static str = \"" + struct.name + "\"; }");
+                	sb.append(pfx).append("impl putki::TypeDescriptor for " + structName(struct) + " { const TAG: &'static str = \"" + struct.name + "\"; const TYPE_ID: usize = " + struct.uniqueId + "; }");
 	                sb.append(pfx).append("impl putki::InkiObj for " + structName(struct) + " { }");
                 }
 
                 if (structNameWrap(struct).length() > 0)
                 {
                     sb.append("\n");
-                	sb.append(pfx).append("impl putki::TypeDescriptor for " + structNameWrap(struct) + " { const TAG: &'static str = \"" + struct.name + "\"; }");
+                	sb.append(pfx).append("impl putki::TypeDescriptor for " + structNameWrap(struct) + " { const TAG: &'static str = \"" + struct.name + "\"; const TYPE_ID: usize = " + struct.uniqueId + "; }");
                 	sb.append(pfx).append("impl putki::InkiObj for " + structNameWrap(struct) + " { }");
                 }
 
@@ -934,14 +934,14 @@ public class RustGenerator
                 if (struct.isTypeRoot || struct.possibleChildren.size() > 0)
                 {
                     sb.append("\n");
-                	sb.append(pfx).append("impl putki::TypeDescriptor for " + structName(struct) + " { const TAG: &'static str = \"" + struct.name + "\"; }");
+                	sb.append(pfx).append("impl putki::TypeDescriptor for " + structName(struct) + " { const TAG: &'static str = \"" + struct.name + "\"; const TYPE_ID: usize = " + struct.uniqueId + "; }");
                 	sb.append(pfx).append("impl outki::OutkiObj for " + structName(struct) + " { }");
                 }
 
                 if (structNameWrap(struct).length() > 0)
                 {
                     sb.append("\n");
-                	sb.append(pfx).append("impl putki::TypeDescriptor for " + structNameWrap(struct) + " { const TAG: &'static str = \"" + struct.name + "\"; }");
+                	sb.append(pfx).append("impl putki::TypeDescriptor for " + structNameWrap(struct) + " { const TAG: &'static str = \"" + struct.name + "\"; const TYPE_ID: usize = " + struct.uniqueId + "; }");
                 	sb.append(pfx).append("impl outki::OutkiObj for " + structNameWrap(struct) + " { }");
                 }
     		}

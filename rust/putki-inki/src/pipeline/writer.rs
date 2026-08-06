@@ -130,7 +130,8 @@ where
 #[derive(Default)]
 pub struct PackageRecipe {
     paths: BTreeSet<String>,
-    types: BTreeSet<&'static str>,
+    // (compiler type id, name); ordered so the emitted table is stable.
+    types: BTreeSet<(usize, &'static str)>,
 }
 
 impl PackageRecipe {
@@ -145,7 +146,7 @@ impl PackageRecipe {
     ) -> Result<(), shared::PutkiError> {
         let k = p.peek_build_records().unwrap();
         if let Some(br) = k.get(path) {
-            self.types.insert(br.type_tag);
+            self.types.insert((br.type_id, br.type_tag));
             if self.paths.insert(String::from(path)) && recurse_deps {
                 for x in br.deps.keys() {
                     self.add_object(p, x.as_str(), true)?
@@ -171,20 +172,19 @@ pub fn write_package(
     p: &pipeline::Pipeline,
     recipe: &PackageRecipe,
 ) -> Result<Vec<u8>, shared::PutkiError> {
-    let mut types: Vec<&'static str> = Vec::new();
-    for t in recipe.types.iter() {
-        types.push(t);
-    }
-
     let mut manifest: Vec<u8> = Vec::new();
     let mut slot_data_ofs: Vec<(usize, usize)> = Vec::new();
-    let mut type_rev: HashMap<&'static str, usize> = HashMap::new();
 
+    // See doc/package-format.md.
+    outki::PACKAGE_MAGIC.write(&mut manifest);
+    outki::PACKAGE_VERSION.write(&mut manifest);
+    let header_size_ofs = manifest.len();
     (0 as usize).write(&mut manifest);
-    types.len().write(&mut manifest);
-    for (tindex, t) in types.iter().enumerate() {
-        (*t).write(&mut manifest);
-        type_rev.insert(*t, tindex);
+
+    recipe.types.len().write(&mut manifest);
+    for (type_id, name) in recipe.types.iter() {
+        type_id.write(&mut manifest);
+        (*name).write(&mut manifest);
     }
 
     let mut items: Vec<&str> = Vec::new();
@@ -202,10 +202,7 @@ pub fn write_package(
     let k = p.peek_build_records().unwrap();
     for path in items.iter() {
         let flags: u32 = outki::SLOTFLAG_HAS_PATH | outki::SLOTFLAG_INTERNAL;
-        let type_id: usize = *k
-            .get(*path)
-            .and_then(|x| type_rev.get(x.type_tag))
-            .unwrap_or(&0);
+        let type_id: usize = k.get(*path).map(|x| x.type_id).unwrap_or(0);
         flags.write(&mut manifest);
         path.write(&mut manifest);
         type_id.write(&mut manifest);
@@ -216,8 +213,8 @@ pub fn write_package(
         slot_data_ofs.push((begin, end));
     }
 
-    let manifest_size = manifest.len();
-    insert_value(&mut manifest, 0, manifest_size);
+    let header_size = manifest.len();
+    insert_value(&mut manifest, header_size_ofs, header_size);
 
     // All the data.
     for i in 0..items.len() {

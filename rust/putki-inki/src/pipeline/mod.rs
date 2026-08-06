@@ -84,6 +84,7 @@ pub struct BuildRecord
 {
     path: String,    
     type_tag: &'static str,
+    type_id: usize,
     res_base: path::PathBuf,
     built_obj: Option<Box<dyn BuildResultObj>>,
     visited: HashSet<String>,
@@ -242,6 +243,7 @@ impl<T> BuildInvoke for PtrBox<T> where T : 'static + InkiObj
             let mut br = BuildRecord {
                 error: None,
                 type_tag: <T as shared::TypeDescriptor>::TAG,
+                type_id: <T as shared::TypeDescriptor>::TYPE_ID,
                 success: true,
                 path: br.path.clone(),
                 deps: HashMap::new(),

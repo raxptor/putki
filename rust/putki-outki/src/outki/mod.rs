@@ -60,13 +60,28 @@ pub use self::pkmanifest::*;
 pub const SLOTFLAG_HAS_PATH:u32   = 1;
 pub const SLOTFLAG_INTERNAL:u32   = 2;
 
+/// 'PTKI' little-endian. See `doc/package-format.md`.
+pub const PACKAGE_MAGIC:u32       = 0x494B_5450;
+pub const PACKAGE_VERSION:u32     = 1;
+/// magic + version + header_size.
+pub const PACKAGE_HEADER_FIXED:usize = 16;
+
 #[derive(Debug)]
 pub enum OutkiError {
     SlotNotFound,
     ResolveFailed,
     DataMissing,
     NonNullIsNull,
-    IOError
+    IOError,
+    /// Not a putki package at all.
+    BadMagic(u32),
+    /// A package format this build does not understand. Packages must be built
+    /// by the same binaries that load them.
+    UnsupportedVersion(u32),
+    /// Truncated, or otherwise not self-consistent.
+    CorruptPackage(&'static str),
+    /// The slot does not hold the type that was asked for.
+    TypeMismatch { slot: u32, wanted: &'static str, found: String }
 }
 
 impl From<io::Error> for OutkiError {
@@ -564,6 +579,18 @@ impl BinPackageManager
             return Err(OutkiError::SlotNotFound);
         }
         let s = &pkg.manifest.slots[slotidx];
+        // The slot records what it holds, so reading it as some other type is
+        // caught here rather than reinterpreting the bytes. Either side
+        // reporting 0 means "unknown", which is what a hand-written or
+        // not-yet-regenerated descriptor gives; skip the check for those.
+        let wanted = <T as shared::TypeDescriptor>::TYPE_ID;
+        if wanted != 0 && s.type_id != 0 && s.type_id != wanted {
+            return Err(OutkiError::TypeMismatch {
+                slot,
+                wanted: <T as shared::TypeDescriptor>::TAG,
+                found: pkg.manifest.type_name(s.type_id).unwrap_or("<unknown>").to_string()
+            });
+        }
         pkg.reader.read_chunk(s.begin, s.end, &mut |result:OutkiResult<&[u8]>| {
             result.and_then(|chunk| {
                 let mut stream = BinDataStream::new(chunk);

@@ -20,6 +20,14 @@ impl From<io::Error> for PutkiError {
 
 pub trait TypeDescriptor {
     const TAG : &'static str;
+    /// Compiler-assigned type id, written into package slots so a reader can
+    /// check it is being handed the type it asked for. See
+    /// `doc/package-format.md`.
+    ///
+    /// Defaults to 0, meaning "unknown", which is what a hand-written or
+    /// not-yet-regenerated descriptor reports; readers skip the check rather
+    /// than reject those.
+    const TYPE_ID : usize = 0;
 }
 
 pub trait Resolver<ResolveContext> {

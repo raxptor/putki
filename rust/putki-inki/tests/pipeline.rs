@@ -64,18 +64,22 @@ struct PointerOutki {
 
 impl putki_inki::TypeDescriptor for TestValues {
 	const TAG : &'static str = "TestValues";
+	const TYPE_ID : usize = 1;
 }
 
 impl putki_inki::TypeDescriptor for Multi {
 	const TAG : &'static str = "Multi";
+	const TYPE_ID : usize = 2;
 }
 
 impl putki_inki::TypeDescriptor for Pointer {
 	const TAG : &'static str = "Pointer";
+	const TYPE_ID : usize = 3;
 }
 
 impl putki_inki::TypeDescriptor for PointerOutki {
 	const TAG : &'static str = "Pointer";
+	const TYPE_ID : usize = 3;
 }
   
 impl putki_inki::BuildFields for TestValues { }
@@ -372,6 +376,18 @@ fn test_pipeline() {
 		let obj = obj_maybe.unwrap();
 		assert_eq!(obj.contained.value1, 321 + 1000);
 		assert_eq!(obj.contained.value2, 654 + 2000);
+	}
+
+	{
+		// Asking for the wrong type must be refused, not reinterpreted.
+		match mgr.resolve::<Multi>("ptr") {
+			Err(outki::OutkiError::TypeMismatch { wanted, found, .. }) => {
+				assert_eq!(wanted, "Multi");
+				assert_eq!(found, "Pointer");
+			}
+			Err(e) => panic!("expected TypeMismatch, got {:?}", e),
+			Ok(_) => panic!("resolving a Pointer slot as Multi should have failed"),
+		}
 	}
 
 	{
