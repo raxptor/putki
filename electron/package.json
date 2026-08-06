@@ -4,7 +4,8 @@
   "description": "Putki default editor",
   "main": "main.js",
   "scripts": {
-    "start": "electron ."
+    "start": "electron .",
+    "test": "node escapes.test.js && node parser.test.js"
   },
   "author": "Dan Nilsson",
   "license": "CC0-1.0",

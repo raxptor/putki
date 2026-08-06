@@ -2,35 +2,14 @@ var fs = require('fs');
 var path = require('path');
 const fsextra = require('fs-extra');
 var md5 = require('js-md5');
+var escapes = require('./escapes.js');
 
 function format_string(str, indent)
 {
     // indent = -1 means trial.
     if (indent == -1)
         return str;
-
-    var chars = [];
-    var hex = "0123456789ABCDEF";
-    for (var i=0;i<str.length;i++)
-    {
-        var c = str[i];
-        var cc = str.charCodeAt(i);
-        if (c == '\r')
-            continue;        
-        if (c == '\n')
-            chars.push("\\n");
-        else if (c == '\\')
-            chars.push("\\\\");
-        else if (c == '\t')
-            chars.push("\\t");
-        else if (c == '\"')
-            chars.push("\\\"");
-        else if (cc <= 127 || c == ' ')            
-            chars.push(c);
-        else         
-            chars.push(c);
-    }
-    return "\"" + chars.join("") + "\"";
+    return escapes.encode_string(str);
 }
 
 var unfiltered = ["I32", "U32", "U8", "Float", "Bool"];

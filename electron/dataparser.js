@@ -1,5 +1,7 @@
 // parese functions
 
+var escapes = require('./escapes.js');
+
 function strip_comments(input)
 {
     stripped = [];
@@ -50,55 +52,12 @@ function is_whitespace(c)
     return (c == ' ') || (c == '\t') || (c == '\n') || c.charCodeAt() == 0xd || c.charCodeAt() == 0xa;
 }
 
-function unhex(ch)
-{
-    var x = ch.toLowerCase().charCodeAt();
-    var sym = '09af';
-    if (x >= sym.charCodeAt(0) && x <= sym.charCodeAt(1))
-        return x - sym.charCodeAt(0);
-    if (x >= sym.charCodeAt(2) && x <= sym.charCodeAt(3))
-        return 10 + x - sym.charCodeAt(2);
-    return 0;
-}
-
+// Escape handling lives in escapes.js so the reader and the writer cannot
+// drift apart. Returns null on an invalid escape; callers must flag the error
+// rather than carry on with a half-decoded value.
 function decode_string(buf, begin, end)
 {
-    var tmp = [];
-    var len = 0;
-    for (var i=begin;i<end;i++)
-    {
-        if (buf[i] != '\\')
-        {
-            tmp.push(buf[i]);
-        }
-        else if ((i+1) < end)
-        {
-            if (buf[i+1] == 'u')
-            {
-                if ((i+5) < end)
-                {
-                    var code = 
-                        16*16*16*unhex(buf[i+2]) + 
-                        16*16*unhex(buf[i+3]) +
-                        16*unhex(buf[i+4]) +
-                        unhex(buf[i+5]);
-                    tmp.push(String.fromCharCode(code));
-                    i += 5;
-                }
-            }
-            else if (buf[i+1] =='n')
-            {
-                tmp.push('\n');
-                ++i;
-            }
-            else if (buf[i + 1] == '\\')
-            {
-                tmp.push('\\');
-                ++i;
-            }
-        }
-    }
-    return tmp.join("");
+    return escapes.decode_string_body(buf.substring(begin, end));
 }
 
 function parse(status, rootlevel)
@@ -146,6 +105,11 @@ function parse(status, rootlevel)
                 if (c == '"')
                 {
                     var v = decode_string(status.data, status.pos, i);
+                    if (v === null)
+                    {
+                        status.error = true;
+                        return null;
+                    }
                     status.pos = i + 1;
                     if (v.startsWith("$FIX-WS:"))
                     {
@@ -179,6 +143,11 @@ function parse(status, rootlevel)
                     if (c == '{' || c== '[')
                     {
                         var header = decode_string(status.data, status.pos, i);
+                        if (header === null)
+                        {
+                            status.error = true;
+                            return null;
+                        }
                         var pcs = header.trim().split(' ');                                
                         if (pcs.length < 1)
                         {
@@ -219,6 +188,11 @@ function parse(status, rootlevel)
                     if (is_whitespace(c) || c == ',' || c == ']' || c == '}' || c == ':' || c == '=')
                     {
                         var v = decode_string(status.data, status.pos, i);
+                        if (v === null)
+                        {
+                            status.error = true;
+                            return null;
+                        }
                         status.pos = i;
                         return v;
                     }
