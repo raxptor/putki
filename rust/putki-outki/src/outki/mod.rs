@@ -20,13 +20,24 @@
 //! Use `Ptr::make_ref` / `NullablePtr::make_ref` to turn a field into an owning
 //! handle, borrowing the pin from a `Ref` you already hold.
 //!
-//! # resolve is not idempotent
+//! # Callers must resolve each path once
 //!
-//! Each `BinPackageManager::resolve` call builds a fresh batch. Resolving the
-//! same path twice yields two independent copies of the object graph at
-//! different addresses, not a shared one, and address-based `PartialEq` will
-//! report them as unequal. There is no object cache; resolve once and clone the
-//! `Ref` if you need the object in more than one place.
+//! There is no object cache, and `resolve` takes `&self`, so deduplicating is
+//! the caller's job. Every `BinPackageManager::resolve` call builds a fresh
+//! batch: resolving the same path twice gives two complete, independent copies
+//! of the object graph at different addresses. Since `PartialEq` compares
+//! addresses, objects from two resolves of one path compare unequal.
+//!
+//! With `outki-leak-memory` enabled the destructors are compiled out and
+//! nothing is ever freed, so each redundant `resolve` leaks a full copy of the
+//! graph for the life of the process. That is the intended trade for data
+//! loaded once at startup, but it means a `resolve` on a repeating path is an
+//! unbounded leak with no diagnostic.
+//!
+//! The supported pattern is to resolve each root once during load, keep the
+//! `Ref`, and reach everything else through `Ptr::make_ref` /
+//! `NullablePtr::make_ref` or by cloning the `Ref` -- all of which share the
+//! existing batch instead of building another one.
 
 #[allow(unused_imports)]
 use std::rc::Rc;
