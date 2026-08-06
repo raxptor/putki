@@ -347,6 +347,22 @@ fn test_pipeline() {
 
 	let data = putki_inki::write_package(&(*pipeline), &rcp).expect("It should have worked");
 
+	// Golden fixture: the same bytes are parsed by the C# test in
+	// tests/csharp/PackageVectors.cs, so the two implementations cannot drift.
+	// Regenerate with PUTKI_REGEN_FIXTURES=1 cargo test after a format change,
+	// and re-run the C# test against the new file.
+	{
+		let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+			.join("../../tests/fixtures/sample.pkg");
+		if std::env::var("PUTKI_REGEN_FIXTURES").is_ok() {
+			std::fs::create_dir_all(fixture.parent().unwrap()).unwrap();
+			std::fs::write(&fixture, &data).unwrap();
+		} else {
+			let want = std::fs::read(&fixture).expect("missing tests/fixtures/sample.pkg");
+			assert_eq!(data, want, "package format changed; regenerate the fixture and update the C# reader");
+		}
+	}
+
 	// Slot and type indices are assigned by iteration order, so the package
 	// layout must not depend on hash seeding: rebuilding the same recipe has to
 	// produce identical bytes or content hashing and incremental builds break.
