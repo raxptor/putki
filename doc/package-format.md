@@ -75,6 +75,41 @@ Flags
 Other values are reserved and a reader should reject them. The old format's
 `EXTERNAL`, `UNRESOLVED` and `RESOURCE` flags have no equivalent yet.
 
+Payload encoding
+----------------
+
+Slot payloads are written by the generated `BinSaver` implementations. Every
+field is stored **inline, in declaration order**, with no padding, no alignment
+and no out-of-line area. (The old C++ format kept strings and arrays in a
+separate "aux" region and pointed at them; this format does not.)
+
+| Field type | Encoding |
+|---|---|
+| `s32` / `int` | `i32`, 4 bytes |
+| `u32` / `uint` | 4 bytes |
+| `byte` | 1 byte |
+| `bool` | 1 byte, 0 or 1 |
+| `float` | `f32` bits, 4 bytes |
+| `enum` | `i32` of the enum's value, 4 bytes |
+| `string`, `text`, `file`, `path`, `hash` | `string` (usize length + inline bytes) |
+| `ptr` | `i32` slot reference |
+| struct instance | that struct's fields, inline, recursively |
+| any array | `usize` element count, then that many elements inline |
+
+Note `hash` is stored as a string, not a hash value.
+
+Polymorphic types
+-----------------
+
+A type that is an rtti root, or has children, is written as a `u16` variant
+index followed by that variant's fields. The index is the position of the
+concrete type in the parent's child list as the compiler emits it, **not** the
+type id.
+
+This is the one place where the format leans on the generated code of a
+specific language matching the generator's ordering, and it is the part most
+likely to need attention when porting a reader.
+
 Slot references
 ---------------
 
