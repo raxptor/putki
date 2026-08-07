@@ -28,8 +28,14 @@ namespace Mixki
         {
             object tmp;
             if (dict.TryGetValue(name, out tmp))
-                return (tmp.ToString() == "True" || tmp.ToString() == "true" || tmp.ToString() == "1");
+                return Bool(tmp, def);
             return def;
+        }
+        // The generator emits this overload for bool[] elements, same as Int and Float.
+        public static bool Bool(object value, bool def)
+        {
+            string s = value.ToString();
+            return (s == "True" || s == "true" || s == "1");
         }
         public static float Float(object value, float def)
         {

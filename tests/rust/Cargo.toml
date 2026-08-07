@@ -1,8 +1,17 @@
 [package]
 name = "putkitest"
 version = "0.1.0"
+edition = "2024"
 authors = ["Dan Nilsson <raxptor@gmail.com>"]
 
+# Its own workspace root. Putki is often vendored inside another project's cargo
+# workspace, and without this cargo refuses to build here ("current package
+# believes it's in a workspace when it's not").
+[workspace]
+
 [dependencies]
-putki_gen = { path = "_gen/rust" }
-putki = { path = "../../rust" }
+putki-inki = { path = "../../rust/putki-inki" }
+putki-outki = { path = "../../rust/putki-outki", features = ["outki-leak-memory"] }
+# Produced by `compiler.sh tests/rust`, which must run before cargo.
+gen_test-inki = { path = "_gen/rust/gen-inki" }
+gen_test-outki = { path = "_gen/rust/gen-outki" }

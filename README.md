@@ -34,20 +34,33 @@ Tests
 -----
 
 ```
-tests/csharp/run-tests.sh          # needs mono (mcs)
+tests/csharp/run-tests.sh                              # needs mono (mcs)
+compiler.sh tests/rust && (cd tests/rust && cargo test)  # needs cargo
 ```
 
-This checks the C# runtime's string escaping and binary package reader against the vectors in
-`doc/text-format.md` and `doc/package-format.md`, then runs the compiler over `tests/simple`'s
-typedefs, builds the generated C# against the runtime, and loads `tests/simple/data/objs` through it.
-That last step is an end-to-end generator test: `tests/simple` covers inheritance, polymorphism,
-arrays, enums, nested structs and build configs, so it catches codegen that fails to build or fails
-to read real data.
+The C# suite checks the runtime's string escaping and binary package reader against the vectors in
+`doc/text-format.md` and `doc/package-format.md`, then two generator tests:
+
+- **tests/simple** -- compiles the generated C# against the runtime and loads `data/objs` through it.
+  Covers inheritance, arrays, enums, nested structs and build configs, so it catches codegen that
+  fails to build or fails to read real data.
+- **tests/rust** -- reads `tests/fixtures/polymorphic.pkg` through the generated C# loader. That
+  fixture is written by the Rust pipeline, so the rtti type tag and its dispatch are checked across
+  both implementations. The fixture is checked in, so this step needs no cargo.
+
+`tests/rust` is also a cargo crate: `tests/rust/tests/roundtrip.rs` takes `data/main.txt` through the
+inki build, out as a binary package, and back in through the outki reader, asserting that polymorphic
+pointers keep their type. It declares its own `[workspace]`, so cargo works even when putki is
+vendored inside another project's workspace. Regenerate the fixture after a format change with:
+
+```
+cd tests/rust && cargo run --example write-fixture -- ../fixtures/polymorphic.pkg
+```
+
+Both test projects need `compiler.sh` run over them first -- the generated code is not checked in.
 
 `tests/simple/src/Program.cs` takes the project directory as its argument and optionally a package
 file as a second one; the package half needs a data builder, which this project does not run.
-
-`tests/rust` is stale -- it predates the inki/outki split and is not wired into anything.
 
 Types
 -----
