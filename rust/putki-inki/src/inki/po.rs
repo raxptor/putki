@@ -61,7 +61,14 @@ impl Catalog {
 	}
 
 	/// Adds one string. Repeats of the same key merge their comments.
+	///
+	/// An empty string is dropped: a field simply left unset in the data is not
+	/// something to translate, and an empty `msgid` is the .pot header's own key,
+	/// so emitting one produces a file gettext reads as having two headers.
 	pub fn add(&mut self, s: &TranslatableString) {
+		if s.text.is_empty() {
+			return;
+		}
 		let m = mangle(&s.text);
 
 		// The msgid has to survive the trip back, or the runtime will look up

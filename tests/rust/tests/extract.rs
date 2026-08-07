@@ -49,6 +49,15 @@ fn unmarked_strings_are_not_collected() {
 }
 
 #[test]
+fn unset_fields_do_not_become_an_empty_msgid() {
+    // dlg carries no ItemCount. An empty msgid is the .pot header's own key, so
+    // one emitted here gives gettext a file with two headers.
+    let pot = pot();
+    let body = pot.split("\n\n").skip(1).collect::<Vec<_>>().join("\n\n");
+    assert!(!body.contains("msgid \"\""), "empty msgid in the body:\n{pot}");
+}
+
+#[test]
 fn the_catalog_is_stable_across_runs() {
     // Object iteration is hash-ordered underneath; extraction must not be.
     assert_eq!(pot(), pot());
