@@ -50,7 +50,9 @@ public class Compiler {
 		public boolean stringIsText;
 		public String localizationCategory;
 		public boolean localizationPlural;
-		public List<Annotation> annotations;
+		// Synthesized fields (inherited parent, build-config clones) never go
+		// through the parser, so default this rather than leaving it null.
+		public List<Annotation> annotations = new ArrayList<Annotation>();
 	}
 
 	public class ParsedStruct {			
@@ -70,7 +72,7 @@ public class Compiler {
 
 		public ParsedStruct resolvedParent;
 		public List<ParsedStruct> possibleChildren;
-		public List<Annotation> annotations;
+		public List<Annotation> annotations = new ArrayList<Annotation>();
 
 		public boolean hasParent(ParsedStruct p) {
 			ParsedStruct c = this;

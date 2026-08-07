@@ -5,6 +5,50 @@ Putki
 
 Putki - Generic data system with C++, C# and Rust support, with an Electron based data editor.
 
+Running the compiler
+--------------------
+
+The compiler is plain Java with no dependencies beyond the JDK, so it needs no build system. From a
+parent project that has putki checked out as a submodule, one script builds it and runs it:
+
+```
+ext/putki/compiler.sh              # generate code for the project in the current directory
+ext/putki/compiler.sh some/dir     # ...for the project rooted at some/dir
+```
+
+`putki-compiler.config` is resolved relative to that directory, so with no argument it means "wherever
+I ran this from". Building is a fresh `javac` of ~3k lines -- about a second -- and is skipped entirely
+when the jar is already newer than the sources, so calling this unconditionally costs nothing.
+
+To build the jar without running it, use `./compiler/build.sh` (`clean` as an argument removes the
+output). The jar is self-contained: `java -jar compiler/dist/putki-compiler.jar` also works.
+
+Any JDK 11 or later works, on Linux, macOS, and Windows under git bash. To skip the jar entirely
+while hacking on the compiler, JDK 22+ can run the sources directly, compiling them in memory:
+
+```
+java <path-to-putki>/compiler/src/putki/Compiler.java
+```
+
+Tests
+-----
+
+```
+tests/csharp/run-tests.sh          # needs mono (mcs)
+```
+
+This checks the C# runtime's string escaping and binary package reader against the vectors in
+`doc/text-format.md` and `doc/package-format.md`, then runs the compiler over `tests/simple`'s
+typedefs, builds the generated C# against the runtime, and loads `tests/simple/data/objs` through it.
+That last step is an end-to-end generator test: `tests/simple` covers inheritance, polymorphism,
+arrays, enums, nested structs and build configs, so it catches codegen that fails to build or fails
+to read real data.
+
+`tests/simple/src/Program.cs` takes the project directory as its argument and optionally a package
+file as a second one; the package half needs a data builder, which this project does not run.
+
+`tests/rust` is stale -- it predates the inki/outki split and is not wired into anything.
+
 Types
 -----
 

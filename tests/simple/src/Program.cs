@@ -17,22 +17,38 @@ namespace TestSimple
 
 	class MainClass
 	{
+		// Usage: simple.exe [project-dir] [package]
+		// project-dir defaults to the current directory and must be the one
+		// holding data/objs -- i.e. tests/simple.
 		public static void Main(string[] args)
 		{
-			Mixki.SourceLoader sl = new Mixki.SourceLoader("C:/git/eeep/ext/putki/tests/simple/data/objs", Mixki.TestProj.Parsers);
+			string root = args.Length > 0 ? args[0] : ".";
+
+			Mixki.SourceLoader sl = new Mixki.SourceLoader(
+				System.IO.Path.Combine(root, "data", "objs"), Mixki.TestProj.Parsers);
 			Outki.Everything sourceEverything = sl.Resolve<Outki.Everything>("everything");
+			if (sourceEverything == null)
 			{
-				Console.WriteLine("I loaded from source " + sourceEverything);
+				Console.Error.WriteLine("failed to resolve 'everything' from source");
+				Environment.Exit(1);
+			}
+			Console.WriteLine("loaded from source: " + sourceEverything);
+
+			// Loading the same data from a built package. Optional: producing one
+			// needs a data builder, which this test project does not run.
+			if (args.Length < 2)
+			{
+				return;
 			}
 
-			// load built
-			Putki.PackageManager.LoadFromBytes(
-				System.IO.File.ReadAllBytes("C:/git/eeep/ext/putki/tests/simple/out/csharp-default/packages/default.pkg"),
-				new TypeLoader()
-			);
-
+			Putki.PackageManager.LoadFromBytes(System.IO.File.ReadAllBytes(args[1]), new TypeLoader());
 			Outki.Everything everything = Putki.PackageManager.Resolve<Outki.Everything>("everything");
-			Console.WriteLine("I loaded built " + everything);
+			if (everything == null)
+			{
+				Console.Error.WriteLine("failed to resolve 'everything' from " + args[1]);
+				Environment.Exit(1);
+			}
+			Console.WriteLine("loaded from package: " + everything);
 		}
 	}
 }

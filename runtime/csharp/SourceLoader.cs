@@ -173,7 +173,9 @@ namespace Mixki
 			else
 			{
 				object raw;
-				if (m_raw.TryGetValue(path, out raw))
+				// Not seen yet: pull it off disk. (This test was inverted, so a
+				// first-time path fell through with raw still null.)
+				if (!m_raw.TryGetValue(path, out raw))
 				{
 					LoadJson(assetPath);
 					if (!m_raw.TryGetValue(path, out raw))

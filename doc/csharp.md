@@ -2,7 +2,7 @@ Using Putki with C# runtime
 ===========================
 
 Make sure to include all the sources from the Putki C# runtime library, this
-can be found under the path src/csharp-runtime in the putki repository. You
+can be found under the path runtime/csharp in the putki repository. You
 should probably set this up as a static library in your build environment.
 
 Then also add in the generated files (by default the _gen folder), that you
