@@ -352,7 +352,7 @@ public class CSharpGenerator
                 sb.append(npfx).append("{");
                 sb.append(npfx).append("\treturn Outki." + e.name + "." + e.values.get(0).name + ";");
                 sb.append(npfx).append("}");
-                sb.append(npfx).append("throw new Putki.PackageFormatException(\"unknown value '\" + tmp + \"' for enum " + e.name + " at '\" + path + \"'; expected one of: " + allowed + "\");");
+                sb.append(npfx).append("throw new Mixki.ParseException(\"unknown value '\" + tmp + \"' for enum " + e.name + " at '\" + path + \"'; expected one of: " + allowed + "\");");
                 sb.append("\n\t\t}\n");
             }
         }
@@ -673,7 +673,9 @@ public class CSharpGenerator
                         	continue;
 
                         String upfx = spfx;
-                        String ref = "target." + field.name;
+                        // actualFieldName, not name: a translatable string is stored
+                        // in _LocSrc<Name> and <Name> is a method.
+                        String ref = "target." + actualFieldName(field);
                         String contentReader = "reader";
 
                         if (field.type == FieldType.POINTER)
@@ -690,7 +692,7 @@ public class CSharpGenerator
                             {
                                 sb.append(spfx).append("\ttarget.__slot_" + field.name + " = new int[count];");
                             }
-                            sb.append(spfx).append("\ttarget." + field.name + " = new " + csharpType(field, "Outki", false) + "[count];");
+                            sb.append(spfx).append("\ttarget." + actualFieldName(field) + " = new " + csharpType(field, "Outki", false) + "[count];");
                             ref = ref + "[i]";
                                                                                     sb.append(spfx).append("\tfor (int i=0;i!=count;i++)");
                             sb.append(spfx).append("\t{");
@@ -756,8 +758,8 @@ public class CSharpGenerator
                         if (field.type != Compiler.FieldType.POINTER && field.type != Compiler.FieldType.STRUCT_INSTANCE)
                             continue;
 
-                        String ref = "target." + field.name;
-                        String slotRef = "target.__slot_" + field.name;
+                        String ref = "target." + actualFieldName(field);
+                        String slotRef = "target.__slot_" + actualFieldName(field);
 
                         String upfx = pfx + "\t";
                         if (field.isArray)

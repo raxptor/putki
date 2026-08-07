@@ -4,6 +4,15 @@ using System.Text;
 
 namespace Mixki
 {
+    /// Bad hand-authored source data, e.g. an enum value naming no member.
+    /// Lives here rather than with the package reader so that generated mixki
+    /// code stays independent of Package.cs, which mixki-only projects do not
+    /// necessarily compile.
+    public class ParseException : Exception
+    {
+        public ParseException(string message) : base(message) { }
+    }
+
     public static class Parse
     {
         public static float Float(Dictionary<string, object> dict, string name, float def)

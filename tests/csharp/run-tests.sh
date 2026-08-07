@@ -14,6 +14,13 @@ echo "== binary package (doc/package-format.md) =="
 mcs -out:"$OUT/package.exe" ../../runtime/csharp/Package.cs PackageVectors.cs
 mono "$OUT/package.exe" ../fixtures/sample.pkg
 
+# Both implementations of the localization mangling must agree byte for byte:
+# the extractor writes msgids with the Rust one, the runtime looks them up with
+# this one. The Rust suite runs the same fixture.
+echo "== mangling vectors, C# side (shared fixture) =="
+mcs -out:"$OUT/mangling.exe" ../../runtime/csharp/LocMangling.cs ManglingVectors.cs
+mono "$OUT/mangling.exe" ../fixtures/mangling-vectors.txt
+
 # Generator check: the C# the compiler emits has to compile against the runtime.
 # tests/simple's typedefs cover inheritance, arrays, enums, nested structs and
 # build configs, so this catches generator regressions that produce code which

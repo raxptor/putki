@@ -314,6 +314,110 @@ public class RustGenerator
 		return value.replace("f", "") + "f32";
 	}
 
+	/// The type to parse an object as when collecting its strings.
+	///
+	/// A child in an rtti hierarchy may carry no fields of its own, in which case
+	/// it exists only as a variant and has no type to name. Parsing through the
+	/// root and letting parse_with_type pick the variant covers every case.
+	static String collectParseType(Compiler.ParsedStruct struct)
+	{
+		Compiler.ParsedStruct root = struct;
+		while (root.resolvedParent != null)
+			root = root.resolvedParent;
+		if (root.isTypeRoot || root.possibleChildren.size() > 0)
+			return structName(root);
+		return structNameWrap(struct).length() > 0 ? structNameWrap(struct) : structName(struct);
+	}
+
+	static boolean isLocalized(Compiler.ParsedField field)
+	{
+		return field.localizationCategory != null && field.type == FieldType.STRING;
+	}
+
+	static boolean skipInStructBody(Compiler.ParsedField field)
+	{
+		if ((field.domains & Compiler.DOMAIN_OUTPUT) == 0)
+			return true;
+		return field.isParentField && field.resolvedRefStruct != null
+			&& structNameWrap(field.resolvedRefStruct).length() == 0;
+	}
+
+	/// Emits the walk that hands every translatable string in a struct to the
+	/// extractor, recursing through nested structs and arrays. Pointers are not
+	/// followed: each object is visited in its own right, so following them
+	/// would report the same string once per reference.
+	static void writeCollectStrings(StringBuilder sb, String pfx, Compiler.ParsedStruct struct, String typeName)
+	{
+		sb.append("\n");
+		sb.append(pfx).append("impl putki::CollectStrings for " + typeName + " {");
+		sb.append(pfx).append("\tfn collect_strings(&self, _path: &str, _out: &mut dyn FnMut(putki::TranslatableString)) {");
+		String spfx = pfx + "\t\t";
+		for (Compiler.ParsedField field : struct.fields)
+		{
+			if (skipInStructBody(field))
+				continue;
+			String fn = fieldName(field);
+			if (isLocalized(field))
+			{
+				String make = "putki::TranslatableString { text: %s.clone(), category: String::from(\""
+					+ field.localizationCategory + "\"), plural: " + field.localizationPlural
+					+ ", field: String::from(\"" + struct.name + "." + field.name
+					+ "\"), path: String::from(_path) }";
+				if (field.isArray)
+					sb.append(spfx).append("for _item in self." + fn + ".iter() { _out(" + String.format(make, "_item") + "); }");
+				else
+					sb.append(spfx).append("_out(" + String.format(make, "self." + fn) + ");");
+			}
+			else if (field.type == FieldType.STRUCT_INSTANCE)
+			{
+				if (field.isArray)
+					sb.append(spfx).append("for _item in self." + fn + ".iter() { putki::CollectStrings::collect_strings(_item, _path, _out); }");
+				else
+					sb.append(spfx).append("putki::CollectStrings::collect_strings(&self." + fn + ", _path, _out);");
+			}
+			else if (field.type == FieldType.POINTER)
+			{
+				// Only inline targets: a pointer to a named object is reached on
+				// its own, and following it would collect the same string twice.
+				if (field.isArray)
+					sb.append(spfx).append("for _item in self." + fn + ".iter() { if let Some(_o) = _item.inline_target() { putki::CollectStrings::collect_strings(&*_o, _path, _out); } }");
+				else
+					sb.append(spfx).append("if let Some(_o) = self." + fn + ".inline_target() { putki::CollectStrings::collect_strings(&*_o, _path, _out); }");
+			}
+		}
+		sb.append(pfx).append("\t}");
+		sb.append(pfx).append("}");
+	}
+
+	/// Emits an accessor per translatable field. Rust keeps fields and methods in
+	/// separate namespaces, so this shares the field's name: `x.text` is the
+	/// authored string, `x.text(tr)` the translated one.
+	static void writeTranslationAccessors(StringBuilder sb, String pfx, Compiler.ParsedStruct struct, String typeName)
+	{
+		boolean any = false;
+		for (Compiler.ParsedField field : struct.fields)
+			if (!skipInStructBody(field) && isLocalized(field) && !field.isArray)
+				any = true;
+		if (!any)
+			return;
+
+		sb.append("\n");
+		sb.append(pfx).append("impl " + typeName + " {");
+		for (Compiler.ParsedField field : struct.fields)
+		{
+			if (skipInStructBody(field) || !isLocalized(field) || field.isArray)
+				continue;
+			String fn = fieldName(field);
+			if (field.localizationPlural)
+				sb.append(pfx).append("\tpub fn " + fn + "(&self, _tr: &dyn putki::Translation, plural_n: i32) -> String { _tr.translate_plural(&self."
+					+ fn + ", \"" + field.localizationCategory + "\", plural_n) }");
+			else
+				sb.append(pfx).append("\tpub fn " + fn + "(&self, _tr: &dyn putki::Translation) -> String { _tr.translate(&self."
+					+ fn + ", \"" + field.localizationCategory + "\") }");
+		}
+		sb.append(pfx).append("}");
+	}
+
     public static void generateInkiStructs(Compiler comp, Compiler.ParsedTree tree, CodeWriter writer)
     {
         Path lib = tree.genCodeRoot.resolve("rust").resolve("gen-inki").resolve("src").resolve("inki");
@@ -324,7 +428,7 @@ public class RustGenerator
         sb.append("\nuse std::any;");
         sb.append("\nuse std::default;");
         sb.append("\nuse std::vec;");
-        sb.append("\nmod parse;");
+        sb.append("\npub mod parse;");
         sb.append("\nuse putki;");
         sb.append("\nuse putki::BinWriter;");
 
@@ -508,6 +612,9 @@ public class RustGenerator
 	                sb.append(spfx).append("Ok(())");
 	                sb.append(pfx).append("\t}");
 	                sb.append(pfx).append("}");
+
+	                writeCollectStrings(sb, pfx, struct, structNameWrap(struct));
+	                writeTranslationAccessors(sb, pfx, struct, structNameWrap(struct));
                 }
 
                 if (struct.isTypeRoot || struct.possibleChildren.size() > 0)
@@ -557,6 +664,22 @@ public class RustGenerator
                     sb.append("\n");
                 	sb.append(pfx).append("impl putki::TypeDescriptor for " + structName(struct) + " { const TAG: &'static str = \"" + struct.name + "\"; const TYPE_ID: usize = " + struct.uniqueId + "; }");
 	                sb.append(pfx).append("impl putki::InkiObj for " + structName(struct) + " { }");
+	                // Dispatch string collection to whichever variant is present.
+	                sb.append("\n");
+	                sb.append(pfx).append("impl putki::CollectStrings for " + structName(struct) + " {");
+	                sb.append(pfx).append("\tfn collect_strings(&self, _path: &str, _out: &mut dyn FnMut(putki::TranslatableString)) {");
+	                sb.append(pfx).append("\t\tmatch self {");
+	                for (int i=0;i<=struct.possibleChildren.size();i++)
+	                {
+	                	Compiler.ParsedStruct s = (i == 0) ? struct : struct.possibleChildren.get(i-1);
+	                	if (structNameWrap(s).length() > 0)
+	                		sb.append(pfx).append("\t\t\t" + structName(struct) + "::" + structName(s) + "(x) => putki::CollectStrings::collect_strings(x, _path, _out),");
+	                	else
+	                		sb.append(pfx).append("\t\t\t" + structName(struct) + "::" + structName(s) + " => { },");
+	                }
+	                sb.append(pfx).append("\t\t}");
+	                sb.append(pfx).append("\t}");
+	                sb.append(pfx).append("}");
                 }
 
                 if (structNameWrap(struct).length() > 0)
@@ -1126,6 +1249,31 @@ public class RustGenerator
                 }
     		}
         }
+
+        // Parses one lexed object as its declared type and collects the
+        // translatable strings from it. Extraction needs to go through the typed
+        // representation, because which fields are translatable is a property of
+        // the type, not of the source text.
+        String cpfx = "\n";
+        sb.append("\n");
+        sb.append(cpfx).append("/// Collects translatable strings from one object. Returns false if the");
+        sb.append(cpfx).append("/// type name is not one this module knows.");
+        sb.append(cpfx).append("pub fn collect_object_strings(type_name: &str, kv: &putki::LexedKv, resolver: &Arc<putki::InkiResolver>, path: &str, out: &mut dyn FnMut(putki::TranslatableString)) -> bool {");
+        sb.append(cpfx).append("\tmatch type_name {");
+        for (Compiler.ParsedFile file : tree.parsedFiles)
+        {
+        	for (Compiler.ParsedStruct struct : file.structs)
+        	{
+        		if ((struct.domains & Compiler.DOMAIN_INPUT) == 0 || (struct.domains & Compiler.DOMAIN_OUTPUT) == 0)
+        			continue;
+        		sb.append(cpfx).append("\t\t\"" + struct.name + "\" => { putki::CollectStrings::collect_strings(&<inki::"
+        			+ collectParseType(struct) + " as putki::ParseFromKV>::parse_with_type(kv, resolver, type_name), path, out); true }");
+        	}
+        }
+        sb.append(cpfx).append("\t\t_ => false");
+        sb.append(cpfx).append("\t}");
+        sb.append(cpfx).append("}");
+
         writer.addOutput(fn, sb.toString().getBytes());
     }
 }

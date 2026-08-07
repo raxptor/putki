@@ -43,3 +43,25 @@ pub fn build_package(data_dir: &Path, paths: &[&str]) -> Vec<u8> {
 pub fn data_dir() -> std::path::PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("data")
 }
+
+/// Collects every translatable string in `data_dir` into a catalog.
+///
+/// Which fields are translatable is a property of the type, so this parses each
+/// object as its declared type and walks it with the generated collectors --
+/// no reflection, and a field marked `{Category}` in a typedef cannot be missed.
+pub fn extract_strings(data_dir: &Path) -> putki_inki::Catalog {
+    let la = Arc::new(putki_inki::LoadAll::new(data_dir));
+    let resolver = Arc::new(putki_inki::InkiResolver::new(la.clone()));
+
+    let mut catalog = putki_inki::Catalog::new();
+    for (path, type_name, kv) in la.objects() {
+        gen_test_inki::inki::parse::collect_object_strings(
+            type_name,
+            kv,
+            &resolver,
+            path,
+            &mut |s| catalog.add(&s),
+        );
+    }
+    catalog
+}

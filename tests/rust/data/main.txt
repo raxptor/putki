@@ -65,3 +65,29 @@
 	ArrF : [9,3,5,1]
 	ArrB : [1,0,true,false,True,False]
 }
+
+// Localization fixtures: dlg2 and dlg3 differ only by a number, so the extractor
+// must collapse them to a single catalog entry.
+@Dialog dlg2
+{
+	Id: "SECOND"
+	Node1: @DlgMood {
+		Id = "mood"
+		Text = "Deal 30% damage to {#Ada}"
+		ItemCount = "{#Ada} found 3 torch(s)"
+		Who = 1
+	},
+	Node2: pure
+}
+
+@Dialog dlg3
+{
+	Id: "THIRD"
+	Node1: @DlgMood {
+		Id = "mood3"
+		Text = "Deal 20% damage to {#Ada}"
+		ItemCount = "{#Ada} found 3 torch(s)"
+		Who = 1
+	},
+	Node2: pure
+}

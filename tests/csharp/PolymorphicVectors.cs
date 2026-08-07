@@ -67,7 +67,9 @@ namespace PutkiPolymorphicVectors
 				(dlg.Node1 == null ? "null" : dlg.Node1.GetType().Name));
 			if (say != null)
 			{
-				Check(say.Text == "hej", "DlgSay.Text was '" + say.Text + "'");
+				// Text is marked {Dialogue} in the typedef, so the stored string is
+				// _LocSrcText and Text() is the translating accessor.
+				Check(say._LocSrcText == "hej", "DlgSay.Text was '" + say._LocSrcText + "'");
 				Check(say.Who == 0, "DlgSay.Who was " + say.Who);
 				Check(say.Id == "dlgsay", "DlgSay.Id (inherited) was '" + say.Id + "'");
 			}

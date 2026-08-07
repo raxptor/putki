@@ -1,0 +1,24 @@
+# Mangling conformance vectors -- shared by the Rust and C# implementations.
+#
+# Tab separated:  source <TAB> mangled <TAB> display
+#   mangled = the catalog key (what lands in msgid)
+#   display = unmangled with the markers dropped, i.e. what a player sees
+# Unmangling back to source is asserted too.
+#
+# These values were captured from the original implementation in the Old Gods
+# codebase and must not be edited to match a code change: they are baked into
+# every msgid in every existing catalog. See rust/putki-inki/src/inki/loc.rs.
+plain text with no markers	plain text with no markers	plain text with no markers
+Deal 20% extra damage	Deal {12}% extra damage	Deal 20% extra damage
+Deal 20% then heal 30% more	Deal {12}% then heal {34}% more	Deal 20% then heal 30% more
+Hello {#Bob}!	Hello {12}!	Hello Bob!
+Hello {player}	Hello {player}	Hello {player}
+{#Ada} deals 20% to {player}	{12} deals {34}% to {player}	Ada deals 20% to {player}
+007% of nothing	{12}% of nothing	007% of nothing
+abc% stays	abc% stays	abc% stays
+100%	{12}%	100%
+Skada 20% åäö	Skada {12}% åäö	Skada 20% åäö
+# A literal {12} in authored text collides with the placeholder table. The
+# original implementation threw ArgumentOutOfRangeException here; both putki
+# implementations leave the span untouched instead.
+{12} torch(es) found	{12} torch(es) found	{12} torch(es) found

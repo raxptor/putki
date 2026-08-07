@@ -22,13 +22,14 @@ IDlgNode rtti no-asset
 DlgSay : IDlgNode
 {
     int Who
-    string Text
+    {Dialogue} string Text
 }
 
 DlgMood : IDlgNode
 {
     int Who
-    string Text
+    {Dialogue} string Text
+    {Dialogue}+ string ItemCount
 }
 
 Dialog

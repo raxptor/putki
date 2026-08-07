@@ -45,6 +45,34 @@ where
     fn follow(&mut self, path: &str);
 }
 
+impl<T> Ptr<T>
+where
+    T: 'static + source::ParseFromKV,
+{
+    /// The target, but only when it is written inline at the pointer.
+    ///
+    /// A pointer to a named object returns `None`: that object is indexed in its
+    /// own right, so anything walking a whole data set reaches it anyway and
+    /// following the pointer would visit it twice. An inline object has no other
+    /// route in.
+    pub fn inline_target(&self) -> Option<Arc<T>> {
+        match self.target {
+            PtrTarget::InlineObject { .. } | PtrTarget::TempObject { .. } => {
+                (self as &dyn PtrInkiResolver<T>).resolve_notrack()
+            }
+            _ => None,
+        }
+    }
+
+    /// Path of an inline target, for diagnostics. Empty when there is none.
+    pub fn inline_path(&self) -> &str {
+        match self.target {
+            PtrTarget::InlineObject { ref path, .. } | PtrTarget::TempObject { ref path, .. } => path,
+            _ => "",
+        }
+    }
+}
+
 pub trait TrackingResolver<T> {
     fn resolve(&self, trk: &mut dyn Tracker) -> Option<Arc<T>>;
 }

@@ -124,6 +124,20 @@ fn index_txty_data(_base:&Path, path:&Path, idx: &mut LoadAll) -> io::Result<()>
 }
 
 impl LoadAll {
+	/// Every object that was loaded, as `(path, type name, fields)`.
+	///
+	/// Sorted by path so that anything derived from a whole data set -- string
+	/// extraction in particular -- comes out in the same order every run rather
+	/// than in hash order.
+	pub fn objects(&self) -> Vec<(&str, &str, &lexer::LexedKv)> {
+		let mut all: Vec<(&str, &str, &lexer::LexedKv)> = self.objs
+			.iter()
+			.map(|(path, e)| (path.as_str(), e.type_.as_str(), &e.data))
+			.collect();
+		all.sort_by(|a, b| a.0.cmp(b.0));
+		all
+	}
+
 	pub fn new(dir: &Path) -> LoadAll {
 		let mut idx = LoadAll {
 			objs: HashMap::new()

@@ -62,6 +62,42 @@ Both test projects need `compiler.sh` run over them first -- the generated code 
 `tests/simple/src/Program.cs` takes the project directory as its argument and optionally a package
 file as a second one; the package half needs a data builder, which this project does not run.
 
+Localization
+------------
+
+Mark a string translatable in the typedef by putting a catalog category where the type starts, with a
+trailing `+` for a string that has a plural form:
+
+```
+Character
+{
+	{Character} string Name
+	{Item}+ string CarriedCount
+}
+```
+
+The Rust generator then emits, per marked field, an accessor that takes a catalog and a collector that
+finds the string during extraction:
+
+```rust
+let shown = character.name(translation);          // Name(Putki.Translation) in C#
+let counted = item.carried_count(translation, n);
+```
+
+Extraction walks the data through those generated collectors -- there is no reflection, and a newly
+marked field cannot be missed:
+
+```rust
+let catalog = putki_inki::Catalog::new();   // see tests/rust/src/lib.rs::extract_strings
+std::fs::write("out.pot", catalog.to_pot("MyProject"))?;
+```
+
+Strings are mangled before they reach the catalog: a `{#span}` written by hand, and any bare `NN%`,
+are replaced with fixed placeholders, so `Deal 20% damage` and `Deal 30% damage` collapse to the one
+entry `Deal {12}% damage` and rebalancing a number never invalidates a translation. The Rust and C#
+implementations of that must agree byte for byte -- one writes the msgid, the other looks it up --
+which `tests/fixtures/mangling-vectors.txt` enforces from both sides.
+
 Types
 -----
 
