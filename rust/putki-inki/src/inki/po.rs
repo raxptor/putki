@@ -98,6 +98,20 @@ impl Catalog {
 		self.entries.len()
 	}
 
+	/// Entry count per catalog category, for a breakdown of what was extracted.
+	pub fn category_counts(&self) -> Vec<(&str, usize)> {
+		let mut out: Vec<(&str, usize)> = Vec::new();
+		// The map is keyed by (category, text), so a category's entries are
+		// already adjacent.
+		for (category, _) in self.entries.keys() {
+			match out.last_mut() {
+				Some((c, n)) if *c == category => *n += 1,
+				_ => out.push((category, 1)),
+			}
+		}
+		out
+	}
+
 	pub fn is_empty(&self) -> bool {
 		self.entries.is_empty()
 	}
