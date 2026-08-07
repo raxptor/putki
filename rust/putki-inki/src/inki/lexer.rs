@@ -216,6 +216,23 @@ pub fn get_string(data: Option<&LexedData>, default: &str) -> String
 	}).unwrap_or_else(|| String::from(default))
 }
 
+/// Reports an enum value in the data that names no variant.
+///
+/// Generated parsers call this instead of silently falling back to the first
+/// variant, which turned a typo into wrong data that only showed up much later.
+/// Parsing has no error channel (`ParseFromKV::parse` returns `Self`), and this
+/// only ever runs over hand-authored data at build time, so it fails loudly.
+pub fn unknown_enum_value(enum_name: &str, field: &str, value: &str, allowed: &[&str]) -> !
+{
+	panic!(
+		"unknown value '{}' for enum {} in field '{}'; expected one of: {}",
+		value,
+		enum_name,
+		field,
+		allowed.join(", ")
+	)
+}
+
 pub fn get_array(data: Option<&LexedData>) -> Option<slice::Iter<'_, LexedData>>
 {
 	data.and_then(|v| { 

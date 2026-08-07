@@ -1,7 +1,8 @@
 {
 	"type": "Dummy",
 	"data": {
-		"Debug": "Dummy1"
+		"Debug": "Dummy1",
+		"EnumValue": "SOMETHING_ELSE"
 	},
 	"aux": [
 	]

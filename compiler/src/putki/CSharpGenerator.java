@@ -334,14 +334,25 @@ public class CSharpGenerator
                 sb.append("\n\t\t{");
                 String npfx = "\n\t\t\t";
                 sb.append(npfx).append("string tmp = obj.ToString();");
+                StringBuilder allowed = new StringBuilder();
                 for (Compiler.EnumValue v : e.values)
                 {
                     sb.append(npfx).append("if (tmp == \"" + v.name + "\")");
                     sb.append(npfx).append("{");
                     sb.append(npfx).append("\treturn Outki." + e.name + "." + v.name + ";");
                     sb.append(npfx).append("}");
+                    if (allowed.length() > 0)
+                        allowed.append(", ");
+                    allowed.append(v.name);
                 }
-                sb.append(npfx).append("return Outki." + e.name + "." + e.values.get(0).name + ";");
+                // An absent field arrives as an empty string and takes the first
+                // value; anything else naming no member is a data error, not a
+                // silent fall back to the first value.
+                sb.append(npfx).append("if (tmp.Length == 0)");
+                sb.append(npfx).append("{");
+                sb.append(npfx).append("\treturn Outki." + e.name + "." + e.values.get(0).name + ";");
+                sb.append(npfx).append("}");
+                sb.append(npfx).append("throw new Putki.PackageFormatException(\"unknown value '\" + tmp + \"' for enum " + e.name + " at '\" + path + \"'; expected one of: " + allowed + "\");");
                 sb.append("\n\t\t}\n");
             }
         }

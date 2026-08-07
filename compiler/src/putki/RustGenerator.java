@@ -385,6 +385,29 @@ public class RustGenerator
         		sb.append(prefix).append("\t}");
         		sb.append(prefix).append("}");
     			sb.append("\n");
+        		// Parsing entry point for generated parsers. Unlike From<&str> an
+        		// unrecognized value is an error rather than the first variant; an
+        		// empty string means the field was absent and takes the default.
+        		sb.append(prefix).append("impl " + e.name + " {");
+        		sb.append(prefix).append("\tpub fn parse_value(val:&str, field:&str) -> Self {");
+        		sb.append(prefix).append("\t\tmatch val {");
+        		sb.append(prefix).append("\t\t\t\"\" => Default::default(),");
+        		for (Compiler.EnumValue val : e.values)
+        		{
+        			sb.append(prefix).append("\t\t\t\"" + val.name + "\" => " + e.name + "::" + capsToCamelCase(val.name) + ",");
+        		}
+        		StringBuilder allowed = new StringBuilder();
+        		for (Compiler.EnumValue val : e.values)
+        		{
+        			if (allowed.length() > 0)
+        				allowed.append(", ");
+        			allowed.append("\"" + val.name + "\"");
+        		}
+    			sb.append(prefix).append("\t\t\t_ => putki::unknown_enum_value(\"" + e.name + "\", field, val, &[" + allowed + "])");
+        		sb.append(prefix).append("\t\t}");
+        		sb.append(prefix).append("\t}");
+        		sb.append(prefix).append("}");
+    			sb.append("\n");
         		sb.append(prefix).append("impl From<" + e.name + "> for &'static str {");
         		sb.append(prefix).append("\tfn from(val:" + e.name + ") -> Self {");
         		sb.append(prefix).append("\t\tmatch val {");
@@ -1082,10 +1105,10 @@ public class RustGenerator
                     			sb.append("data.and_then(|v| { Some(putki::ptr_from_data(_resolver, v)) }).unwrap_or_default()");
                         		break;
                         	case ENUM:
-                        		sb.append("inki::" + field.resolvedEnum.name + "::from(putki::get_string(data, \"");
+                        		sb.append("inki::" + field.resolvedEnum.name + "::parse_value(putki::get_string(data, \"");
                         		if (field.defValue != null)
                         			sb.append(field.defValue);
-                        		sb.append("\").as_ref())");
+                        		sb.append("\").as_ref(), \"" + field.name + "\")");
                         		break;
                         	default:
                         		sb.append("Default::default()");
