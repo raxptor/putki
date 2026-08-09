@@ -19,4 +19,7 @@ PUTKI=$(dirname "$0")
 # working directory -- which is what the compiler generates against -- survives.
 "$PUTKI/compiler/build.sh"
 
-exec java -jar "$PUTKI/compiler/dist/putki-compiler.jar" "$@"
+# Run from the class files rather than the jar: packaging needs the `jar` tool,
+# which a working JDK on Windows often does not put on PATH, and nothing here
+# needs the compiler to be a single file.
+exec java -cp "$PUTKI/compiler/build/classes" putki.Compiler "$@"

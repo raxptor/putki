@@ -18,12 +18,14 @@ ext/putki/compiler.sh some/dir     # ...for the project rooted at some/dir
 
 `putki-compiler.config` is resolved relative to that directory, so with no argument it means "wherever
 I ran this from". Building is a fresh `javac` of ~3k lines -- about a second -- and is skipped entirely
-when the jar is already newer than the sources, so calling this unconditionally costs nothing.
+when the classes are already newer than the sources, so calling this unconditionally costs nothing.
 
-To build the jar without running it, use `./compiler/build.sh` (`clean` as an argument removes the
-output). The jar is self-contained: `java -jar compiler/dist/putki-compiler.jar` also works.
+To compile without running, use `./compiler/build.sh` (`clean` as an argument removes the output). It
+produces `compiler/build/classes`, which `compiler.sh` runs with `java -cp`. There is deliberately no
+jar: packaging needs the `jar` tool, which a working JDK on Windows often leaves off PATH, and nothing
+here needs the compiler to be a single file.
 
-Any JDK 11 or later works, on Linux, macOS, and Windows under git bash. To skip the jar entirely
+Any JDK 11 or later works, on Linux, macOS, and Windows under git bash. To skip the build step entirely
 while hacking on the compiler, JDK 22+ can run the sources directly, compiling them in memory:
 
 ```

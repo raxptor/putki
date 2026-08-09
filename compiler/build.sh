@@ -1,65 +1,63 @@
 #!/bin/sh
-# Builds dist/putki-compiler.jar. No Ant, no Gradle -- the compiler is a handful
-# of source files with no dependencies outside the JDK.
+# Compiles the putki compiler into build/classes. No Ant, no Gradle -- it is a
+# handful of source files with no dependencies outside the JDK.
 #
-#   ./build.sh          build the jar if sources changed
+#   ./build.sh          compile if sources changed
 #   ./build.sh clean    remove build output
 #
-# Run the result with:  java -jar compiler/dist/putki-compiler.jar
+# There is no jar. Packaging needs the `jar` tool, which a perfectly working JDK
+# on Windows routinely leaves off PATH -- java and javac are exposed through a
+# launcher directory that holds nothing else -- and compiler.sh runs the classes
+# with `java -cp` regardless, so building one only added a way to fail.
 set -e
 
 cd "$(dirname "$0")"
 
 BUILD=build
-DIST=dist
-JAR=$DIST/putki-compiler.jar
+CLASSES=$BUILD/classes
+STAMP=$BUILD/.compiled
 
-# Find a JDK tool. Not every JDK puts all of them on PATH -- a Windows install
-# commonly leaves java and javac reachable through shims while jar, which lives
-# beside them in the real JDK, is not -- so fall back to JAVA_HOME and then to
-# whatever directory javac itself was found in.
-find_jdk_tool() {
-    if command -v "$1" >/dev/null 2>&1; then
-        echo "$1"
+if [ "$1" = "clean" ]; then
+    rm -rf "$BUILD" dist
+    exit 0
+fi
+
+# Skip the rebuild when the classes are newer than every source file. Sticks to
+# POSIX find options so this works under git bash on Windows too.
+if [ -f "$STAMP" ] && [ -z "$(find src -name '*.java' -newer "$STAMP")" ]; then
+    exit 0
+fi
+
+# javac is usually on PATH; fall back to JAVA_HOME and to the JDK the running
+# java reports as its own home, so a machine that can run java can build this.
+find_javac() {
+    if command -v javac >/dev/null 2>&1; then
+        echo javac
         return 0
     fi
-    javac_path=$(command -v javac 2>/dev/null || echo /nonexistent)
-    # Both the directory javac was found in and the one it resolves to: when javac
-    # is a symlink or a shim, its siblings are not the JDK's, but its target's are.
-    javac_real=$(readlink -f "$javac_path" 2>/dev/null || echo "$javac_path")
-    for dir in "$JAVA_HOME/bin" "$(dirname "$javac_path")" "$(dirname "$javac_real")"; do
-        for exe in "$dir/$1" "$dir/$1.exe"; do
+    runtime_home=$(java -XshowSettings:properties -version 2>&1 | sed -n 's/^ *java\.home = *//p' | head -1)
+    if [ -n "$runtime_home" ] && command -v cygpath >/dev/null 2>&1; then
+        runtime_home=$(cygpath -u "$runtime_home")
+    fi
+    for dir in "$JAVA_HOME/bin" "$runtime_home/bin"; do
+        for exe in "$dir/javac" "$dir/javac.exe"; do
             if [ -x "$exe" ]; then
                 echo "$exe"
                 return 0
             fi
         done
     done
-    echo "$0: cannot find '$1'. Install a JDK (not just a JRE), or set JAVA_HOME to one." >&2
     return 1
 }
 
+JAVAC=$(find_javac) || {
+    echo "$0: cannot find 'javac'. Install a JDK (not just a JRE), or set JAVA_HOME to one." >&2
+    exit 1
+}
 
-if [ "$1" = "clean" ]; then
-    rm -rf "$BUILD" "$DIST"
-    exit 0
-fi
+rm -rf "$CLASSES"
+mkdir -p "$CLASSES"
+"$JAVAC" --release 11 -nowarn -d "$CLASSES" $(find src -name '*.java')
+touch "$STAMP"
 
-# Skip the rebuild when the jar is newer than every source file. Sticks to
-# POSIX find options so this works under git bash on Windows too.
-if [ -f "$JAR" ] && [ -z "$(find src -name '*.java' -newer "$JAR")" ]; then
-    exit 0
-fi
-
-# Resolved here rather than up top so `clean`, and the common case of an already
-# current jar, do not need a JDK present at all.
-JAVAC=$(find_jdk_tool javac)
-JAR_TOOL=$(find_jdk_tool jar)
-
-rm -rf "$BUILD"
-mkdir -p "$BUILD" "$DIST"
-
-"$JAVAC" --release 11 -nowarn -d "$BUILD" $(find src -name '*.java')
-"$JAR_TOOL" --create --file "$JAR" --main-class putki.Compiler -C "$BUILD" .
-
-echo "built $JAR"
+echo "built $CLASSES"
